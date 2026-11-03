@@ -56,10 +56,11 @@ export const EXPANDED_W = 640;
 
 /**
  * Every drop action. A drag shows only the ones that fit what is dragged
- * (chooseDropTiles in island/file-actions.ts), 2 to 6 of them, in this order.
+ * (chooseDropTiles in island/file-actions.ts), up to MAX_DROP_TILES of them.
  */
 export const DROP_ACTION_IDS = [
-  "convert", "resize", "images", "merge", "split", "rotate", "compress", "unzip", "zip", "workspace",
+  "convert", "gif", "share", "ocr", "resize", "clean", "images", "merge", "split", "rotate", "compress", "unzip",
+  "rename", "sha256", "zip", "workspace",
 ] as const;
 export type DropActionId = (typeof DROP_ACTION_IDS)[number];
 export type DropZone = DropActionId;
@@ -67,8 +68,8 @@ export type DropZone = DropActionId;
 /** The tiles shown when nothing is known about the drag (and the overview's line). */
 export const DEFAULT_DROP_TILES: readonly DropActionId[] = ["convert", "zip", "resize", "workspace"];
 
-/** Most tiles one drag shows. */
-export const MAX_DROP_TILES = 6;
+/** Most tiles one drag shows: four rows of two. */
+export const MAX_DROP_TILES = 8;
 
 /** The `disabledFeatures` id that switches each drop action off. */
 export const DROP_FEATURE: Record<DropActionId, string> = {
@@ -82,6 +83,12 @@ export const DROP_FEATURE: Record<DropActionId, string> = {
   unzip: "zip",
   zip: "zip",
   workspace: "workspace",
+  ocr: "ocr",
+  clean: "clean",
+  gif: "gif",
+  share: "share",
+  sha256: "sha256",
+  rename: "rename",
 };
 
 /**
@@ -101,8 +108,13 @@ export interface TileRect {
 export interface DropTargetsGeometry {
   w: number;
   h: number;
-  /** In island coordinates (origin at its top-left corner), in DROP_ACTION_IDS order. */
+  /** In island coordinates (origin at its top-left corner), in the order of the tiles shown. */
   tiles: TileRect[];
+  /**
+   * Every tile puts its icon beside its two lines (the grid), or above them
+   * (one row). The same for all the tiles of a layout, whatever their height.
+   */
+  flat: boolean;
   bot: { cx: number; cy: number; diameter: number };
 }
 
@@ -117,7 +129,18 @@ const DROP_TILE_GAP = 8;
 
 /** Where the drop tiles go and how big the island grows for them. */
 export function dropTargetsGeometry(count: number, mode: DropLayoutMode = DROP_LAYOUT): DropTargetsGeometry {
-  const n = Math.max(1, Math.round(count));
+  const n = Math.max(1, Math.min(MAX_DROP_TILES, Math.round(Number.isFinite(count) ? count : 1)));
+  if (n === 1) {
+    // One tile (the others switched off): Mochi beside it, not on it.
+    const tileW = 212;
+    const tileH = 102;
+    const w = DROP_PAD_SIDE + tileW + DROP_BOT_GAP;
+    return {
+      w, h: DROP_PAD_TOP + tileH + DROP_PAD_BOTTOM, flat: false,
+      tiles: [{ x: DROP_PAD_SIDE, y: DROP_PAD_TOP, w: tileW, h: tileH }],
+      bot: { cx: DROP_PAD_SIDE + tileW + DROP_BOT_GAP / 2, cy: DROP_PAD_TOP + tileH / 2, diameter: 44 },
+    };
+  }
   if (mode === "row" || n <= 2) {
     // One row, split in two halves around Mochi: the left half takes the extra one.
     const tileW = n <= 2 ? 212 : 137;
@@ -134,13 +157,13 @@ export function dropTargetsGeometry(count: number, mode: DropLayoutMode = DROP_L
       x += tileW + DROP_TILE_GAP;
     }
     const cx = right === 0 ? w / 2 : DROP_PAD_SIDE + half(left) + DROP_BOT_GAP / 2;
-    return { w, h: DROP_PAD_TOP + tileH + DROP_PAD_BOTTOM, tiles, bot: { cx, cy: DROP_PAD_TOP + tileH / 2, diameter: 44 } };
+    return { w, h: DROP_PAD_TOP + tileH + DROP_PAD_BOTTOM, tiles, flat: false, bot: { cx, cy: DROP_PAD_TOP + tileH / 2, diameter: 44 } };
   }
   // Two columns, row by row (tile i in column i % 2); a column with fewer
   // tiles stretches them over the full height.
   const tileW = 212;
   const rows = Math.ceil(n / 2);
-  // Three rows (5 or 6 tiles) are shorter, so the island stays inside its window.
+  // Three or four rows (5 to 8 tiles) are shorter, so the island stays a strip at the top.
   const tileH = rows <= 2 ? 76 : 58;
   const bodyH = rows * tileH + (rows - 1) * DROP_TILE_GAP;
   const w = DROP_PAD_SIDE * 2 + tileW * 2 + DROP_BOT_GAP;
@@ -157,7 +180,9 @@ export function dropTargetsGeometry(count: number, mode: DropLayoutMode = DROP_L
       h,
     });
   }
-  return { w, h: DROP_PAD_TOP + bodyH + DROP_PAD_BOTTOM, tiles, bot: { cx: w / 2, cy: DROP_PAD_TOP + bodyH / 2, diameter: 48 } };
+  return {
+    w, h: DROP_PAD_TOP + bodyH + DROP_PAD_BOTTOM, tiles, flat: true, bot: { cx: w / 2, cy: DROP_PAD_TOP + bodyH / 2, diameter: 48 },
+  };
 }
 
 /**
@@ -252,10 +277,12 @@ export interface TuckShape {
 
 export const ROUNDED_CORNER = 14; // compact
 /** Tucked away (hidden): a pill at the top edge, at least this size. */
-export const TUCK_W = 54;
-export const TUCK_H = 22;
+export const TUCK_W = 56;
+export const TUCK_H = 24;
+/** The pill's bottom corners: rounder than the compact notch, short of a half circle, so what it shows sits clear of the curve. */
+export const TUCK_RADIUS = 10;
 /** Room the pill keeps around what it shows. Wider content than the wake strip (island.rs) can't fit. */
-export const TUCK_MAX_W = 112;
+export const TUCK_MAX_W = 140;
 
 export const DEFAULT_SHAPE: IslandShape = {
   dropCount: DEFAULT_DROP_TILES.length, tabsH: null, compactW: COMPACT_W, tuck: { w: TUCK_W, botCx: TUCK_W / 2 },
@@ -338,7 +365,7 @@ export function botPosition(
   switch (mode) {
     case "hidden":
       return {
-        cx: shape.tuck.botCx ?? shape.tuck.w / 2, cy: TUCK_H / 2, diameter: 15, opacity: shape.tuck.botCx == null ? 0 : 1,
+        cx: shape.tuck.botCx ?? shape.tuck.w / 2, cy: TUCK_H / 2, diameter: 16, opacity: shape.tuck.botCx == null ? 0 : 1,
       };
     case "compact":
       // Mochi centred in the compact island, between its two sides.

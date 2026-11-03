@@ -1,7 +1,7 @@
 // App state — mirror of AppState.swift (the parts the island needs).
 
 import { DEFAULT_DROP_TILES, type BotStateName, type DropActionId, type DropZone, type IslandMode, type IslandViewName } from "./layout";
-import type { ConvertJob, FileFailure, FormatOption } from "./bridge";
+import type { ConvertJob, FileFailure, FileHash, FormatOption, RenameJob, RenameReport, RenameRow } from "./bridge";
 import type { TabId } from "../views/tabs/tab";
 import type { Bindings } from "./shortcuts";
 import { DEFAULT_OUTFIT, type Outfit } from "../mochi/wardrobe";
@@ -38,8 +38,18 @@ export interface Settings {
   workspaceDir: string;
   /** ffmpeg picked by hand; "" = find it. Read-only here: ffmpeg_choose sets it. */
   ffmpegPath: string;
-  /** The notch's right side, in the order they take turns (see RIGHT_WIDGETS). */
+  /**
+   * The items switched on on the notch's left side, in the order they take
+   * turns (ids: island/notch-items.ts SIDE_ITEM_IDS). Default: the reminder.
+   */
+  leftWidgets: string[];
+  /** The same for the right side. */
   rightWidgets: string[];
+  /** Items switched off that Settings keeps on the left / right side. */
+  leftOff: string[];
+  rightOff: string[];
+  /** Seconds each left-side item stays before the next one. */
+  leftRotateSeconds: number;
   /** Seconds each right-side item stays before the next one. */
   rotateSeconds: number;
   /** Calendar links (.ics) for "next meeting". */
@@ -63,7 +73,11 @@ export const DEFAULT_SETTINGS: Settings = {
   showClock: false,
   workspaceDir: "",
   ffmpegPath: "",
+  leftWidgets: ["reminder"],
   rightWidgets: ["job", "timer", "media", "shelf"],
+  leftOff: [],
+  rightOff: [],
+  leftRotateSeconds: 6,
   rotateSeconds: 6,
   calendarUrls: [],
   focusMinutes: 25,
@@ -86,8 +100,21 @@ export type FileAction =
   | { kind: "error"; title: string; message: string }
   /** Resize: the size presets, for these dropped images. */
   | { kind: "resize"; paths: string[] }
-  /** Zip, Unzip, Resize or a PDF action finished: what it wrote, what failed. */
-  | { kind: "written"; action: DropActionId; outputs: string[]; failed: FileFailure[] }
+  /**
+   * Zip, Unzip, Resize, a PDF action or Remove EXIF finished: what it wrote,
+   * what failed. `cleaned`: how many clean copies had metadata taken out.
+   */
+  | { kind: "written"; action: DropActionId; outputs: string[]; failed: FileFailure[]; cleaned?: number }
+  /** Text from image: what was read, the .txt files written, whether it is on the clipboard. */
+  | { kind: "text"; text: string; names: string[]; outputs: string[]; failed: FileFailure[]; copied: boolean }
+  /** SHA-256 running: `fraction` over all the files. */
+  | { kind: "hashing"; id: number; names: string[]; fraction: number }
+  /** SHA-256 done; `expected`: a hash found on the clipboard, to compare with. */
+  | { kind: "hashed"; hashes: FileHash[]; failed: FileFailure[]; expected: string | null; copied: boolean }
+  /** Batch rename: the pattern typed so far and its preview (or why it can't be used). */
+  | { kind: "rename"; job: RenameJob; pattern: string; rows: RenameRow[]; error: string | null }
+  /** Renamed (or put back, `undone`), with Undo until it is used. */
+  | { kind: "renamed"; id: number; report: RenameReport; undone: boolean }
   /** A drop action not wired up yet. */
   | { kind: "soon"; action: DropActionId };
 

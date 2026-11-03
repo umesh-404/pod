@@ -1,5 +1,6 @@
-// "Convert File Format": files dropped on the island are converted with ffmpeg,
-// the result saved next to the original (never over anything). ffmpeg is the
+// "Convert File Format", "Video to GIF" and "Compress video": files dropped on
+// the island are converted with ffmpeg, the result saved in the workspace folder
+// (never over anything). ffmpeg is the
 // one picked in Settings, else one this app downloaded (Windows), else the one
 // on PATH.
 //
@@ -179,6 +180,43 @@ fn formats_for(kind: Kind, paths: &[PathBuf]) -> Vec<FormatOption> {
         .collect()
 }
 
+// ── Recipes for the GIF and Compress tiles ───────────────────────────────────
+//
+// Two targets that are not offered in Convert's format chips: "gif" (also one
+// of them) from the Video → GIF tile, and "share", a smaller MP4 to send.
+
+/// Video → GIF: 15 frames a second, at most 480 px wide (the aspect kept), with
+/// a palette made for this clip (palettegen) and applied to it (paletteuse) in
+/// one filter graph, so there is no temporary palette file.
+const GIF_FILTER: &str = "fps=15,scale='min(480,iw)':-1:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle";
+
+/// Compress for sharing: never bigger than 1080p (1920×1080 landscape,
+/// 1080×1920 portrait), the aspect kept, never enlarged, even sides for H.264.
+const SHARE_SCALE: &str = "scale=w='if(gte(iw,ih),min(1920,iw),min(1080,iw))':h='if(gte(iw,ih),min(1080,ih),min(1920,ih))':force_original_aspect_ratio=decrease:force_divisible_by=2";
+
+/// The recipes `convert_quick` accepts: the target, and what its chip would say.
+fn recipe(id: &str) -> Option<FormatOption> {
+    match id {
+        "gif" => Some(FormatOption { id: "gif".into(), label: "GIF".into() }),
+        "share" => Some(FormatOption { id: "share".into(), label: t("Smaller MP4") }),
+        _ => None,
+    }
+}
+
+/// The output's file name for `input` converted to `target`: "clip.gif",
+/// "clip (small).mp4" for the copy to share.
+fn output_name(input: &Path, target: &str) -> String {
+    let stem = input
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "file".into());
+    match target {
+        "share" => format!("{stem} (small).mp4"),
+        _ => format!("{stem}.{target}"),
+    }
+}
+
 /// `ffmpeg_args_with` and the CPU encoders.
 #[cfg(test)]
 fn ffmpeg_args(input: &Path, output: &Path, target: &str) -> Vec<String> {
@@ -189,10 +227,20 @@ fn ffmpeg_args(input: &Path, output: &Path, target: &str) -> Vec<String> {
 /// `output` as `target`, H.264 on the GPU encoder `gpu` when one is given.
 /// No shell is involved: each element is one argument.
 fn ffmpeg_args_with(input: &Path, output: &Path, target: &str, gpu: Option<&str>) -> Vec<String> {
+    let share = target == "share";
     let h264: Vec<&str> = match gpu {
+        Some(encoder) if share => [&["-c:v", encoder][..], gpu_share_args(encoder)].concat(),
         Some(encoder) => [&["-c:v", encoder][..], gpu_video_args(encoder)].concat(),
+        // A little more compression for sharing: CRF 23, x264's own default, still clean.
+        None if share => vec!["-c:v", "libx264", "-preset", "medium", "-crf", "23", "-pix_fmt", "yuv420p"],
         None => vec!["-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p"],
     };
+    let small: Vec<&str> = [
+        &h264[..],
+        // No subtitle or data streams: an MP4 can't take most of them, and they'd stop the encode.
+        &["-vf", SHARE_SCALE, "-c:a", "aac", "-b:a", "128k", "-sn", "-dn", "-movflags", "+faststart"],
+    ]
+    .concat();
     let mp4: Vec<&str> = [
         &h264[..],
         &["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart"],
@@ -200,15 +248,13 @@ fn ffmpeg_args_with(input: &Path, output: &Path, target: &str, gpu: Option<&str>
     .concat();
     let codec: &[&str] = match target {
         "mp4" | "mov" => &mp4,
+        "share" => &small,
         "webm" => &[
             "-c:v", "libvpx-vp9", "-crf", "32", "-b:v", "0", "-deadline", "good", "-cpu-used", "4", "-row-mt", "1",
             "-c:a", "libopus", "-b:a", "128k",
         ],
         "mkv" => &["-c", "copy"],
-        "gif" => &[
-            "-vf", "fps=12,scale='min(640,iw)':-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse",
-            "-loop", "0",
-        ],
+        "gif" => &["-vf", GIF_FILTER, "-loop", "0"],
         "mp3" => &["-vn", "-c:a", "libmp3lame", "-q:a", "2"],
         "wav" => &["-vn", "-c:a", "pcm_s16le"],
         "flac" => &["-vn", "-c:a", "flac"],
@@ -251,7 +297,7 @@ static BROKEN_GPU: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 /// The video codec a target is encoded with, when a GPU could do it.
 fn gpu_codec(target: &str) -> Option<&'static str> {
     match target {
-        "mp4" | "mov" => Some("h264"),
+        "mp4" | "mov" | "share" => Some("h264"),
         _ => None,
     }
 }
@@ -286,6 +332,18 @@ fn gpu_video_args(encoder: &str) -> &'static [&'static str] {
         &["-preset", "medium", "-global_quality", "21", "-pix_fmt", "nv12"]
     } else {
         &["-quality", "balanced", "-rc", "cqp", "-qp_i", "20", "-qp_p", "22", "-pix_fmt", "yuv420p"]
+    }
+}
+
+/// The GPU options for the copy to share: a few steps smaller than
+/// `gpu_video_args`, about CRF 23 on the processor.
+fn gpu_share_args(encoder: &str) -> &'static [&'static str] {
+    if encoder.ends_with("_nvenc") {
+        &["-preset", "p5", "-rc", "vbr", "-cq", "25", "-b:v", "0", "-pix_fmt", "yuv420p"]
+    } else if encoder.ends_with("_qsv") {
+        &["-preset", "medium", "-global_quality", "25", "-pix_fmt", "nv12"]
+    } else {
+        &["-quality", "balanced", "-rc", "cqp", "-qp_i", "23", "-qp_p", "25", "-pix_fmt", "yuv420p"]
     }
 }
 
@@ -668,7 +726,8 @@ fn run_one(
 }
 
 /// The worker: every file of the job in turn, then one `convert-done`.
-fn run_job(app: AppHandle, id: u64, ffmpeg: PathBuf, paths: Vec<PathBuf>, target: String, state: Arc<RunState>) {
+/// Outputs go into `out`, the workspace folder.
+fn run_job(app: AppHandle, id: u64, ffmpeg: PathBuf, paths: Vec<PathBuf>, out: PathBuf, target: String, state: Arc<RunState>) {
     let _busy = crate::files::JobGuard::new();
     let count = paths.len();
     let mut outputs: Vec<String> = Vec::new();
@@ -676,11 +735,10 @@ fn run_job(app: AppHandle, id: u64, ffmpeg: PathBuf, paths: Vec<PathBuf>, target
     let mut cancelled = false;
     let mut last_sent = -1.0f64;
     let mut last_at = Instant::now() - Duration::from_secs(1);
+    let mut already_small = 0usize;
 
     for (index, input) in paths.iter().enumerate() {
-        let dir = input.parent().map(Path::to_path_buf).unwrap_or_else(|| PathBuf::from("."));
-        let stem = input.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "file".into());
-        let output = crate::files::unique_path(&dir, &format!("{stem}.{target}"));
+        let output = crate::files::unique_path(&out, &output_name(input, &target));
         let mut report = |file_fraction: f64, force: bool| {
             let overall = ((index as f64 + file_fraction) / count as f64).clamp(0.0, 1.0);
             if force || overall - last_sent >= 0.01 || (overall > last_sent && last_at.elapsed() >= Duration::from_millis(100)) {
@@ -706,6 +764,12 @@ fn run_job(app: AppHandle, id: u64, ffmpeg: PathBuf, paths: Vec<PathBuf>, target
             }
         }
         match result {
+            // "Compress video" that came out no smaller: the original is
+            // already as small as it gets, so no bigger copy is kept.
+            Ok(()) if target == "share" && !is_smaller(&output, input) => {
+                let _ = std::fs::remove_file(&output);
+                already_small += 1;
+            }
             Ok(()) => {
                 remember_output(&output);
                 outputs.push(output.to_string_lossy().to_string());
@@ -721,14 +785,37 @@ fn run_job(app: AppHandle, id: u64, ffmpeg: PathBuf, paths: Vec<PathBuf>, target
         }
     }
 
+    if outputs.is_empty() && already_small > 0 && error.is_none() && !cancelled {
+        error = Some(t("This video is already as small as Pod can make it."));
+    }
     with_jobs(|jobs| jobs.remove(&id));
     let _ = app.emit("convert-done", ConvertDone { id, outputs, error, cancelled });
+}
+
+/// The output is smaller than the input (both readable).
+fn is_smaller(output: &Path, input: &Path) -> bool {
+    match (std::fs::metadata(output), std::fs::metadata(input)) {
+        (Ok(o), Ok(i)) => o.len() < i.len(),
+        _ => true,
+    }
 }
 
 // ── Commands ──────────────────────────────────────────────────────────────────
 
 #[tauri::command]
 pub fn convert_prepare(paths: Vec<String>) -> Result<ConvertJob, String> {
+    prepare(paths, None)
+}
+
+/// The GIF and Compress tiles: a job for videos with one target, `recipe`
+/// ("gif" or "share"), started like a conversion (`convert_start`).
+#[tauri::command]
+pub fn convert_quick(paths: Vec<String>, recipe: String) -> Result<ConvertJob, String> {
+    let format = self::recipe(&recipe).ok_or_else(|| tf("Unknown action: {action}", &[("action", &recipe)]))?;
+    prepare(paths, Some(format))
+}
+
+fn prepare(paths: Vec<String>, only: Option<FormatOption>) -> Result<ConvertJob, String> {
     if paths.is_empty() {
         return Err(t("Drop a file to convert."));
     }
@@ -747,7 +834,11 @@ pub fn convert_prepare(paths: Vec<String>) -> Result<ConvertJob, String> {
         }
     }
     let kind = classify(&paths)?;
-    let formats = formats_for(kind, &paths);
+    let formats = match only {
+        Some(format) if kind == Kind::Video => vec![format],
+        Some(_) => return Err(t("Drop videos for this action.")),
+        None => formats_for(kind, &paths),
+    };
     if formats.is_empty() {
         return Err(t("There is nothing to convert these files to."));
     }
@@ -777,6 +868,7 @@ pub fn convert_prepare(paths: Vec<String>) -> Result<ConvertJob, String> {
 #[tauri::command]
 pub fn convert_start(app: AppHandle, id: u64, format: String) -> Result<(), String> {
     let chosen = chosen_path(&app);
+    let out = crate::workspace::output_dir(&app)?;
     let (paths, state) = with_jobs(|jobs| {
         let job = jobs.get_mut(&id).ok_or_else(|| t("This conversion is no longer available. Drop the files again."))?;
         if job.run.is_some() {
@@ -800,7 +892,7 @@ pub fn convert_start(app: AppHandle, id: u64, format: String) -> Result<(), Stri
     };
     std::thread::Builder::new()
         .name("convert".into())
-        .spawn(move || run_job(app, id, ffmpeg, paths, format, state))
+        .spawn(move || run_job(app, id, ffmpeg, paths, out, format, state))
         .map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -879,10 +971,16 @@ pub async fn ffmpeg_choose(app: AppHandle) -> Result<Option<FfmpegStatus>, Strin
     Ok(Some(status))
 }
 
+/// What "Show in folder" may show: a file this module wrote this session, or
+/// anything directly in the workspace folder (where every drop action saves).
+fn may_reveal(file: &Path, workspace: &Path) -> bool {
+    is_output(file) || (file.parent() == Some(workspace) && file.file_name().is_some())
+}
+
 #[tauri::command]
-pub fn reveal_output(path: String) -> Result<(), String> {
+pub fn reveal_output(app: AppHandle, path: String) -> Result<(), String> {
     let file = PathBuf::from(&path);
-    if !is_output(&file) {
+    if !may_reveal(&file, &crate::workspace::dir(&app)) {
         return Err(t("Only converted files can be shown."));
     }
     if !file.exists() {
@@ -1168,7 +1266,11 @@ mod tests {
 
         let gif = ffmpeg_args(i, Path::new("a.gif"), "gif");
         let vf = gif.iter().position(|a| a == "-vf").unwrap();
-        assert_eq!(gif[vf + 1], "fps=12,scale='min(640,iw)':-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse");
+        // One graph: the palette is made from the clip and applied to it, no temporary file.
+        assert_eq!(
+            gif[vf + 1],
+            "fps=15,scale='min(480,iw)':-1:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle"
+        );
         assert!(gif.windows(2).any(|w| w == ["-loop", "0"]));
 
         assert_eq!(&ffmpeg_args(i, o, "mkv")[5..7], &["-c", "copy"]);
@@ -1272,7 +1374,47 @@ mod tests {
 
     #[test]
     fn reveal_refuses_files_it_did_not_write() {
-        assert!(reveal_output("C:\\Windows\\notepad.exe".into()).is_err());
+        let ws = Path::new("C:\\Users\\me\\Notch Workspace");
+        assert!(!may_reveal(Path::new("C:\\Windows\\notepad.exe"), ws));
+        assert!(!may_reveal(ws, ws), "the workspace itself");
+        assert!(!may_reveal(&ws.join("..").join("secret.txt"), ws));
+        assert!(!may_reveal(&ws.join("sub").join("a.txt"), ws), "only directly in it");
+        assert!(may_reveal(&ws.join("clip.gif"), ws));
+    }
+
+    #[test]
+    fn compress_for_sharing_arguments() {
+        let (i, o) = (Path::new("C:\\v\\clip.mov"), Path::new("C:\\ws\\clip (small).mp4"));
+        let args = ffmpeg_args(i, o, "share");
+        assert_eq!(&args[..5], &["-hide_banner", "-nostdin", "-n", "-i", "C:\\v\\clip.mov"]);
+        assert_eq!(args.last().unwrap(), "C:\\ws\\clip (small).mp4");
+        assert!(args.windows(2).any(|w| w == ["-c:v", "libx264"]));
+        assert!(args.windows(2).any(|w| w == ["-crf", "23"]));
+        assert!(args.windows(2).any(|w| w == ["-pix_fmt", "yuv420p"]));
+        assert!(args.windows(2).any(|w| w == ["-c:a", "aac"]));
+        assert!(args.windows(2).any(|w| w == ["-movflags", "+faststart"]));
+        assert!(args.windows(2).any(|w| w == ["-vf", SHARE_SCALE]));
+        assert!(args.iter().any(|a| a == "-sn"));
+        // Never past 1080p either way round, never enlarged, even sides.
+        assert!(SHARE_SCALE.contains("min(1920,iw)") && SHARE_SCALE.contains("min(1080,ih)"));
+        assert!(SHARE_SCALE.contains("force_original_aspect_ratio=decrease") && SHARE_SCALE.contains("force_divisible_by=2"));
+        // On a GPU: its own encoder, a little smaller than a plain conversion.
+        let nvenc = ffmpeg_args_with(i, o, "share", Some("h264_nvenc"));
+        assert!(nvenc.windows(2).any(|w| w == ["-cq", "25"]));
+        assert!(!nvenc.iter().any(|a| a == "libx264"));
+        assert!(nvenc.windows(2).any(|w| w == ["-vf", SHARE_SCALE]));
+        assert_eq!(gpu_codec("share"), Some("h264"));
+    }
+
+    #[test]
+    fn recipes_and_output_names() {
+        assert_eq!(recipe("gif").unwrap().id, "gif");
+        assert_eq!(recipe("share").unwrap().id, "share");
+        assert!(recipe("mp4").is_none());
+        assert_eq!(output_name(Path::new("C:\\v\\clip.mov"), "share"), "clip (small).mp4");
+        assert_eq!(output_name(Path::new("/v/clip.v2.mp4"), "gif"), "clip.v2.gif");
+        assert_eq!(output_name(Path::new("/v/song.wav"), "mp3"), "song.mp3");
+        assert!(convert_quick(vec!["/nope/a.mp4".into()], "zip".into()).is_err());
     }
 
     /// Needs ffmpeg (downloaded by the app, or on PATH):
@@ -1294,8 +1436,8 @@ mod tests {
         assert!(status.success());
 
         let state = RunState::default();
-        for target in ["gif", "mp3", "webm", "mkv", "mp4"] {
-            let out = crate::files::unique_path(&dir, &format!("clip.{target}"));
+        for target in ["gif", "mp3", "webm", "mkv", "mp4", "share"] {
+            let out = crate::files::unique_path(&dir, &output_name(&clip, target));
             let mut last = 0.0;
             let result = run_one(&ffmpeg, &clip, &out, target, None, &state, |f| last = f);
             assert!(result.is_ok(), "{target}: {}", match result { Err(RunError::Failed(e)) => e, _ => "cancelled".into() });
@@ -1304,6 +1446,7 @@ mod tests {
         }
         // mp4 → mp4 never overwrites the original.
         assert!(dir.join("clip (2).mp4").is_file());
+        assert!(dir.join("clip (small).mp4").is_file());
 
         let frame = dir.join("frame.png");
         let mp4 = dir.join("clip.mp4");

@@ -1,5 +1,5 @@
-// "Resize image": pictures dropped on the island get a smaller copy next to
-// them, "photo (1280px).jpg". Pure Rust (the `image` crate), no ffmpeg needed.
+// "Resize image": pictures dropped on the island get a smaller copy in the
+// workspace folder, "photo (1280px).jpg". Pure Rust (the `image` crate), no ffmpeg needed.
 //
 // The original is never touched and nothing is overwritten. The copy is upright
 // (EXIF orientation applied), in the same format, never larger than the
@@ -18,7 +18,7 @@ use image::{DynamicImage, ImageDecoder, ImageError, ImageFormat, ImageReader};
 use serde::Serialize;
 use tauri::AppHandle;
 
-use crate::archive::{create_unique, display_name, extension, parent_dir};
+use crate::archive::{create_unique, display_name, extension};
 use crate::i18n::{t, tf};
 use crate::workspace::Failure;
 
@@ -62,7 +62,7 @@ impl Preset {
 /// picture already smaller is copied as it is, never enlarged). Paths must come
 /// from a real drop (`files::take_dropped`).
 #[tauri::command]
-pub async fn resize_run(_app: AppHandle, paths: Vec<String>, preset: String) -> Result<ResizeReport, String> {
+pub async fn resize_run(app: AppHandle, paths: Vec<String>, preset: String) -> Result<ResizeReport, String> {
     let preset = Preset::parse(&preset).ok_or_else(|| tf("Unknown size: {preset}", &[("preset", &preset)]))?;
     tauri::async_runtime::spawn_blocking(move || {
         let mut failed = Vec::new();
@@ -76,14 +76,15 @@ pub async fn resize_run(_app: AppHandle, paths: Vec<String>, preset: String) -> 
                 failed.push(Failure { name: display_name(&src), error: t("Only files dropped on the island can be used.") });
             }
         }
-        Ok(run(&inputs, preset, failed))
+        let out = crate::workspace::output_dir(&app)?;
+        Ok(run(&inputs, preset, &out, failed))
     })
     .await
     .map_err(|e| e.to_string())?
 }
 
-/// Resizes every picture in `inputs`, a couple at a time; outputs keep the input order.
-pub(crate) fn run(inputs: &[PathBuf], preset: Preset, mut failed: Vec<Failure>) -> ResizeReport {
+/// Resizes every picture in `inputs` into `out`, a couple at a time; outputs keep the input order.
+pub(crate) fn run(inputs: &[PathBuf], preset: Preset, out: &Path, mut failed: Vec<Failure>) -> ResizeReport {
     let _busy = crate::files::JobGuard::new();
     let mut work = Vec::new();
     for input in inputs {
@@ -103,7 +104,7 @@ pub(crate) fn run(inputs: &[PathBuf], preset: Preset, mut failed: Vec<Failure>) 
             scope.spawn(|| loop {
                 let i = next.fetch_add(1, Ordering::Relaxed);
                 let Some(path) = work.get(i) else { break };
-                let result = resize_one(path, preset);
+                let result = resize_one(path, preset, out);
                 *results[i].lock().unwrap_or_else(|e| e.into_inner()) = Some(result);
             });
         }
@@ -168,7 +169,7 @@ fn save_error(error: &dyn std::fmt::Display) -> String {
     tf("Could not save the image: {error}", &[("error", &error.to_string())])
 }
 
-fn resize_one(path: &Path, preset: Preset) -> Result<PathBuf, String> {
+fn resize_one(path: &Path, preset: Preset, dir: &Path) -> Result<PathBuf, String> {
     let name = display_name(path);
     let reader = ImageReader::open(path)
         .map_err(|e| tf("Cannot read {path}: {error}", &[("path", &name), ("error", &e.to_string())]))?
@@ -180,18 +181,17 @@ fn resize_one(path: &Path, preset: Preset) -> Result<PathBuf, String> {
     let orientation = decoder.orientation().unwrap_or(Orientation::NoTransforms);
     let (w, h) = decoder.dimensions();
     let (w, h) = if swaps_sides(orientation) { (h, w) } else { (w, h) };
-    let dir = parent_dir(path);
     let out_name = output_name(path, preset);
 
     let Some((tw, th)) = target_size(w, h, preset) else {
         drop(decoder);
-        return copy_as_is(path, &dir, &out_name);
+        return copy_as_is(path, dir, &out_name);
     };
     let mut img = DynamicImage::from_decoder(decoder).map_err(|e| decode_error(&e))?;
     img.apply_orientation(orientation);
     let img = img.resize_exact(tw, th, FilterType::Lanczos3);
 
-    let (dest, file) = create_unique(&dir, &out_name).map_err(|e| save_error(&e))?;
+    let (dest, file) = create_unique(dir, &out_name).map_err(|e| save_error(&e))?;
     let mut writer = BufWriter::new(file);
     let written = encode(&img, format, &mut writer).and_then(|_| writer.flush().map_err(ImageError::IoError));
     match written {
@@ -284,20 +284,24 @@ mod tests {
         RgbImage::from_pixel(100, 50, Rgb([10, 200, 30])).save(&small).unwrap();
         let text = dir.join("notes.txt");
         fs::write(&text, b"hi").unwrap();
-        fs::write(dir.join("big (200px).png"), b"taken").unwrap();
+        // Into the workspace (`ws`), not next to the originals.
+        let ws = dir.join("ws");
+        fs::create_dir(&ws).unwrap();
+        fs::write(ws.join("big (200px).png"), b"taken").unwrap();
 
-        let report = run(&[big.clone(), small.clone(), text], Preset::Longest(200), Vec::new());
+        let report = run(&[big.clone(), small.clone(), text], Preset::Longest(200), &ws, Vec::new());
         assert_eq!(report.failed.len(), 1, "{:?}", report.failed);
         assert_eq!(report.outputs.len(), 2);
         let resized = PathBuf::from(&report.outputs[0]);
         assert_eq!(display_name(&resized), "big (200px) (2).png");
+        assert_eq!(resized.parent().unwrap(), ws.as_path());
         assert_eq!(image::image_dimensions(&resized).unwrap(), (200, 100));
-        assert_eq!(fs::read(dir.join("big (200px).png")).unwrap(), b"taken");
+        assert_eq!(fs::read(ws.join("big (200px).png")).unwrap(), b"taken");
         let copied = PathBuf::from(&report.outputs[1]);
         assert_eq!(display_name(&copied), "small (200px).jpg");
         assert_eq!(fs::read(&copied).unwrap(), fs::read(&small).unwrap(), "small enough: copied as is");
 
-        let report = run(&[small], Preset::Half, Vec::new());
+        let report = run(&[small], Preset::Half, &ws, Vec::new());
         assert_eq!(image::image_dimensions(&report.outputs[0]).unwrap(), (50, 25));
         fs::remove_dir_all(&dir).unwrap();
     }

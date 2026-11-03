@@ -1,5 +1,5 @@
 // PDF tools and photos → PDF, all local (lopdf, no external tool).
-// Outputs land next to the first input, never overwriting ("name (merged).pdf").
+// Outputs land in the workspace folder, never overwriting ("name (merged).pdf").
 // Paths must come from a real drop (`files::take_dropped`).
 //
 // Merging and splitting copy pages into a fresh document: each page takes the
@@ -19,7 +19,7 @@ use lopdf::{dictionary, Dictionary, Document, LoadOptions, Object, ObjectId, Str
 use serde::Serialize;
 use tauri::AppHandle;
 
-use crate::archive::{cannot_write, create_unique, create_unique_dir, display_name, extension, parent_dir};
+use crate::archive::{cannot_write, create_unique, create_unique_dir, display_name, extension};
 use crate::i18n::{t, tf};
 use crate::workspace::Failure;
 
@@ -68,7 +68,7 @@ const PAGE_KEYS: &[&[u8]] = &[b"Resources", b"MediaBox", b"CropBox", b"Rotate"];
 /// - "images": pictures (jpg, png, webp, bmp, gif, heic when decodable), in the order
 ///   given, into one PDF, one page each, sized to the picture.
 #[tauri::command]
-pub async fn pdf_run(_app: AppHandle, paths: Vec<String>, action: String) -> Result<PdfReport, String> {
+pub async fn pdf_run(app: AppHandle, paths: Vec<String>, action: String) -> Result<PdfReport, String> {
     let action = Action::parse(&action).ok_or_else(|| tf("Unknown PDF action: {action}", &[("action", &action)]))?;
     tauri::async_runtime::spawn_blocking(move || {
         let mut failed = Vec::new();
@@ -82,13 +82,15 @@ pub async fn pdf_run(_app: AppHandle, paths: Vec<String>, action: String) -> Res
                 failed.push(Failure { name: display_name(&src), error: t("Only files dropped on the island can be used.") });
             }
         }
-        Ok(run(action, &inputs, failed))
+        let out = crate::workspace::output_dir(&app)?;
+        Ok(run(action, &inputs, &out, failed))
     })
     .await
     .map_err(|e| e.to_string())?
 }
 
-pub(crate) fn run(action: Action, inputs: &[PathBuf], mut failed: Vec<Failure>) -> PdfReport {
+/// Does `action` on `inputs`; what it makes goes into `out` (the workspace).
+pub(crate) fn run(action: Action, inputs: &[PathBuf], out: &Path, mut failed: Vec<Failure>) -> PdfReport {
     let _busy = crate::files::JobGuard::new();
     let mut outputs = Vec::new();
     let mut fail = |path: &Path, error: String| failed.push(Failure { name: display_name(path), error });
@@ -110,7 +112,7 @@ pub(crate) fn run(action: Action, inputs: &[PathBuf], mut failed: Vec<Failure>) 
                 }
             }
             if !builder.kids.is_empty() {
-                match save(builder.finish(), &parent_dir(first), &format!("{} (images).pdf", stem(first)), false) {
+                match save(builder.finish(), out, &format!("{} (images).pdf", stem(first)), false) {
                     Ok(dest) => outputs.push(dest),
                     Err(error) => fail(first, error),
                 }
@@ -142,7 +144,7 @@ pub(crate) fn run(action: Action, inputs: &[PathBuf], mut failed: Vec<Failure>) 
                 fail(at.as_deref().unwrap_or(Path::new("PDF")), t("Drop at least two PDFs to merge them."));
             } else {
                 let first = loaded[0].0.clone();
-                match save(merge(loaded.iter().map(|(_, d)| d)), &parent_dir(&first), &format!("{} (merged).pdf", stem(&first)), false) {
+                match save(merge(loaded.iter().map(|(_, d)| d)), out, &format!("{} (merged).pdf", stem(&first)), false) {
                     Ok(dest) => outputs.push(dest),
                     Err(error) => fail(&first, error),
                 }
@@ -150,7 +152,7 @@ pub(crate) fn run(action: Action, inputs: &[PathBuf], mut failed: Vec<Failure>) 
         }
         Action::Split => {
             for path in &pdfs {
-                match load(path).and_then(|doc| split(&doc, path)) {
+                match load(path).and_then(|doc| split(&doc, path, out)) {
                     Ok(dir) => outputs.push(dir),
                     Err(error) => fail(path, error),
                 }
@@ -160,7 +162,7 @@ pub(crate) fn run(action: Action, inputs: &[PathBuf], mut failed: Vec<Failure>) 
             for path in &pdfs {
                 let done = load(path).and_then(|mut doc| {
                     rotate(&mut doc);
-                    save(doc, &parent_dir(path), &format!("{} (rotated).pdf", stem(path)), false)
+                    save(doc, out, &format!("{} (rotated).pdf", stem(path)), false)
                 });
                 match done {
                     Ok(dest) => outputs.push(dest),
@@ -170,7 +172,7 @@ pub(crate) fn run(action: Action, inputs: &[PathBuf], mut failed: Vec<Failure>) 
         }
         Action::Compress => {
             for path in &pdfs {
-                match compress(path) {
+                match compress(path, out) {
                     Ok(dest) => outputs.push(dest),
                     Err(error) => fail(path, error),
                 }
@@ -358,10 +360,10 @@ pub(crate) fn merge<'a>(docs: impl Iterator<Item = &'a Document>) -> Document {
 
 /// Each page in its own file, "name (pages)/name p1.pdf"…; the folder is
 /// removed again when a page cannot be written.
-fn split(doc: &Document, path: &Path) -> Result<PathBuf, String> {
+fn split(doc: &Document, path: &Path, out: &Path) -> Result<PathBuf, String> {
     let base = stem(path);
     let folder = format!("{base} (pages)");
-    let dir = create_unique_dir(&parent_dir(path), &folder).map_err(|e| cannot_write(&folder, &e))?;
+    let dir = create_unique_dir(out, &folder).map_err(|e| cannot_write(&folder, &e))?;
     for (i, page) in page_ids(doc).into_iter().enumerate() {
         let mut builder = Builder::new();
         builder.add_pages(doc, &[page]);
@@ -418,14 +420,14 @@ fn recompress_streams(doc: &mut Document) {
     }
 }
 
-fn compress(path: &Path) -> Result<PathBuf, String> {
+fn compress(path: &Path, out: &Path) -> Result<PathBuf, String> {
     let before = fs::metadata(path).map(|m| m.len()).unwrap_or(u64::MAX);
     let mut doc = load(path)?;
     recompress_streams(&mut doc);
     doc.compress();
     doc.prune_objects();
     doc.renumber_objects();
-    let dest = save(doc, &parent_dir(path), &format!("{} (compressed).pdf", stem(path)), true)?;
+    let dest = save(doc, out, &format!("{} (compressed).pdf", stem(path)), true)?;
     let after = fs::metadata(&dest).map(|m| m.len()).unwrap_or(u64::MAX);
     if after >= before {
         let _ = fs::remove_file(&dest);
@@ -648,7 +650,7 @@ mod tests {
         let (a, b) = (dir.join("a.pdf"), dir.join("b.pdf"));
         make_pdf(&a, 2, 0);
         make_pdf(&b, 3, 180);
-        let report = run(Action::Merge, &[a, b], Vec::new());
+        let report = run(Action::Merge, &[a, b], &dir, Vec::new());
         assert!(report.failed.is_empty(), "{:?}", report.failed);
         assert!(report.outputs[0].ends_with("a (merged).pdf"));
         let merged = load(Path::new(&report.outputs[0])).unwrap();
@@ -660,7 +662,7 @@ mod tests {
         assert!(merged.get_dictionary(pages[4]).unwrap().has(b"MediaBox"));
         assert_eq!(merged.get_page_fonts(pages[4]).unwrap().len(), 1);
 
-        let lonely = run(Action::Merge, &[dir.join("a.pdf")], Vec::new());
+        let lonely = run(Action::Merge, &[dir.join("a.pdf")], &dir, Vec::new());
         assert!(lonely.outputs.is_empty());
         assert_eq!(lonely.failed.len(), 1);
         fs::remove_dir_all(&dir).unwrap();
@@ -671,10 +673,14 @@ mod tests {
         let dir = temp_dir("split");
         let src = dir.join("report.pdf");
         make_pdf(&src, 3, 90);
-        let report = run(Action::Split, &[src], Vec::new());
+        // Into the workspace (`ws`), not next to the original.
+        let ws = dir.join("ws");
+        fs::create_dir(&ws).unwrap();
+        let report = run(Action::Split, &[src], &ws, Vec::new());
         assert!(report.failed.is_empty(), "{:?}", report.failed);
         let out = PathBuf::from(&report.outputs[0]);
         assert_eq!(display_name(&out), "report (pages)");
+        assert_eq!(out.parent().unwrap(), ws.as_path());
         for n in 1..=3 {
             let page = load(&out.join(format!("report p{n}.pdf"))).unwrap();
             let ids = page_ids(&page);
@@ -690,13 +696,13 @@ mod tests {
         let dir = temp_dir("rotate");
         let src = dir.join("scan.pdf");
         make_pdf(&src, 2, 270);
-        let report = run(Action::Rotate, &[src.clone(), dir.join("notes.txt")], Vec::new());
+        let report = run(Action::Rotate, &[src.clone(), dir.join("notes.txt")], &dir, Vec::new());
         assert_eq!(report.failed.len(), 1, "the .txt is refused");
         assert!(report.outputs[0].ends_with("scan (rotated).pdf"));
         let rotated = load(Path::new(&report.outputs[0])).unwrap();
         assert!(page_ids(&rotated).iter().all(|p| page_rotation(&rotated, *p) == 0));
         // Rotating again, from the original: 270 + 90 → 0, and the name is not reused.
-        let again = run(Action::Rotate, &[src], Vec::new());
+        let again = run(Action::Rotate, &[src], &dir, Vec::new());
         assert!(again.outputs[0].ends_with("scan (rotated) (2).pdf"));
         fs::remove_dir_all(&dir).unwrap();
     }
@@ -706,7 +712,7 @@ mod tests {
         let dir = temp_dir("compress");
         let src = dir.join("doc.pdf");
         make_pdf(&src, 40, 0);
-        let report = run(Action::Compress, &[src.clone()], Vec::new());
+        let report = run(Action::Compress, &[src.clone()], &dir, Vec::new());
         assert_eq!(report.outputs.len() + report.failed.len(), 1);
         if let Some(out) = report.outputs.first() {
             assert!(fs::metadata(out).unwrap().len() < fs::metadata(&src).unwrap().len());
@@ -724,7 +730,7 @@ mod tests {
         RgbImage::from_pixel(300, 200, Rgb([200, 100, 50])).save(&jpg).unwrap();
         let png = dir.join("shot.png");
         image::RgbaImage::from_fn(40, 80, |x, _| image::Rgba([0, 0, 255, (x * 6) as u8])).save(&png).unwrap();
-        let report = run(Action::Images, &[jpg.clone(), png, dir.join("x.doc")], Vec::new());
+        let report = run(Action::Images, &[jpg.clone(), png, dir.join("x.doc")], &dir, Vec::new());
         assert_eq!(report.failed.len(), 1);
         assert!(report.outputs[0].ends_with("photo (images).pdf"));
         let doc = load(Path::new(&report.outputs[0])).unwrap();

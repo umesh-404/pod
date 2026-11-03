@@ -64,3 +64,41 @@ export function tuckProgress(f: FocusState, now: number): number {
   if (f.phase === "off" || !(f.length > 0)) return 0;
   return Math.min(1, Math.max(0, (f.endsAt - now) / f.length));
 }
+
+/** A reminder this close shows its countdown on the pill ("🔔 4m"). */
+export const SOON_MS = 60 * MIN;
+
+/** The next reminder still to come within SOON_MS (fired ones glow instead). */
+export function tuckSoon(reminders: readonly Reminder[], now: number, on: boolean): Reminder | null {
+  if (!on) return null;
+  let next: Reminder | null = null;
+  for (const r of reminders) {
+    if (r.fired || r.due <= now || r.due - now > SOON_MS) continue;
+    if (!next || r.due < next.due) next = r;
+  }
+  return next;
+}
+
+/** "45s", "4m", "1h" — the narrowest unit the language has, rounded up. */
+export function tuckShort(leftMs: number, lang: string): string {
+  const s = Math.max(1, Math.ceil(leftMs / 1000));
+  const [value, unit] = s < 60 ? [s, "second"] : s < 3600 ? [Math.ceil(s / 60), "minute"] : [Math.ceil(s / 3600), "hour"];
+  try {
+    return new Intl.NumberFormat(lang, { style: "unit", unit, unitDisplay: "narrow" }).format(value);
+  } catch {
+    return `${value}${unit[0]}`;
+  }
+}
+
+/** Milliseconds until `tuckShort` reads differently. */
+export function tuckShortChangeIn(leftMs: number): number {
+  const s = Math.ceil(leftMs / 1000);
+  if (s <= 60) return leftMs % 1000 || 1000;
+  const step = s <= 3600 ? 60_000 : 3_600_000;
+  return leftMs % step || step;
+}
+
+/** A job's progress as the pill shows it: "42%". */
+export function tuckPercent(fraction: number): string {
+  return `${Math.min(100, Math.max(0, Math.floor(fraction * 100)))}%`;
+}

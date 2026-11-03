@@ -1,0 +1,144 @@
+/* ── File tools (views/files.ts, island/file-actions.ts) ─────────────────────
+   The new drop tiles' colours, and the parts of the file action card that the
+   text, hash and rename cards add: a box of read text, the hash, the pattern
+   field and its preview. Same card, same insets; these cards trade a little
+   gap for one more line, so they still fit the 108 px card. */
+
+.drop-tile.gif { --tile: 250, 204, 21; }
+.drop-tile.share { --tile: 56, 189, 248; }
+.drop-tile.ocr { --tile: 45, 212, 191; }
+.drop-tile.clean { --tile: 251, 113, 133; }
+.drop-tile.rename { --tile: 163, 230, 53; }
+.drop-tile.sha256 { --tile: 148, 163, 184; }
+
+/* A good outcome said under the title (a clean copy made). */
+.fa-sub.ok {
+  color: var(--green-2);
+}
+
+.file-action:is([data-kind="text"], [data-kind="hashed"], [data-kind="rename"]) .fa-stack {
+  gap: 4px;
+}
+
+.file-action:is([data-kind="text"], [data-kind="hashed"]) .fa-actions {
+  margin-top: 1px;
+  flex-wrap: nowrap;
+}
+
+/* The read text and the hash: selectable, scrolled when long. */
+.fa-textbox,
+.fa-hash {
+  min-height: 0;
+  overflow: auto;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  user-select: text;
+  cursor: text;
+  outline: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+/* What the picture says: two lines, the rest a scroll away. */
+.fa-textbox {
+  max-height: 38px;
+  padding: 3px 10px;
+  font: 400 12px/16px var(--font);
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+
+/* The hash: one monospace line; several files, one line each. */
+.fa-hash {
+  padding: 4px 10px;
+  font: 400 11.5px/16px var(--mono);
+  color: #e8e9ec;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  direction: ltr;
+  text-align: left;
+}
+
+.fa-hash.many {
+  max-height: 38px;
+  padding-block: 3px;
+}
+
+/* The verdict or a failure, after the buttons: the card has no room for another row. */
+.fa-note {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-inline-start: 4px;
+  font: 400 12px var(--font);
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fa-note.ok {
+  color: var(--green-2);
+}
+
+.fa-note.error {
+  color: var(--red-text);
+}
+
+/* Batch rename: the reminders field's look, Rename beside it. */
+.fa-rename-row .btn {
+  flex: 0 0 auto;
+}
+
+.fa-rename-row .btn[disabled] {
+  pointer-events: none;
+}
+
+.fa-rename-row .fa-link {
+  flex: 0 0 auto;
+}
+
+.fa-preview {
+  max-height: 34px;
+  overflow: auto;
+  padding: 2px 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.fa-preview-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font: 400 11.5px/15px var(--font);
+}
+
+.fa-preview-row .from {
+  flex: 0 1 auto;
+  max-width: 45%;
+  color: var(--dim-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fa-preview-row .arrow {
+  flex: 0 0 auto;
+  color: var(--dim-4);
+}
+
+.fa-preview-row .to {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Already named so: nothing happens to it. */
+.fa-preview-row.same {
+  opacity: 0.5;
+}

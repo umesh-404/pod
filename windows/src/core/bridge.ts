@@ -88,6 +88,8 @@ export const Bridge = {
   workspaceOpen: () => callOrThrow<void>("workspace_open"),
   /** Dropped on "Convert": what they are and the formats they can become. */
   convertPrepare: (paths: string[]) => callOrThrow<ConvertJob>("convert_prepare", { paths }),
+  /** Dropped on "Video to GIF" or "Compress video": a job with that one target, started with convertStart. */
+  convertQuick: (paths: string[], recipe: "gif" | "share") => callOrThrow<ConvertJob>("convert_quick", { paths, recipe }),
   /** Starts the conversion; `convert-progress` and then `convert-done` follow. */
   convertStart: (id: number, format: string) => callOrThrow<void>("convert_start", { id, format }),
   convertCancel: (id: number) => call<void>("convert_cancel", { id }),
@@ -119,6 +121,20 @@ export const Bridge = {
     callOrThrow<FilesReport>("resize_run", { paths, preset }),
   pdfRun: (paths: string[], action: "merge" | "split" | "rotate" | "compress" | "images") =>
     callOrThrow<FilesReport>("pdf_run", { paths, action }),
+
+  // ── File tools (ocr.rs, checksum.rs, metaclean.rs, rename.rs) ──────────────
+  /** The text in dropped pictures: on the clipboard and in "<name> (text).txt" files in the workspace. */
+  ocrRun: (paths: string[]) => callOrThrow<OcrReport>("ocr_run", { paths }),
+  hashNewJob: () => callOrThrow<number>("hash_new_job"),
+  /** SHA-256 of the dropped files; `hash-progress` (HashProgress) events while it runs. */
+  hashRun: (id: number, paths: string[]) => callOrThrow<HashReport>("hash_run", { id, paths }),
+  hashCancel: (id: number) => call<void>("hash_cancel", { id }),
+  /** Clean copies of dropped pictures, without location and EXIF, in the workspace. */
+  cleanRun: (paths: string[]) => callOrThrow<CleanReport>("clean_run", { paths }),
+  renamePrepare: (paths: string[]) => callOrThrow<RenameJob>("rename_prepare", { paths }),
+  renamePreview: (id: number, pattern: string) => callOrThrow<RenameRow[]>("rename_preview", { id, pattern }),
+  renameApply: (id: number, pattern: string) => callOrThrow<RenameReport>("rename_apply", { id, pattern }),
+  renameUndo: (id: number) => callOrThrow<RenameReport>("rename_undo", { id }),
   /** Snipping overlay → PNG on the shelf; rejects with "cancelled". */
   captureToShelf: () => callOrThrow<string>("capture_to_shelf"),
   noteSave: (name: string | null, text: string) => callOrThrow<string>("note_save", { name, text }),
@@ -362,6 +378,62 @@ export interface ParsedReminder {
   due: number | null;
 }
 
+/** ocr_run. */
+export interface OcrReport {
+  text: string;
+  /** The pictures text was found in. */
+  names: string[];
+  outputs: string[];
+  failed: FileFailure[];
+  /** The text is on the clipboard. */
+  copied: boolean;
+}
+
+export interface FileHash {
+  name: string;
+  /** Lowercase hex, 64 digits. */
+  sha256: string;
+  size: number;
+}
+
+/** hash_run. */
+export interface HashReport {
+  hashes: FileHash[];
+  failed: FileFailure[];
+  cancelled: boolean;
+}
+
+/** `hash-progress`: fraction 0…1 over all the files of job `id`. */
+export interface HashProgress {
+  id: number;
+  fraction: number;
+}
+
+/** clean_run: `cleaned` of the outputs had metadata taken out. */
+export interface CleanReport {
+  outputs: string[];
+  failed: FileFailure[];
+  cleaned: number;
+}
+
+export interface RenameJob {
+  id: number;
+  names: string[];
+}
+
+/** One file's old and new name. */
+export interface RenameRow {
+  from: string;
+  to: string;
+}
+
+/** rename_apply / rename_undo. */
+export interface RenameReport {
+  renamed: RenameRow[];
+  unchanged: number;
+  failed: FileFailure[];
+}
+
 /** resize_run / pdf_run. `shelf-changed` carries ShelfItem[]. */
 export interface FilesReport {
   outputs: string[];
@@ -415,6 +487,23 @@ export interface FfmpegDownloadProgress {
   error: string | null;
 }
 
+/** No dragover for this long: the drag is over, wherever it went. */
+const DRAG_QUIET_MS = 900;
+/** How long a drop waits for Rust's paths before reading the files' bytes. */
+const DROP_ANSWER_MS = 1500;
+
+/** A dropped file the OS has no path for, saved from its bytes (Rust drop_save). */
+async function saveDroppedFile(file: File): Promise<string> {
+  let name = file.name || "";
+  // A picture dragged from a page can come without a name or an extension.
+  if (!/\.[a-z0-9]{2,5}$/i.test(name)) {
+    const ext = (file.type.split("/")[1] ?? "").replace("jpeg", "jpg").replace(/[^a-z0-9].*$/i, "");
+    name = `${name || "picture"}${ext ? `.${ext}` : ""}`;
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  return invoke<string>("drop_save", bytes, { headers: { "x-pod-name": encodeURIComponent(name) } });
+}
+
 interface WebView2Bridge {
   postMessageWithAdditionalObjects(message: unknown, objects: ArrayLike<unknown>): void;
 }
@@ -444,9 +533,29 @@ export async function onDragDrop(handler: (e: DragDropPayload) => void) {
   // dragenter/dragleave fire for every element crossed; only the outermost pair counts.
   let depth = 0;
 
+  // A drag that ends without a drop or a leave reaching the page (a browser
+  // drag released where WebView2 won't take it) would leave the tiles up for
+  // good. dragover keeps firing while a drag is over the window, even with the
+  // pointer still; when it stops, the drag is over.
+  let watchdog: ReturnType<typeof setTimeout> | null = null;
+  const stopWatch = () => {
+    if (watchdog != null) clearTimeout(watchdog);
+    watchdog = null;
+  };
+  const watch = () => {
+    stopWatch();
+    watchdog = setTimeout(() => {
+      watchdog = null;
+      if (depth === 0) return;
+      depth = 0;
+      handler({ type: "leave" });
+    }, DRAG_QUIET_MS);
+  };
+
   const onEnter = (e: DragEvent) => {
     if (!hasFiles(e)) return;
     e.preventDefault();
+    watch();
     if (depth++ === 0) handler({ type: "enter", x: e.clientX, y: e.clientY });
   };
   const onOver = (e: DragEvent) => {
@@ -454,28 +563,60 @@ export async function onDragDrop(handler: (e: DragDropPayload) => void) {
     // Without this WebView2 refuses the drop — or navigates to the file.
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    watch();
     handler({ type: "over", x: e.clientX, y: e.clientY });
   };
   const onLeave = (e: DragEvent) => {
     if (!hasFiles(e) || depth === 0) return;
-    if (--depth === 0) handler({ type: "leave" });
+    if (--depth === 0) {
+      stopWatch();
+      handler({ type: "leave" });
+    }
+  };
+  // The File objects of the last drop: a browser's "virtual" file (a WhatsApp
+  // Web picture) has no path, so Rust answers "" for it and its bytes are
+  // saved instead (drop_save).
+  let dropped: File[] = [];
+  let answered: ReturnType<typeof setTimeout> | null = null;
+  const finish = async (paths: string[]) => {
+    if (answered != null) clearTimeout(answered);
+    answered = null;
+    const files = dropped;
+    dropped = [];
+    const out: string[] = [];
+    for (let i = 0; i < Math.max(paths.length, files.length); i++) {
+      const path = paths[i] ?? "";
+      if (path) out.push(path);
+      else if (files[i]) {
+        const saved = await saveDroppedFile(files[i]).catch(() => null);
+        if (saved) out.push(saved);
+      }
+    }
+    handler({ type: "drop", paths: out });
   };
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
     depth = 0;
+    stopWatch();
     const files = e.dataTransfer?.files;
     if (!files || files.length === 0) {
       handler({ type: "drop", paths: [] });
       return;
     }
+    dropped = [...files];
     webview.postMessageWithAdditionalObjects("pod-file-drop", files);
+    // Rust answers at once; if it doesn't, the bytes are the way in.
+    answered = setTimeout(() => void finish([]), DROP_ANSWER_MS);
   };
 
   window.addEventListener("dragenter", onEnter);
   window.addEventListener("dragover", onOver);
   window.addEventListener("dragleave", onLeave);
   window.addEventListener("drop", onDrop);
-  const unlisten = await listen<DragDropPayload>("file-drag", (e) => handler(e.payload));
+  const unlisten = await listen<DragDropPayload>("file-drag", (e) => {
+    if (e.payload.type === "drop" && dropped.length > 0) void finish(e.payload.paths ?? []);
+    else handler(e.payload);
+  });
   return () => {
     window.removeEventListener("dragenter", onEnter);
     window.removeEventListener("dragover", onOver);

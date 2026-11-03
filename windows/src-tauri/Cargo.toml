@@ -82,6 +82,13 @@ windows = { version = "0.61", features = [
   # The shelf's PDF thumbnails: the first page drawn by Windows' own PDF engine (shelf.rs).
   "Data_Pdf",
   "Storage",
+  # Text from image: Windows' own OCR on a decoded bitmap (ocr.rs).
+  "Media_Ocr",
+  "Graphics_Imaging",
+  "Globalization",
+  "Foundation_Collections",
+  # Batch rename that never replaces a file: MoveFileExW without REPLACE_EXISTING (rename.rs).
+  "Win32_Storage_FileSystem",
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]

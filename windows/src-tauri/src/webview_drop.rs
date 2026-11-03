@@ -48,14 +48,25 @@ pub fn install(app: &AppHandle) {
             if count == 0 {
                 return Ok(());
             }
+            // One entry per dropped object, in order: "" for a file with no path
+            // of its own (a picture dragged out of a browser), which the page
+            // then saves from its bytes (files::drop_save).
             let mut paths = Vec::new();
             for i in 0..count {
-                let Ok(file) = objects.GetValueAtIndex(i)?.cast::<ICoreWebView2File>() else { continue };
-                let mut path = PWSTR::null();
-                file.Path(&mut path)?;
-                paths.push(take_pwstr(path));
+                let path = objects
+                    .GetValueAtIndex(i)
+                    .ok()
+                    .and_then(|o| o.cast::<ICoreWebView2File>().ok())
+                    .and_then(|file| {
+                        let mut path = PWSTR::null();
+                        file.Path(&mut path).ok()?;
+                        Some(take_pwstr(path))
+                    })
+                    .filter(|p| !p.is_empty() && std::path::Path::new(p).exists())
+                    .unwrap_or_default();
+                paths.push(path);
             }
-            crate::files::allow_dropped(paths.iter().cloned());
+            crate::files::allow_dropped(paths.iter().filter(|p| !p.is_empty()).cloned());
             let _ = handle.emit_to(WINDOW_LABEL, "file-drag", FileDrop { kind: "drop", paths });
             Ok(())
         }));

@@ -91,11 +91,14 @@ test("SettingsSearch - finds the Features and Notch rows", () => {
   assert.ok(ids("clipboard").includes("features.tools"));
   assert.ok(ids("features").includes("features.drop"), "by the page's title");
   assert.ok(ids("calendar").includes("notch.calendar"));
-  assert.ok(ids("now playing").includes("notch.right"));
-  assert.ok(ids("seconds").includes("notch.right"));
+  assert.ok(ids("now playing").includes("notch.sides"));
+  assert.ok(ids("seconds").includes("notch.sides"));
+  assert.ok(ids("deadlines").includes("notch.sides"));
+  assert.ok(ids("left side").includes("notch.sides"));
+  assert.ok(ids("preview").includes("notch.preview"));
   assert.ok(ids("break").includes("notch.focus"));
   // A label inside a box is reported with it.
-  const hit = searchSettings("glance", getPageTitle).find((h) => h.entry.id === "notch.right");
+  const hit = searchSettings("glance", getPageTitle).find((h) => h.entry.id === "notch.sides");
   assert.equal(hit?.label, "System glance");
 });
 
@@ -103,5 +106,5 @@ test("SettingsSearch - every box of the Features and Notch pages is searchable",
   const { FEATURE_GROUPS } = await import("../src/settings/catalog.ts");
   const ids = new Set(SETTINGS_ENTRIES.map((e) => e.id));
   for (const g of FEATURE_GROUPS) assert.ok(ids.has(g.anchor), g.anchor);
-  for (const id of ["notch.right", "notch.calendar", "notch.focus"]) assert.ok(ids.has(id), id);
+  for (const id of ["notch.preview", "notch.sides", "notch.calendar", "notch.focus"]) assert.ok(ids.has(id), id);
 });

@@ -2,6 +2,7 @@
 
 mod archive;
 mod capture;
+mod checksum;
 mod clipboard;
 mod calendar;
 mod convert;
@@ -14,7 +15,9 @@ mod i18n;
 mod island;
 mod log;
 mod media;
+mod metaclean;
 mod net;
+mod ocr;
 mod pdf;
 mod platform;
 #[cfg(target_os = "linux")]
@@ -22,6 +25,7 @@ mod portal;
 mod privacy;
 mod quicknote;
 mod reminders;
+mod rename;
 mod resize;
 mod settings;
 mod shelf;
@@ -440,6 +444,7 @@ pub fn run() {
             update::update_status,
             update::update_set_consent,
             update::update_set_auto_install,
+            files::drop_save,
             update::update_check,
             update::update_shown,
             update::update_show,
@@ -453,6 +458,7 @@ pub fn run() {
             workspace::workspace_change,
             workspace::workspace_open,
             convert::convert_prepare,
+            convert::convert_quick,
             convert::convert_start,
             convert::convert_cancel,
             convert::ffmpeg_status,
@@ -469,6 +475,15 @@ pub fn run() {
             cover::notch_covered,
             resize::resize_run,
             pdf::pdf_run,
+            ocr::ocr_run,
+            checksum::hash_new_job,
+            checksum::hash_run,
+            checksum::hash_cancel,
+            metaclean::clean_run,
+            rename::rename_prepare,
+            rename::rename_preview,
+            rename::rename_apply,
+            rename::rename_undo,
             capture::capture_to_shelf,
             quicknote::note_save,
             quicknote::note_read,

@@ -131,6 +131,15 @@ pub(crate) fn dir(app: &AppHandle) -> PathBuf {
     }
 }
 
+/// Where every drop action saves what it makes (converted files, archives,
+/// resized pictures, PDFs, text, clean copies): the workspace, created when
+/// missing.
+pub(crate) fn output_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let ws = dir(app);
+    std::fs::create_dir_all(&ws).map_err(|e| cannot_create(&ws, &e))?;
+    Ok(ws)
+}
+
 fn info(app: &AppHandle) -> WorkspaceInfo {
     let ws = dir(app);
     let configured = app.state::<crate::Shared>().settings.lock().unwrap().workspace_dir.clone();

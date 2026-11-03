@@ -18,7 +18,7 @@ use crate::platform::{self, cursor_physical, left_button_down};
 pub const PANEL_W: f64 = 720.0;
 pub const PANEL_H: f64 = 480.0;
 /// Logical size of the invisible strip that wakes the island when it is hidden.
-pub const STRIP_W: f64 = 120.0;
+pub const STRIP_W: f64 = 150.0;
 pub const STRIP_H: f64 = 26.0;
 
 pub const WINDOW_LABEL: &str = "island";

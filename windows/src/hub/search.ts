@@ -93,11 +93,13 @@ export const SETTINGS_ENTRIES: SettingsSearchEntry[] = [
   { id: "general.language", page: "general", title: "Language", terms: [] },
 
   // Notch
+  { id: "notch.preview", page: "notch", title: "Live preview of the notch", terms: [] },
   {
-    id: "notch.right", page: "notch", title: "Right side of the notch",
+    id: "notch.sides", page: "notch", title: "Left and right of the notch",
     terms: [
-      "File jobs", "Focus timer", "Next meeting", "Now playing", "Shelf", "System glance",
-      "Camera and microphone", "New downloads", "Dev servers", "Seconds per item",
+      "Left side", "Right side", "Reminders and deadlines", "File jobs", "Focus timer", "Next meeting",
+      "Now playing", "Shelf", "System glance", "New downloads", "Dev servers", "Seconds per item",
+      "Move to the left side", "Move to the right side",
     ],
   },
   { id: "notch.calendar", page: "notch", title: "Calendar links", terms: ["Next meeting", "Paste a calendar link", "Test"] },
@@ -106,7 +108,10 @@ export const SETTINGS_ENTRIES: SettingsSearchEntry[] = [
   // Features
   {
     id: "features.drop", page: "features", title: "Drop actions",
-    terms: ["Convert File Format", "Zip / Unzip", "Resize image", "PDF tools", "Copy to workspace"],
+    terms: [
+      "Convert File Format", "Zip / Unzip", "Resize image", "PDF tools", "Text from image", "Remove EXIF",
+      "Video to GIF", "Compress video", "SHA-256 checksum", "Batch rename", "Copy to workspace",
+    ],
   },
   { id: "features.tabs", page: "features", title: "Island tabs", terms: ["Shelf", "Reminders", "Notes", "Tools"] },
   { id: "features.notch", page: "features", title: "Notch", terms: ["Camera and microphone"] },

@@ -43,9 +43,21 @@ pub struct Settings {
     pub workspace_dir: String,
     /// ffmpeg picked by hand in Settings; empty means find it (convert.rs). Owned by Rust.
     pub ffmpeg_path: String,
-    /// The notch's right side, in the order they take turns: "job", "timer",
-    /// "meeting", "media", "shelf", "glance", "privacy", "download".
+    /// The items switched on on the notch's left side, in the order they take
+    /// turns: "reminder", "job", "timer", "meeting", "media", "shelf",
+    /// "glance", "download", "devservers" (island/notch-items.ts). Any item may
+    /// sit on either side. A file from before the left side had a list lacks
+    /// the key and gets the reminder, which is all the left ever showed.
+    pub left_widgets: Vec<String>,
+    /// The same for the right side ("privacy" may linger from older files; it
+    /// is a feature with its own lights now and is ignored here).
     pub right_widgets: Vec<String>,
+    /// Items switched off that Settings keeps on the left / right side, so an
+    /// item moved to the other side and switched off stays where it was put.
+    pub left_off: Vec<String>,
+    pub right_off: Vec<String>,
+    /// Seconds each left-side item stays before the next one.
+    pub left_rotate_seconds: f64,
     /// Seconds each right-side item stays before the next one.
     pub rotate_seconds: f64,
     /// Calendar links (.ics) for "next meeting".
@@ -92,7 +104,11 @@ impl Default for Settings {
             show_clock: false,
             workspace_dir: String::new(),
             ffmpeg_path: String::new(),
+            left_widgets: vec!["reminder".into()],
             right_widgets: vec!["job".into(), "timer".into(), "media".into(), "shelf".into()],
+            left_off: Vec::new(),
+            right_off: Vec::new(),
+            left_rotate_seconds: 6.0,
             rotate_seconds: 6.0,
             calendar_urls: Vec::new(),
             focus_minutes: 25.0,
@@ -368,7 +384,11 @@ mod tests {
   "showClock": true,
   "workspaceDir": "D:/Stash",
   "ffmpegPath": "C:/Tools/ffmpeg.exe",
+  "leftWidgets": ["timer", "reminder"],
   "rightWidgets": ["meeting", "glance"],
+  "leftOff": ["media"],
+  "rightOff": ["shelf"],
+  "leftRotateSeconds": 4.0,
   "rotateSeconds": 10.0,
   "calendarUrls": ["https://calendar.example.com/me.ics"],
   "focusMinutes": 50.0,
@@ -535,6 +555,9 @@ mod tests {
             ("soundVolume", json!("loud")),
             ("soundEnabled", json!(1)),
             ("rightWidgets", json!("media")),
+            ("leftWidgets", json!({ "reminder": true })),
+            ("leftOff", json!([1, 2])),
+            ("leftRotateSeconds", json!("slow")),
             ("language", json!(["fr"])),
             ("workspaceDir", json!(5)),
             ("screen", Value::Null),
@@ -546,6 +569,32 @@ mod tests {
             expected[key] = defaults()[key].clone();
             assert_eq!(shown(&loaded), expected, "bad {key}");
         }
+    }
+
+    #[test]
+    fn a_file_from_before_the_left_side_list_keeps_both_sides_as_they_were() {
+        // Before the left side had a list it only ever showed the reminder, and
+        // the right side's list and turn were already there.
+        let mut object = custom().as_object().unwrap().clone();
+        for key in ["leftWidgets", "leftOff", "rightOff", "leftRotateSeconds"] {
+            object.remove(key);
+        }
+        let loaded = parse(&serde_json::to_vec(&object).unwrap()).unwrap();
+        assert_eq!(loaded.left_widgets, ["reminder"]);
+        assert!(loaded.left_off.is_empty() && loaded.right_off.is_empty());
+        assert_eq!(loaded.left_rotate_seconds, 6.0);
+        assert_eq!(loaded.right_widgets, ["meeting", "glance"]);
+        assert_eq!(loaded.rotate_seconds, 10.0);
+        // An emptied left side is a choice, not a missing field.
+        let loaded = parse(&custom_with("leftWidgets", Some(json!([])))).unwrap();
+        assert!(loaded.left_widgets.is_empty());
+    }
+
+    #[test]
+    fn side_item_ids_this_build_does_not_know_are_kept_as_written() {
+        // A newer build may add items: they must survive a save made by this one.
+        let loaded = parse(&custom_with("leftWidgets", Some(json!(["clock", "reminder"])))).unwrap();
+        assert_eq!(loaded.left_widgets, ["clock", "reminder"]);
     }
 
     #[test]
@@ -761,7 +810,11 @@ mod tests {
                 "showClock",
                 "workspaceDir",
                 "ffmpegPath",
+                "leftWidgets",
                 "rightWidgets",
+                "leftOff",
+                "rightOff",
+                "leftRotateSeconds",
                 "rotateSeconds",
                 "calendarUrls",
                 "focusMinutes",

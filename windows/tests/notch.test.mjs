@@ -143,3 +143,123 @@ test("a tab's sound names map to the app's sounds", () => {
   assert.equal(tabSound("pop"), "pop");
   assert.equal(tabSound("no-such-sound"), "blip");
 });
+
+// ── Both sides customisable (notch-items.ts) ─────────────────────────────────
+
+const { SideView, featureOf, notchLayout, sideItems } = await import("../src/island/notch-items.ts");
+const { COMPACT_BOT_GAP, COMPACT_MAX_W, COMPACT_SIDE_MAX, COMPACT_SIDE_PAD, compactWidth } = await import("../src/core/layout.ts");
+
+test("the reminder is an item like the others, on either side", () => {
+  const near = reminder({ id: 2, text: "Essay", due: NOW + 35 * MIN });
+  const d = { ...empty, shelfCount: 2, reminders: [near] };
+  const items = sideItems(["shelf", "reminder"], [], d, NOW);
+  assert.deepEqual(items.map((i) => i.id), ["shelf", "reminder"]);
+  assert.equal(items[1].text, "Essay · 35m 00s");
+  assert.equal(items[1].changeIn, 1000);
+  assert.equal(items[1].dot, undefined);
+  const fired = sideItems(["reminder"], [], { ...empty, reminders: [reminder({ fired: true, text: "Call" })] }, NOW)[0];
+  assert.equal(fired.text, "Call");
+  assert.equal(fired.dot, "fired");
+  assert.equal(fired.changeIn, undefined);
+  // Nothing to count down: no item.
+  assert.deepEqual(sideItems(["reminder"], [], empty, NOW), []);
+});
+
+test("an item goes away with its feature", () => {
+  assert.equal(featureOf("reminder"), "reminders");
+  assert.equal(featureOf("timer"), "focus");
+  assert.equal(featureOf("media"), "media");
+  const d = { ...empty, reminders: [reminder()], focus: { phase: "focus", endsAt: NOW + MIN, length: 25 * MIN } };
+  assert.deepEqual(sideItems(["reminder", "timer"], [], d, NOW).map((i) => i.id), ["reminder", "timer"]);
+  assert.deepEqual(sideItems(["reminder", "timer"], ["reminders", "focus"], d, NOW), []);
+});
+
+test("the two sides' lists: the reminder on the left by default, each item on one side only", () => {
+  assert.deepEqual(notchLayout({ rightWidgets: ["job", "media"] }), { left: ["reminder"], right: ["job", "media"] });
+  assert.deepEqual(notchLayout({ leftWidgets: [], rightWidgets: ["media"] }), { left: [], right: ["media"] });
+  // Unknown ids and "privacy" are dropped; an id on both sides stays on the left.
+  assert.deepEqual(
+    notchLayout({ leftWidgets: ["media", "clock", "media"], rightWidgets: ["privacy", "media", "shelf"] }),
+    { left: ["media"], right: ["shelf"] },
+  );
+});
+
+/** A side's front layer, its text sized as the browser would lay it out. */
+function sized(side, layerW, cutW, fullW) {
+  const front = side.el.find(".ns-layer").find((l) => !l.classList.contains("gone"));
+  front.offsetWidth = layerW;
+  const text = front.find(".ns-text")[0];
+  text.offsetWidth = cutW;
+  text.scrollWidth = fullW;
+  return front;
+}
+
+test("a side takes turns, waits while held, and says when it changes next", () => {
+  const side = new SideView("left");
+  const a = { id: "shelf", text: "Shelf · 3" };
+  const b = { id: "media", text: "Song", changeIn: 5000 };
+  assert.equal(side.update([a, b], NOW, false, 6000), true);
+  assert.equal(side.shownId, "shelf");
+  assert.ok(side.el.classList.contains("on"));
+  assert.deepEqual(side.waits(NOW, false), [6000]);
+  assert.deepEqual(side.waits(NOW, true), [], "held: no turn");
+  assert.equal(side.update([a, b], NOW + 1000, false, 6000), false, "same item, same text: nothing to redraw");
+  side.update([a, b], NOW + 6000, true, 6000);
+  assert.equal(side.shownId, "shelf", "held: the turn waits");
+  side.update([a, b], NOW + 6000, false, 6000);
+  assert.equal(side.shownId, "media");
+  assert.deepEqual(side.waits(NOW + 6000, false), [5000, 6000]);
+  // Only one layer is in front, and it says what the item is.
+  const front = side.el.find(".ns-layer").filter((l) => !l.classList.contains("gone"));
+  assert.equal(front.length, 1);
+  assert.equal(front[0].title, "Song");
+  // Nothing left to show: the side empties.
+  side.update([], NOW + 7000, false, 6000);
+  assert.equal(side.shownId, null);
+  assert.ok(!side.el.classList.contains("on"));
+  assert.equal(side.width(), 0);
+});
+
+test("a side's width is what its item needs, not what its wing allows", () => {
+  const side = new SideView("right");
+  side.update([{ id: "download", text: "a-long-file-name.pdf", icon: "download", chip: "Add to shelf" }], NOW, false, 6000);
+  // In a 112 px wing the text is cut to 20 px of its 150 px: the item needs 242 px
+  // (and two for the rounding of the three whole-pixel widths).
+  sized(side, 112, 20, 150);
+  assert.equal(side.width(), 244);
+  // Text that fits: its own width, and a pixel for the rounding.
+  sized(side, 90, 40, 40);
+  assert.equal(side.width(), 91);
+});
+
+test("geometry: the widest side's item fits its wing exactly, with the same padding at the edge", () => {
+  for (const [left, right] of [[0, 0], [40, 0], [64, 180], [202, 80], [300, 10], [COMPACT_SIDE_MAX, COMPACT_SIDE_MAX]]) {
+    const w = compactWidth(left, right);
+    assert.ok(w <= COMPACT_MAX_W && w % 2 === 0, `${w} is a whole even width within the maximum`);
+    // notch.css: a wing runs from 12 px in from the edge to 20 px from the middle.
+    const wing = w / 2 - COMPACT_BOT_GAP / 2 - COMPACT_SIDE_PAD;
+    const widest = Math.min(COMPACT_SIDE_MAX, Math.max(left, right));
+    assert.ok(widest <= wing, `${widest} px fits its ${wing} px wing at ${w}`);
+    // Never more than a pixel of slack beyond the minimum width: the island hugs its widest item.
+    if (w > 288) assert.ok(wing - widest < 1, `${wing - widest} px of slack at ${w}`);
+  }
+});
+
+test("the Settings preview's sample data: every item has something to show, the timer runs", async () => {
+  const { sampleData, springEasing } = await import("../src/settings/notch-preview.ts");
+  const ids = ["reminder", "job", "timer", "meeting", "media", "shelf", "glance", "download", "devservers"];
+  const items = sideItems(ids, [], sampleData(NOW, NOW), NOW);
+  assert.deepEqual(items.map((i) => i.id), ids);
+  const text = (id, at) => sideItems([id], [], sampleData(at, NOW), at)[0].text;
+  assert.equal(text("timer", NOW), "Focus · 18:42");
+  assert.equal(text("timer", NOW + 2_000), "Focus · 18:40");
+  // Run out, it starts again from 25:00.
+  assert.equal(text("timer", NOW + 18 * MIN + 42_000), "Focus · 25:00");
+  assert.equal(text("meeting", NOW), "Standup · in 12 min");
+  assert.equal(text("reminder", NOW), "Essay · 2d 4h");
+  // The spring: from 0 to 1, overshooting a little on the way.
+  const points = springEasing().slice("linear(".length, -1).split(", ").map(Number);
+  assert.equal(points[0], 0);
+  assert.equal(points.at(-1), 1);
+  assert.ok(Math.max(...points) > 1 && Math.max(...points) < 1.08);
+});

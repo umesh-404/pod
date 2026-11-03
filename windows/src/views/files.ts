@@ -1,14 +1,18 @@
-// The drag-and-drop file views: the two drop tiles shown while files are
-// dragged over the island (dropTargets), and the card of what came of the
-// drop (fileAction) — moved into the workspace, or converted with ffmpeg.
+// The drag-and-drop file views: the drop tiles shown while files are dragged
+// over the island (dropTargets), and the card of what came of the drop
+// (fileAction) — moved into the workspace, converted with ffmpeg, zipped,
+// resized, PDF tools, and the file tools: the text read from a picture, a
+// SHA-256, a clean copy, a batch rename with its pattern field and preview.
 // The flow lives in island/file-actions.ts; these only draw State.
 
+import "./file-tools.css";
 import { h, svg, clear } from "./dom";
 import { ICONS } from "./icons";
+import { Bridge } from "../core/bridge";
 import { State, type FileAction } from "../core/state";
 import { DROP_GEOMETRY, dropTargetsGeometry, washRGBA, type DropActionId, type Wash } from "../core/layout";
 import {
-  DROP_ACTIONS, RESIZE_PRESETS, fileActionProgress, fileActionText, type ResizePreset,
+  DROP_ACTIONS, FileActions, RESIZE_PRESETS, fileActionProgress, fileActionText, hashVerdict, type ResizePreset,
 } from "../island/file-actions";
 import type { FormatOption } from "../core/bridge";
 import type { ViewHost } from "./views";
@@ -54,7 +58,7 @@ function lit(frame: SVGSVGElement): SVGSVGElement {
 
 export function buildDropTargets(): ViewHost {
   const subs = new Map<DropActionId, HTMLElement>();
-  // One tile per action, built once; a drag shows 2 to 6 of them (State.dropTiles).
+  // One tile per action, built once; a drag shows 1 to MAX_DROP_TILES of them (State.dropTiles).
   const tiles = DROP_ACTIONS.map((action) => {
     const sub = h("div", { class: "tile-sub", text: action.id === "workspace" ? "" : tl(action.sub) });
     subs.set(action.id, sub);
@@ -98,8 +102,9 @@ export function buildDropTargets(): ViewHost {
       tile.style.setProperty("--i", String(i));
       tile.style.width = `${r.w}px`;
       tile.style.height = `${r.h}px`;
-      // Short tiles (the 2×2 grid and taller stacks) put the icon beside the text.
-      tile.classList.toggle("flat", r.h < 90);
+      // The grid puts every icon beside its text, the row above it: one look per
+      // layout, even where a column's tiles stretch taller.
+      tile.classList.toggle("flat", geometry.flat);
       el.append(tile);
     });
   }
@@ -131,17 +136,27 @@ function button(label: string, kind: "primary" | "secondary", onClick: () => voi
 function washFor(s: FileAction | null): Wash {
   switch (s?.kind) {
     case "done":
+    case "text":
       return "green";
     case "written":
       return s.outputs.length > 0 ? "green" : "red";
     case "moved":
       return s.moved.length > 0 ? "green" : "red";
+    case "hashed": {
+      const verdict = hashVerdict(s.hashes, s.expected);
+      return verdict === "match" ? "green" : verdict === "mismatch" ? "red" : null;
+    }
+    case "renamed":
+      return s.report.renamed.length > 0 ? "green" : s.report.failed.length > 0 ? "red" : null;
     case "error":
       return "red";
     default:
       return null;
   }
 }
+
+/** The file tools' own controls, straight to the controller the island made. */
+const tools = () => FileActions.current;
 
 export function buildFileAction(actions: FileCardActions): ViewHost {
   const check = h("span", { class: "fa-check" }, svg(ICONS.check, 13, { stroke: 2.6 }));
@@ -154,9 +169,47 @@ export function buildFileAction(actions: FileCardActions): ViewHost {
   const rail = h("div", { class: "fa-rail" }, glow);
   const bar = h("div", { class: "up-track fa-track" }, fill, rail);
   const row = h("div", { class: "actions options fa-actions" });
-  const stack = h("div", { class: "stack fa-stack" }, title, sub, bar, row);
+
+  // Text from image: what was read, selectable, scrolled when long.
+  const textBox = h("div", { class: "fa-textbox", tabindex: "0" });
+  // SHA-256: the hash (or one line per file), selectable.
+  const hashBox = h("div", { class: "fa-hash", tabindex: "0" });
+  // Batch rename: the pattern field, Rename and Cancel, then the preview.
+  const input = h("input", {
+    class: "rem-input fa-rename-input",
+    type: "text",
+    placeholder: tl("Trip {n}"),
+    "aria-label": tl("New name"),
+    spellcheck: "false",
+    autocomplete: "off",
+    maxlength: "200",
+  });
+  input.value = "";
+  const renameBtn = h(
+    "button",
+    { class: "btn primary fa-rename-go", onclick: () => void tools()?.renameApply() },
+    h("span", { text: tl("Rename") }),
+  );
+  const renameCancel = h("button", { class: "link-btn fa-link", text: tl("Cancel"), onclick: () => actions.close() });
+  const renameRow = h("div", { class: "rem-input-row fa-rename-row" }, input, renameBtn, renameCancel);
+  const preview = h("div", { class: "fa-preview", "aria-live": "polite" });
+
+  const stack = h("div", { class: "stack fa-stack" }, title, sub, renameRow, preview, textBox, hashBox, bar, row);
   const card = h("div", { class: "card file-action" }, stack);
   const el = h("div", { class: "view" }, card);
+
+  input.addEventListener("input", () => tools()?.renamePattern(input.value));
+  input.addEventListener("keydown", ((e: KeyboardEvent) => {
+    if (e.key === "Enter" && !e.isComposing) {
+      e.preventDefault();
+      void tools()?.renameApply();
+    } else if (e.key === "Escape") {
+      // Cancels the rename, not just the island's own Escape.
+      e.preventDefault();
+      e.stopPropagation();
+      actions.close();
+    }
+  }) as EventListener);
 
   // Buttons are only rebuilt when what they offer changes: rebuilding them
   // between a mouse-down and a mouse-up would swallow the click.
@@ -170,6 +223,12 @@ export function buildFileAction(actions: FileCardActions): ViewHost {
   }
   const cancelLink = (onClick: () => void) =>
     h("button", { class: "link-btn fa-link", text: tl("Cancel"), onclick: onClick });
+  /** A line at the end of the buttons (the hash's verdict, what failed): the card has no room for another row. */
+  const note = (text: string, tone: string) => h("span", { class: `fa-note ${tone}`, text, title: text });
+
+  let renameJob: number | null = null;
+  let shownText = "";
+  let shownHash = "";
 
   return {
     el,
@@ -178,16 +237,26 @@ export function buildFileAction(actions: FileCardActions): ViewHost {
       const wash = washFor(s);
       card.classList.toggle("wash", wash != null);
       card.style.setProperty("--wash", washRGBA(wash));
-      if (!s) return;
+      if (!s) {
+        renameJob = null;
+        return;
+      }
+      card.dataset.kind = s.kind;
 
       const text = fileActionText(s);
       if (titleText.textContent !== text.title) titleText.textContent = text.title;
       title.title = text.title;
-      check.style.display = s.kind === "done" ? "" : "none";
+      const success = s.kind === "done" || s.kind === "text"
+        || (s.kind === "hashed" && hashVerdict(s.hashes, s.expected) === "match")
+        || (s.kind === "renamed" && s.report.renamed.length > 0 && s.report.failed.length === 0);
+      check.style.display = success ? "" : "none";
+      // The text and hash cards say it at the end of their buttons instead.
+      const subInRow = s.kind === "text" || s.kind === "hashed";
       sub.textContent = text.sub;
       sub.title = text.sub;
-      sub.style.display = text.sub ? "" : "none";
+      sub.style.display = text.sub && !subInRow ? "" : "none";
       sub.classList.toggle("error", text.tone === "error");
+      sub.classList.toggle("ok", text.tone === "ok");
 
       const p = fileActionProgress(s);
       bar.style.display = p == null ? "none" : "";
@@ -196,6 +265,43 @@ export function buildFileAction(actions: FileCardActions): ViewHost {
         fill.style.transform = `scaleX(${p.toFixed(4)})`;
         rail.style.transform = `translateX(${pct}%)`;
         glow.style.opacity = p > 0.01 && p < 0.999 ? "1" : "0";
+      }
+
+      // Text from image.
+      textBox.style.display = s.kind === "text" ? "" : "none";
+      if (s.kind === "text" && shownText !== s.text) {
+        shownText = s.text;
+        textBox.textContent = s.text;
+        textBox.scrollTop = 0;
+      }
+      // SHA-256.
+      hashBox.style.display = s.kind === "hashed" ? "" : "none";
+      if (s.kind === "hashed") {
+        const lines = s.hashes.length === 1 ? s.hashes[0].sha256 : s.hashes.map((x) => `${x.sha256}  ${x.name}`).join("\n");
+        if (shownHash !== lines) {
+          shownHash = lines;
+          hashBox.textContent = lines;
+          hashBox.classList.toggle("many", s.hashes.length > 1);
+        }
+      }
+      // Batch rename.
+      const renaming = s.kind === "rename";
+      renameRow.style.display = renaming ? "" : "none";
+      preview.style.display = renaming && !s.error && s.rows.length > 0 ? "" : "none";
+      if (renaming) {
+        if (renameJob !== s.job.id) {
+          // A new rename: an empty field, with the keyboard.
+          renameJob = s.job.id;
+          input.value = s.pattern;
+          void Bridge.focusWindow(true);
+          requestAnimationFrame(() => input.focus({ preventScroll: true }));
+        }
+        const ready = !!s.pattern.trim() && !s.error && s.rows.length > 0;
+        renameBtn.classList.toggle("off", !ready);
+        renameBtn.toggleAttribute("disabled", !ready);
+        renderPreview(preview, s.rows);
+      } else {
+        renameJob = null;
       }
 
       switch (s.kind) {
@@ -228,7 +334,8 @@ export function buildFileAction(actions: FileCardActions): ViewHost {
           buttons("downloading", () => []);
           break;
         case "converting":
-          buttons("converting", () => [button(t("Cancel"), "secondary", () => actions.cancel())]);
+        case "hashing":
+          buttons(s.kind, () => [button(t("Cancel"), "secondary", () => actions.cancel())]);
           break;
         case "done":
           buttons("done", () => [
@@ -249,6 +356,33 @@ export function buildFileAction(actions: FileCardActions): ViewHost {
             button(t("Done"), "secondary", () => actions.close()),
           ]);
           break;
+        case "text":
+          buttons(`text~${s.copied}~${s.outputs.length > 0}~${text.sub}`, () => [
+            button(s.copied ? t("Copied") : t("Copy"), s.copied ? "secondary" : "primary", () => void tools()?.copyText()),
+            ...(s.outputs.length > 0 ? [button(t("Show in folder"), "secondary", () => actions.revealOutput())] : []),
+            button(t("Done"), "secondary", () => actions.close()),
+            ...(text.sub ? [note(text.sub, text.tone)] : []),
+          ]);
+          break;
+        case "hashed":
+          buttons(`hashed~${s.copied}~${text.sub}`, () => [
+            button(s.copied ? t("Copied") : t("Copy"), s.copied ? "secondary" : "primary", () => void tools()?.copyHash()),
+            button(t("Done"), "secondary", () => actions.close()),
+            note(text.sub, text.tone),
+          ]);
+          break;
+        case "rename":
+          // Its buttons are beside the field.
+          buttons("rename", () => []);
+          break;
+        case "renamed":
+          buttons(`renamed~${s.undone}~${s.report.renamed.length > 0}`, () => [
+            ...(!s.undone && s.report.renamed.length > 0
+              ? [button(t("Undo"), "secondary", () => void tools()?.renameUndo())]
+              : []),
+            button(t("Done"), "primary", () => actions.close()),
+          ]);
+          break;
         case "error":
           buttons("error", () => [button(t("Done"), "secondary", () => actions.close())]);
           break;
@@ -258,4 +392,24 @@ export function buildFileAction(actions: FileCardActions): ViewHost {
       }
     },
   };
+}
+
+/** The rename preview: "old → new" per file, the unchanged ones dimmed. */
+function renderPreview(el: HTMLElement, rows: readonly { from: string; to: string }[]) {
+  const key = rows.map((r) => `${r.from}\u0000${r.to}`).join("\u0001");
+  if (el.dataset.key === key) return;
+  el.dataset.key = key;
+  clear(el);
+  for (const r of rows) {
+    const same = r.from === r.to;
+    el.append(
+      h(
+        "div",
+        { class: `fa-preview-row${same ? " same" : ""}`, title: `${r.from} → ${r.to}` },
+        h("span", { class: "from", text: r.from }),
+        h("span", { class: "arrow", text: "→" }),
+        h("span", { class: "to", text: r.to }),
+      ),
+    );
+  }
 }

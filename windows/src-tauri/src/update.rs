@@ -560,13 +560,26 @@ fn github_client(timeout: Duration) -> Result<reqwest::Client, String> {
         .map_err(|e| e.to_string())
 }
 
+/// An error and every cause under it ("error sending request: … : invalid
+/// peer certificate: UnknownIssuer"), so the log says why, not only that.
+fn error_chain(err: &dyn std::error::Error) -> String {
+    let mut out = err.to_string();
+    let mut source = err.source();
+    while let Some(cause) = source {
+        out.push_str(": ");
+        out.push_str(&cause.to_string());
+        source = cause.source();
+    }
+    out
+}
+
 async fn fetch_latest() -> Result<Option<Release>, String> {
     let response = github_client(Duration::from_secs(30))?
         .get(RELEASES_URL)
         .header("Accept", "application/vnd.github+json")
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| error_chain(&e))?;
     if response.status().as_u16() != 200 {
         return Err(format!("HTTP {}", response.status().as_u16()));
     }
@@ -982,6 +995,16 @@ pub fn update_open_page() {
 
 #[cfg(test)]
 mod tests {
+    /// Real network: `cargo test reaches_github -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn reaches_github() {
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let result = rt.block_on(fetch_latest());
+        println!("fetch_latest: {:?}", result.as_ref().map(|r| r.as_ref().map(|r| r.version.clone())));
+        result.unwrap();
+    }
+
     use super::*;
 
     /// A trimmed `GET /releases` answer, as GitHub gave it on 2026-10-20: Mac,

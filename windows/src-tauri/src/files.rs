@@ -44,6 +44,23 @@ pub(crate) fn busy() -> bool {
     ACTIVE_JOBS.load(std::sync::atomic::Ordering::SeqCst) > 0
 }
 
+/// The paths of `paths` a real drop delivered (each used up, every one checked),
+/// and a failure for each of the others.
+pub(crate) fn take_all_dropped(paths: Vec<String>) -> (Vec<PathBuf>, Vec<crate::workspace::Failure>) {
+    let mut inputs = Vec::new();
+    let mut failed = Vec::new();
+    for path in paths {
+        let src = PathBuf::from(&path);
+        if take_dropped(&path) {
+            inputs.push(src);
+        } else {
+            let name = src.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or(path);
+            failed.push(crate::workspace::Failure { name, error: crate::i18n::t("Only files dropped on the island can be used.") });
+        }
+    }
+    (inputs, failed)
+}
+
 pub fn inbox_dir() -> PathBuf {
     settings::local_dir().join("inbox")
 }
@@ -157,6 +174,95 @@ fn sweep(dir: &Path) {
         if now.duration_since(copied).map(|age| age > KEEP_FOR).unwrap_or(false) {
             let _ = std::fs::remove_file(entry.path());
         }
+    }
+}
+
+// ── Files a browser drops (no path of their own) ─────────────────────────────
+
+/// Largest dropped file taken from its bytes (a picture or a short clip from a web page).
+const MAX_BYTES_DROP: usize = 512 * 1024 * 1024;
+
+/// A file dragged out of a browser (a WhatsApp Web picture, an image on a
+/// page) is a "virtual" file: WebView2 hands over its bytes but no path. The
+/// page sends those bytes here (raw body, the name in `x-pod-name`,
+/// URI-encoded); they are saved in the inbox under a safe, unique name and
+/// that path counts as dropped, so every drop action can work on it.
+#[tauri::command]
+pub fn drop_save(request: tauri::ipc::Request<'_>) -> Result<String, String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err(crate::i18n::t("The dropped file couldn't be read."));
+    };
+    if bytes.is_empty() || bytes.len() > MAX_BYTES_DROP {
+        return Err(crate::i18n::t("The dropped file couldn't be read."));
+    }
+    let raw = request.headers().get("x-pod-name").and_then(|v| v.to_str().ok()).unwrap_or("");
+    let name = safe_drop_name(&percent_decode(raw));
+    let dir = inbox_dir();
+    crate::platform::ensure_private_dir(&settings::local_dir()).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let dest = unique_path(&dir, &name);
+    std::fs::write(&dest, bytes).map_err(|e| crate::i18n::tf("Cannot copy: {error}", &[("error", &e.to_string())]))?;
+    let path = dest.to_string_lossy().to_string();
+    allow_dropped([path.clone()]);
+    crate::log::line(format!("drop: saved a browser file ({} bytes)", bytes.len()));
+    Ok(path)
+}
+
+/// `%XX` escapes (encodeURIComponent's output) back to text; anything malformed stays as is.
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        // Byte-wise: slicing the str could split a multi-byte character.
+        let hex = |c: u8| (c as char).to_digit(16);
+        if b[i] == b'%' && i + 2 < b.len() {
+            if let (Some(h), Some(l)) = (hex(b[i + 1]), hex(b[i + 2])) {
+                out.push((h * 16 + l) as u8);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// A plain file name from whatever the page says: no folders, no characters
+/// Windows refuses, not empty, not too long.
+fn safe_drop_name(name: &str) -> String {
+    let base = name.rsplit(['/', '\\']).next().unwrap_or("");
+    let cleaned: String = base
+        .chars()
+        .map(|c| if c.is_control() || matches!(c, ':' | '*' | '?' | '"' | '<' | '>' | '|') { '_' } else { c })
+        .collect();
+    let trimmed = cleaned.trim().trim_start_matches('.').trim_end_matches(['.', ' ']);
+    let name = if trimmed.is_empty() { "dropped file" } else { trimmed };
+    name.chars().take(120).collect()
+}
+
+#[cfg(test)]
+mod drop_save_tests {
+    use super::*;
+
+    #[test]
+    fn names_from_the_page_become_plain_safe_file_names() {
+        assert_eq!(safe_drop_name("WhatsApp Image 2026-11-03.jpeg"), "WhatsApp Image 2026-11-03.jpeg");
+        assert_eq!(safe_drop_name("..\\..\\evil.exe"), "evil.exe");
+        assert_eq!(safe_drop_name("a/b/c.png"), "c.png");
+        assert_eq!(safe_drop_name("what?.png"), "what_.png");
+        assert_eq!(safe_drop_name(""), "dropped file");
+        assert_eq!(safe_drop_name("..."), "dropped file");
+        assert_eq!(safe_drop_name(&"x".repeat(300)).len(), 120);
+    }
+
+    #[test]
+    fn uri_escapes_decode() {
+        assert_eq!(percent_decode("WhatsApp%20Image%20%C3%A9.jpeg"), "WhatsApp Image é.jpeg");
+        assert_eq!(percent_decode("100%"), "100%");
+        assert_eq!(percent_decode("a%zzb"), "a%zzb");
+        assert_eq!(percent_decode("%é1"), "%é1");
     }
 }
 

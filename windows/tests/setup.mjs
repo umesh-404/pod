@@ -11,14 +11,18 @@ import { internals } from "./tauri.mjs";
 registerHooks({
   resolve(specifier, context, nextResolve) {
     const ours = !context.parentURL?.includes("/node_modules/");
-    if (ours && specifier.startsWith(".") && !/\.(?:[cm]?[jt]s|json)$/.test(specifier)) {
+    if (ours && specifier.startsWith(".") && !/\.(?:[cm]?[jt]s|json|css)$/.test(specifier)) {
       return nextResolve(`${specifier}.ts`, context);
     }
     return nextResolve(specifier, context);
   },
   // Vite imports JSON (src/i18n/*.json) without `with { type: "json" }`;
-  // Node would refuse it, so it is handed over as a module.
+  // Node would refuse it, so it is handed over as a module. A module's own
+  // stylesheet (`import "./x.css"`) is Vite's business: nothing here.
   load(url, context, nextLoad) {
+    if (url.startsWith("file:") && url.endsWith(".css") && !url.includes("/node_modules/")) {
+      return { format: "module", source: "", shortCircuit: true };
+    }
     if (url.startsWith("file:") && url.endsWith(".json") && !url.includes("/node_modules/")) {
       const source = readFileSync(fileURLToPath(url), "utf8");
       return { format: "module", source: `export default ${source};`, shortCircuit: true };

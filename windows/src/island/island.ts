@@ -5,7 +5,7 @@ import { Tracked, Spring, clamp } from "../core/anim";
 import { Bridge, IS_TAURI, onDragDrop, onEvent, type DragDropPayload } from "../core/bridge";
 import {
   COMPACT_W, EXPANDED_CORNER, EXPANDED_W, NOTCH_W, PANEL_H, PANEL_W,
-  ROUNDED_CORNER, TUCK_H, TUCK_W, type TuckShape, botGlowColor, botGlowOpacity, botPosition,
+  ROUNDED_CORNER, TUCK_RADIUS, TUCK_W, type TuckShape, botGlowColor, botGlowOpacity, botPosition,
   compactWidth, dropTargetsGeometry, dropZoneAt, islandSize,
   type BotEmoteName, type DropZone, type IslandMode, type IslandShape, type IslandViewName,
 } from "../core/layout";
@@ -659,9 +659,14 @@ export class Island {
     const read = (e: DragEvent) => {
       const items = e.dataTransfer?.items;
       if (!items || items.length === 0) return null;
+      // A file dragged out of a web page with no type of its own comes with
+      // the page's link or HTML: in practice, a picture.
+      const types = e.dataTransfer?.types ?? [];
+      const fromPage = types.includes("text/uri-list") || types.includes("text/html");
       const kinds: FileKind[] = [];
       for (let i = 0; i < items.length; i++) {
-        if (items[i].kind === "file") kinds.push(fileKindOfMime(items[i].type));
+        if (items[i].kind !== "file") continue;
+        kinds.push(items[i].type ? fileKindOfMime(items[i].type) : fromPage ? "image" : "other");
       }
       return kinds;
     };
@@ -729,7 +734,7 @@ export class Island {
     const shape = this.shape();
     this.botShape = shape;
     const { w, h } = islandSize(State.mode, State.view, shape);
-    const r = State.mode === "expanded" ? EXPANDED_CORNER : State.mode === "hidden" ? TUCK_H / 2 : ROUNDED_CORNER;
+    const r = State.mode === "expanded" ? EXPANDED_CORNER : State.mode === "hidden" ? TUCK_RADIUS : ROUNDED_CORNER;
     return { w, h, r };
   }
 

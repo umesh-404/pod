@@ -14,7 +14,8 @@ const {
 } = await import("../src/core/layout.ts");
 const {
   DROP_ACTIONS, RESIZE_PRESETS, baseName, chooseDropTiles, dirName, dropAction, errorText, fileActionProgress,
-  fileActionText, fileKindOfMime, fileKindOfName, filesState, movedState, reduceFileAction, shortName,
+  fileActionText, fileKindOfMime, fileKindOfName, filesState, findSha256, hashCopyText, hashVerdict, movedState,
+  reduceFileAction, shortName, textState, unavailableActions,
 } = await import("../src/island/file-actions.ts");
 
 // ── Geometry and hit test ─────────────────────────────────────────────────────
@@ -29,13 +30,17 @@ function inside(r, x, y) {
 }
 
 for (const mode of ["grid", "row"]) {
-  // The grid takes every count a drag can show; one row only up to four.
-  for (const n of mode === "grid" ? [2, 3, 4, 5, 6] : [2, 3, 4]) {
+  // The grid takes every count a drag can show (one tile when the others are
+  // switched off, up to MAX_DROP_TILES); one row only up to four.
+  const counts = mode === "grid" ? Array.from({ length: MAX_DROP_TILES }, (_, i) => i + 1) : [2, 3, 4];
+  for (const n of counts) {
     test(`${mode}, ${n} tiles: inside the island, apart, and Mochi's column is free`, () => {
       const g = dropTargetsGeometry(n, mode);
       assert.equal(g.tiles.length, n);
       for (const r of g.tiles) {
         assert.ok(r.x >= 10 && r.y >= 8 && r.x + r.w <= g.w - 10 + 0.01 && r.y + r.h <= g.h - 10 + 0.01, JSON.stringify(r));
+        // Whole tiles: a positive size, never thinner than the flat layout's 58 px.
+        assert.ok(r.w >= 137 && r.h >= 58, JSON.stringify(r));
         // Mochi (a box) never sits on a tile.
         const half = g.bot.diameter / 2;
         const clear = g.bot.cx + half <= r.x || g.bot.cx - half >= r.x + r.w;
@@ -49,8 +54,28 @@ for (const mode of ["grid", "row"]) {
           assert.ok(apart, `tiles ${i} and ${j} overlap`);
         }
       }
-      // A step up from the 288×32 compact bar, inside the window's 720×320.
-      assert.ok(g.w > 288 && g.w <= 680 && g.h > 32 && g.h <= 230, `${g.w}×${g.h}`);
+      // A step up from the 288×32 compact bar, well inside the 720-wide window.
+      assert.ok(g.w > 288 && g.w <= 680 && g.h > 32 && g.h <= Math.min(PANEL_H, 280), `${g.w}×${g.h}`);
+      // Equal insets: the grid's tiles touch 10 px from both sides and 8 px / 10 px from top and bottom.
+      const left = Math.min(...g.tiles.map((r) => r.x));
+      const right = Math.max(...g.tiles.map((r) => r.x + r.w));
+      const top = Math.min(...g.tiles.map((r) => r.y));
+      const bottom = Math.max(...g.tiles.map((r) => r.y + r.h));
+      assert.equal(left, 10);
+      assert.equal(top, 8);
+      assert.ok(Math.abs(g.h - 10 - bottom) < 0.01, `bottom inset ${g.h - bottom}`);
+      if (n > 1) assert.ok(Math.abs(g.w - 10 - right) < 0.01, `right inset ${g.w - right}`);
+      // Each column fills the full height, its tiles 8 px apart.
+      for (const x of new Set(g.tiles.map((r) => r.x))) {
+        const col = g.tiles.filter((r) => r.x === x).sort((a, b) => a.y - b.y);
+        assert.ok(Math.abs(col[0].y - 8) < 0.01 && Math.abs(col.at(-1).y + col.at(-1).h - bottom) < 0.01);
+        for (let i = 1; i < col.length; i++) assert.ok(Math.abs(col[i].y - (col[i - 1].y + col[i - 1].h) - 8) < 0.01);
+      }
+      // Mochi sits inside the island, between the columns, with room around him.
+      assert.ok(g.bot.cx - g.bot.diameter / 2 >= 0 && g.bot.cx + g.bot.diameter / 2 <= g.w);
+      assert.ok(g.bot.cy - g.bot.diameter / 2 >= 0 && g.bot.cy + g.bot.diameter / 2 <= g.h);
+      // One look per layout: the grid puts every icon beside its text, the row above it.
+      assert.equal(g.flat, mode === "grid" && n > 2);
     });
 
     test(`${mode}, ${n} tiles: every point of the island picks a tile, its own inside it`, () => {
@@ -65,6 +90,7 @@ for (const mode of ["grid", "row"]) {
       }
       assert.equal(hit.size, n);
       // The island's left and right halves never cross: Mochi's column splits them.
+      if (n === 1) return;
       for (const [x, y] of islandPoints(g)) {
         const r = g.tiles[dropTileAt(x, y, g.tiles)];
         if (x < g.bot.cx - 1) assert.ok(r.x < g.bot.cx, `(${x}, ${y}) went right`);
@@ -150,23 +176,45 @@ test("kinds from names and from the MIME types of a drag", () => {
 });
 
 test("the tiles fit what is dragged", () => {
-  assert.deepEqual(chooseDropTiles(["video"]), ["convert", "zip", "workspace"]);
-  assert.deepEqual(chooseDropTiles(["audio", "audio"]), ["convert", "zip", "workspace"]);
-  assert.deepEqual(chooseDropTiles(["video", "audio"]), ["convert", "zip", "workspace"]);
-  assert.deepEqual(chooseDropTiles(["image", "image"]), ["convert", "resize", "images", "zip", "workspace"]);
-  assert.deepEqual(chooseDropTiles(["pdf"]), ["split", "rotate", "compress", "zip", "workspace"]);
-  assert.deepEqual(chooseDropTiles(["pdf", "pdf"]), ["merge", "split", "rotate", "compress", "zip", "workspace"]);
-  assert.deepEqual(chooseDropTiles(["zip"]), ["unzip", "workspace"]);
-  assert.deepEqual(chooseDropTiles(["folder"]), ["zip", "workspace"]);
-  assert.deepEqual(chooseDropTiles(["other"]), ["zip", "workspace"]);
-  assert.deepEqual(chooseDropTiles([]), ["zip", "workspace"]);
-  // A mix: Zip and Workspace, with Convert when it is all media.
-  assert.deepEqual(chooseDropTiles(["pdf", "image"]), ["zip", "workspace"]);
-  assert.deepEqual(chooseDropTiles(["zip", "folder"]), ["zip", "workspace"]);
-  assert.deepEqual(chooseDropTiles(["image", "video"]), ["convert", "zip", "workspace"]);
+  // Videos: GIF and Compress video; images: Text, Remove EXIF (SHA-256 gives way, 8 at most).
+  assert.deepEqual(chooseDropTiles(["video"]), ["convert", "gif", "share", "rename", "sha256", "zip", "workspace"]);
+  assert.deepEqual(chooseDropTiles(["audio", "audio"]), ["convert", "rename", "sha256", "zip", "workspace"]);
+  assert.deepEqual(chooseDropTiles(["video", "audio"]), ["convert", "rename", "sha256", "zip", "workspace"]);
+  assert.deepEqual(
+    chooseDropTiles(["image", "image"]),
+    ["convert", "ocr", "resize", "clean", "images", "rename", "zip", "workspace"],
+  );
+  assert.deepEqual(chooseDropTiles(["pdf"]), ["split", "rotate", "compress", "rename", "sha256", "zip", "workspace"]);
+  assert.deepEqual(
+    chooseDropTiles(["pdf", "pdf"]),
+    ["merge", "split", "rotate", "compress", "rename", "sha256", "zip", "workspace"],
+  );
+  assert.deepEqual(chooseDropTiles(["zip"]), ["unzip", "rename", "sha256", "workspace"]);
+  // A folder can't be hashed.
+  assert.deepEqual(chooseDropTiles(["folder"]), ["rename", "zip", "workspace"]);
+  assert.deepEqual(chooseDropTiles(["other"]), ["rename", "sha256", "zip", "workspace"]);
+  assert.deepEqual(chooseDropTiles([]), ["rename", "sha256", "zip", "workspace"]);
+  // A mix: the actions for any file, with Convert when it is all media.
+  assert.deepEqual(chooseDropTiles(["pdf", "image"]), ["rename", "sha256", "zip", "workspace"]);
+  assert.deepEqual(chooseDropTiles(["zip", "folder"]), ["rename", "zip", "workspace"]);
+  assert.deepEqual(chooseDropTiles(["image", "video"]), ["convert", "rename", "sha256", "zip", "workspace"]);
+  // An image with a tile switched off: SHA-256 comes back in its place.
+  assert.deepEqual(
+    chooseDropTiles(["image"], ["resize"]),
+    ["convert", "ocr", "clean", "images", "rename", "sha256", "zip", "workspace"],
+  );
 });
 
-test("every choice shows 2 to 6 tiles, Workspace last", () => {
+test("an action this system can't do is left out (no OCR on Linux)", () => {
+  assert.deepEqual(unavailableActions("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15"), ["ocr"]);
+  assert.deepEqual(unavailableActions("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edg/131"), []);
+  assert.deepEqual(unavailableActions("Node.js/22"), []);
+  const linux = chooseDropTiles(["image"], [], ["ocr"]);
+  assert.ok(!linux.includes("ocr"));
+  assert.deepEqual(linux, ["convert", "resize", "clean", "images", "rename", "sha256", "zip", "workspace"]);
+});
+
+test("every choice shows 2 to MAX_DROP_TILES tiles, Workspace last", () => {
   const kinds = ["image", "video", "audio", "pdf", "zip", "folder", "other"];
   for (const a of kinds) {
     for (const b of [null, ...kinds]) {
@@ -182,11 +230,38 @@ test("every choice shows 2 to 6 tiles, Workspace last", () => {
 });
 
 test("switched-off features leave their tiles out", () => {
-  assert.deepEqual(chooseDropTiles(["image"], ["convert", "pdf"]), ["resize", "zip", "workspace"]);
-  assert.deepEqual(chooseDropTiles(["pdf", "pdf"], ["pdf"]), ["zip", "workspace"]);
-  assert.deepEqual(chooseDropTiles(["zip"], ["zip"]), ["workspace"]);
-  assert.deepEqual(chooseDropTiles(["video"], ["zip", "workspace"]), ["convert"]);
-  assert.deepEqual(chooseDropTiles(["other"], ["zip", "workspace"]), []);
+  assert.deepEqual(
+    chooseDropTiles(["image"], ["convert", "pdf"]),
+    ["ocr", "resize", "clean", "rename", "sha256", "zip", "workspace"],
+  );
+  assert.deepEqual(chooseDropTiles(["pdf", "pdf"], ["pdf"]), ["rename", "sha256", "zip", "workspace"]);
+  assert.deepEqual(chooseDropTiles(["zip"], ["zip"]), ["rename", "sha256", "workspace"]);
+  assert.deepEqual(chooseDropTiles(["video"], ["zip", "workspace", "gif"]), ["convert", "share", "rename", "sha256"]);
+  assert.deepEqual(chooseDropTiles(["image"], ["ocr", "clean", "rename", "sha256"]), ["convert", "resize", "images", "zip", "workspace"]);
+  assert.deepEqual(chooseDropTiles(["zip"], ["zip", "rename", "sha256"]), ["workspace"]);
+  assert.deepEqual(chooseDropTiles(["other"], ["zip", "workspace", "rename", "sha256"]), []);
+  // Every new action has its own switch.
+  for (const id of ["ocr", "clean", "gif", "share", "sha256", "rename"]) assert.equal(DROP_FEATURE[id], id);
+});
+
+test("every count of tiles a drag can show has a geometry, its tiles in place", () => {
+  const kinds = ["image", "video", "audio", "pdf", "zip", "folder", "other"];
+  const switches = [[], ["convert"], ["pdf", "zip"], ["rename", "sha256"], ["workspace", "zip", "rename"], ["ocr", "clean", "gif", "share"]];
+  const seen = new Set();
+  for (const a of kinds) {
+    for (const b of [null, ...kinds]) {
+      for (const off of switches) {
+        const tiles = chooseDropTiles(b ? [a, b] : [a, a], off);
+        if (tiles.length === 0) continue;
+        seen.add(tiles.length);
+        const g = dropTargetsGeometry(tiles.length);
+        assert.equal(g.tiles.length, tiles.length);
+        // The zone under each tile's centre is that tile.
+        g.tiles.forEach((r, i) => assert.equal(dropZoneAt(r.x + r.w / 2, r.y + r.h / 2, tiles), tiles[i]));
+      }
+    }
+  }
+  assert.ok(Math.max(...seen) <= MAX_DROP_TILES && seen.has(MAX_DROP_TILES) && seen.has(1), [...seen].join(","));
 });
 
 test("the drop targets view: its own width and height, no header, Mochi in the middle", () => {
@@ -312,8 +387,14 @@ test("the card's text in each state", () => {
   assert.equal(fileActionText({ kind: "pick", job }).sub, "Choose a format");
   assert.equal(fileActionText({ ...converting, index: 1, fraction: 0.5 }).title, "Converting b.mov → MP4");
   assert.equal(fileActionText({ ...converting, index: 1, fraction: 0.5 }).sub, "2 of 2 · 50 %");
-  assert.equal(fileActionText({ kind: "done", job, format, outputs: ["/v/a.mp4"] }).title, "Saved a.mp4");
-  assert.equal(fileActionText({ kind: "done", job, format, outputs: ["/v/a.mp4", "/v/b.mp4"] }).title, "Saved 2 files");
+  // Saved in the workspace: its name in the title, the full folder below.
+  assert.equal(fileActionText({ kind: "done", job, format, outputs: ["/v/a.mp4"] }).title, "Saved a.mp4 to v");
+  assert.equal(fileActionText({ kind: "done", job, format, outputs: ["/v/a.mp4", "/v/b.mp4"] }).title, "Saved 2 files to v");
+  assert.equal(
+    fileActionText({ kind: "done", job, format, outputs: ["C:\\Users\\me\\Notch Workspace\\clip.gif"] }).title,
+    "Saved clip.gif to Notch Workspace",
+  );
+  assert.equal(fileActionText({ kind: "done", job, format, outputs: ["a.mp4"] }).title, "Saved a.mp4");
   assert.equal(fileActionText({ kind: "done", job, format, outputs: ["/v/a.mp4"] }).sub, "/v");
   assert.equal(fileActionText({ kind: "needsFfmpeg", job, format, canDownload: true }).title, "Converting needs ffmpeg");
   assert.equal(fileActionText({ kind: "soon", action: "zip" }).title, "Coming soon");
@@ -327,14 +408,126 @@ test("the card's text in each state", () => {
   assert.deepEqual([...RESIZE_PRESETS], ["half", "1920", "1280", "800"]);
   const zipped = filesState("zip", { outputs: ["/w/stuff.zip"], failed: [] });
   assert.equal(zipped.kind, "written");
-  assert.equal(fileActionText(zipped).title, "Saved stuff.zip");
+  assert.equal(fileActionText(zipped).title, "Saved stuff.zip to w");
   assert.equal(fileActionText(zipped).sub, "/w");
   const split = filesState("split", { outputs: ["/w/a-1.pdf", "/w/a-2.pdf"], failed: [{ name: "b.pdf", error: "locked" }] });
-  assert.equal(fileActionText(split).title, "Saved 2 files");
+  assert.equal(fileActionText(split).title, "Saved 2 files to w");
   assert.equal(fileActionText(split).sub, "1 failed: locked");
   assert.equal(fileActionText(split).tone, "error");
   const nothing = filesState("merge", { outputs: [], failed: [{ name: "a.pdf", error: "encrypted" }] });
   assert.equal(fileActionText(nothing).title, `${dropAction("merge").title} failed`);
   assert.equal(fileActionText(nothing).sub, "encrypted");
   assert.equal(fileActionText(filesState("rotate", {})).sub, "No file was written.");
+});
+
+// ── File tools: text, SHA-256, Remove EXIF, rename ──────────────────────────
+
+test("a SHA-256 on the clipboard: alone, sha256sum style or prefixed; anything else is none", () => {
+  const hex = "A".repeat(64);
+  assert.equal(findSha256(hex), "a".repeat(64));
+  assert.equal(findSha256(`  ${hex}  ubuntu.iso\n`), "a".repeat(64));
+  assert.equal(findSha256(`SHA256: ${hex}`), "a".repeat(64));
+  assert.equal(findSha256(`sha-256=${hex}`), "a".repeat(64));
+  assert.equal(findSha256("a".repeat(63)), null);
+  assert.equal(findSha256("g".repeat(64)), null);
+  assert.equal(findSha256(`see ${hex}`), null);
+  assert.equal(findSha256(""), null);
+  assert.equal(findSha256(null), null);
+  assert.equal(findSha256(`${hex}${" ".repeat(5000)}`), null, "not a hash, a document");
+});
+
+const H1 = { name: "a.iso", sha256: "1".repeat(64), size: 10 };
+const H2 = { name: "b.iso", sha256: "2".repeat(64), size: 20 };
+
+test("the hash card: progress, match, mismatch, nothing to compare", () => {
+  const hashing = { kind: "hashing", id: 3, names: ["a.iso"], fraction: 0 };
+  const mid = reduceFileAction(hashing, { type: "hash", p: { id: 3, fraction: 0.4 } });
+  assert.equal(fileActionProgress(mid), 0.4);
+  assert.equal(fileActionText(mid).sub, "40 %");
+  assert.equal(fileActionText(mid).title, "SHA-256 of a.iso");
+  assert.equal(reduceFileAction(mid, { type: "hash", p: { id: 4, fraction: 0.9 } }), mid, "another job");
+  assert.equal(reduceFileAction(mid, { type: "hash", p: { id: 3, fraction: 0.1 } }).fraction, 0.4, "never backwards");
+
+  assert.equal(hashVerdict([H1], "1".repeat(64)), "match");
+  assert.equal(hashVerdict([H1, H2], "2".repeat(64)), "match");
+  assert.equal(hashVerdict([H1], "3".repeat(64)), "mismatch");
+  assert.equal(hashVerdict([H1], null), null);
+  const match = { kind: "hashed", hashes: [H1], failed: [], expected: "1".repeat(64), copied: false };
+  assert.equal(fileActionText(match).tone, "ok");
+  assert.match(fileActionText(match).sub, /Matches/);
+  const wrong = { ...match, expected: "9".repeat(64) };
+  assert.equal(fileActionText(wrong).tone, "error");
+  assert.match(fileActionText(wrong).sub, /Doesn't match/);
+  const none = { ...match, expected: null };
+  assert.equal(fileActionText(none).tone, "dim");
+  assert.equal(fileActionText({ ...none, copied: true }).sub, "Copied");
+  assert.equal(fileActionText({ ...none, hashes: [H1, H2] }).title, "SHA-256 of 2 files");
+  assert.equal(fileActionProgress(match), null);
+  assert.equal(hashCopyText([H1]), "1".repeat(64));
+  assert.equal(hashCopyText([H1, H2]), `${"1".repeat(64)}  a.iso\n${"2".repeat(64)}  b.iso`);
+});
+
+test("the text card: copied, from one or several pictures, what failed", () => {
+  const report = { text: "Hello", names: ["shot.png"], outputs: ["/ws/shot (text).txt"], failed: [], copied: true };
+  const one = textState(report);
+  assert.equal(one.kind, "text");
+  assert.equal(fileActionText(one).title, "Copied the text from shot.png");
+  assert.equal(fileActionText(one).sub, "");
+  assert.equal(fileActionText({ ...one, copied: false }).title, "Text from shot.png");
+  const two = textState({ ...report, names: ["a.png", "b.png"], failed: [{ name: "c.png", error: "No text" }] });
+  assert.equal(fileActionText(two).title, "Copied the text from 2 pictures");
+  assert.equal(fileActionText(two).tone, "error");
+  assert.equal(textState({ ...report, text: "", names: [] }), null, "nothing read: the error card");
+});
+
+test("Remove EXIF: the clean copies, and whether there was anything to remove", () => {
+  const cleaned = filesState("clean", { outputs: ["/ws/p (clean).jpg"], failed: [], cleaned: 1 });
+  assert.equal(fileActionText(cleaned).title, "Saved p (clean).jpg to ws");
+  assert.equal(fileActionText(cleaned).tone, "ok");
+  const already = filesState("clean", { outputs: ["/ws/p (clean).png"], failed: [], cleaned: 0 });
+  assert.equal(fileActionText(already).tone, "dim");
+  assert.match(fileActionText(already).sub, /no location/);
+  const broken = filesState("clean", { outputs: [], failed: [{ name: "a.gif", error: "not a JPEG" }], cleaned: 0 });
+  assert.equal(fileActionText(broken).title, "Remove EXIF failed");
+  // The other actions' reports have no `cleaned`.
+  assert.equal("cleaned" in filesState("zip", { outputs: ["/w/a.zip"] }), false);
+});
+
+test("the rename card: hint, error, preview; renamed and put back", () => {
+  const job = { id: 5, names: ["a.jpg", "b.jpg"] };
+  const empty = { kind: "rename", job, pattern: "", rows: [], error: null };
+  assert.equal(fileActionText(empty).title, "Rename 2 files");
+  assert.match(fileActionText(empty).sub, /\{n\}/);
+  assert.equal(fileActionText({ ...empty, job: { id: 5, names: ["a.jpg"] } }).title, "Rename a.jpg");
+  const bad = { ...empty, pattern: "a/b", error: "A name can't contain /." };
+  assert.deepEqual(fileActionText(bad), { title: "Rename 2 files", sub: "A name can't contain /.", tone: "error" });
+  const fine = { ...empty, pattern: "Trip {n}", rows: [{ from: "a.jpg", to: "Trip 1.jpg" }] };
+  assert.equal(fileActionText(fine).sub, "");
+
+  const report = { renamed: [{ from: "a.jpg", to: "Trip 1.jpg" }, { from: "b.jpg", to: "Trip 2.jpg" }], unchanged: 0, failed: [] };
+  const done = { kind: "renamed", id: 5, report, undone: false };
+  assert.equal(fileActionText(done).title, "Renamed 2 files");
+  assert.equal(fileActionText(done).sub, "a.jpg → Trip 1.jpg …");
+  const single = { ...done, report: { ...report, renamed: report.renamed.slice(0, 1) } };
+  assert.equal(fileActionText(single).title, "Renamed Trip 1.jpg");
+  assert.equal(fileActionText(single).sub, "a.jpg → Trip 1.jpg");
+  const back = { ...done, undone: true };
+  assert.equal(fileActionText(back).title, "Put back 2 names");
+  const partly = { ...done, report: { ...report, failed: [{ name: "Trip 2.jpg", error: "b.jpg is already taken." }] } };
+  assert.equal(fileActionText(partly).tone, "error");
+  const nothing = { ...done, report: { renamed: [], unchanged: 2, failed: [] } };
+  assert.equal(fileActionText(nothing).title, "Nothing was renamed");
+});
+
+test("Video to GIF and Compress video show as conversions", () => {
+  const gifJob = { id: 9, names: ["clip.mp4"], kind: "video", formats: [{ id: "gif", label: "GIF" }] };
+  const s = { kind: "converting", job: gifJob, format: gifJob.formats[0], index: 0, count: 1, fraction: 0.25 };
+  assert.equal(fileActionText(s).title, "Converting clip.mp4 → GIF");
+  assert.equal(fileActionText(s).sub, "25 %");
+  const done = reduceFileAction(s, { type: "done", d: { id: 9, outputs: ["/ws/clip (small).mp4"], error: null, cancelled: false } });
+  assert.equal(fileActionText(done).title, "Saved clip (small).mp4 to ws");
+  for (const id of ["gif", "share", "ocr", "clean", "sha256", "rename"]) {
+    const a = dropAction(id);
+    assert.ok(a.title && a.sub && a.icon, id);
+  }
 });

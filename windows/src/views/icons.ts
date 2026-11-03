@@ -95,6 +95,19 @@ export const ICONS = {
   split: "M7 3.5h10v6.5H7zM7 14h10v6.5H7zM4 12h2.5M17.5 12H20M9.5 12h5",
   // Compress PDF: arrows pointing in
   compress: "M4.5 4.5 10 10M10 5.5V10H5.5M19.5 19.5 14 14M14 18.5V14h4.5",
+  // ── File tools (island/file-actions.ts), stroked ──
+  // Text from image: a frame's corners round two lines of text
+  textScan: "M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M8 10h8M8 14h5",
+  // SHA-256: a hash sign
+  hash: "M9.5 4 7.5 20M16.5 4l-2 16M4.5 9h15M4 15h15",
+  // Remove EXIF: a location pin, struck through
+  pinOff: "M12 21s-6-5.3-6-10.5a6 6 0 0 1 10.4-4.1M17.7 8.6c.2.6.3 1.2.3 1.9C18 15.7 12 21 12 21M12 8.2a2.3 2.3 0 0 1 2.3 2.3M4 4l16 16",
+  // Batch rename: a cursor in a text field
+  textCursor: "M3.5 7.5h8M3.5 16.5h8M16 4.5v15M13.5 4.5h5M13.5 19.5h5M20.5 7.5v9",
+  // Video to GIF: a film strip
+  film: "M5 4h14v16H5zM9 4v16M15 4v16M5 8h4M5 12h4M5 16h4M15 8h4M15 12h4M15 16h4",
+  // Compress video: a play button with arrows pointing in
+  playCompress: "M4 7V4h3M20 7V4h-3M4 17v3h3M20 17v3h-3M10 8.5v7l6-3.5z",
   // ── Tabs (header) and the notch's right side, stroked ──
   // tray: Shelf
   tray: "M3.5 13.5h4.6l1.6 2.6h4.6l1.6-2.6h4.6M3.5 13.5 6.2 5h11.6l2.7 8.5V19h-17z",

@@ -1,4 +1,5 @@
 @import "./fonts.css";
+@import "./island/notch.css";
 /* Pod for Windows — same palette, sizes and type scale as the macOS island.
    Every colour below is copied from the Swift views. */
 
@@ -59,13 +60,13 @@ body {
 }
 
 /* Invisible strip around the tucked pill that wakes the island (the window
-   shrinks to it while hidden: 120×26, island.rs STRIP_W/STRIP_H). */
+   shrinks to it while hidden: 150×26, island.rs STRIP_W/STRIP_H). */
 #wake-strip {
   position: fixed;
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 120px;
+  width: 150px;
   height: 26px;
   background: transparent;
 }
@@ -3855,204 +3856,7 @@ html[data-dir="rtl"] #views :is(.bubble, .reply .md-p, .reply .md-h, .reply .md-
   pointer-events: none;
 }
 
-/* The compact notch's sides, around Mochi (40 px between them). */
-.notch-side {
-  position: absolute;
-  top: 0;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font: 500 11.5px var(--font);
-  font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, 0.82);
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  /* Out fast, so the sides are gone before the opening island's header arrives. */
-  transition: opacity 0.08s ease-out;
-  user-select: none;
-}
-
-#island.compact .notch-side {
-  opacity: 1;
-  transition: opacity 0.2s ease-out;
-}
-
-/* Each side fills its wing (island edge to Mochi) and centres what it shows. */
-.notch-side.left {
-  left: 12px;
-  right: calc(50% + 20px);
-  justify-content: center;
-}
-
-.ns-content {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  max-width: 100%;
-}
-
-#island.compact .notch-side.left.on {
-  pointer-events: auto;
-}
-
-.notch-side.left:not(.on) {
-  visibility: hidden;
-}
-
-.notch-side.right {
-  left: calc(50% + 20px);
-  right: 12px;
-}
-
-/* The camera and microphone lights take the right end. */
-.notch-side.right.with-privacy {
-  right: 28px;
-}
-
-.ns-text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.ns-dot {
-  flex: 0 0 auto;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #F5A524;
-}
-
-.notch-side.left .ns-dot {
-  display: none;
-}
-
-/* A reminder that is due: its dot pulses until it is handled. */
-.notch-side.left.fired .ns-dot {
-  display: block;
-  animation: ns-pulse 1.6s ease-in-out infinite;
-}
-
-.ns-dot.mic { background: #F5A524; }
-.ns-dot.camera { background: #34D399; }
-
-@keyframes ns-pulse {
-  50% {
-    opacity: 0.35;
-    transform: scale(0.8);
-  }
-}
-
-/* One item at a time; the next slides up into place as the last one leaves. */
-.ns-layer {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  margin: 0 auto;
-  height: 32px;
-  width: max-content;
-  max-width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: opacity 0.24s ease-out, transform 0.24s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-.ns-layer.gone {
-  opacity: 0;
-  transform: translateY(-6px);
-}
-
-.ns-layer.enter {
-  opacity: 0;
-  transform: translateY(6px);
-}
-
-#island.compact .ns-layer.clickable:not(.gone) {
-  pointer-events: auto;
-}
-
-.ns-layer.clickable:hover,
-.notch-side.left.on:hover {
-  color: var(--ink);
-}
-
-.ns-icon {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.ns-chip {
-  flex: 0 0 auto;
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  font-size: 10.5px;
-  color: var(--ink);
-}
-
-/* Camera and microphone in use: small lights stacked at the island's right end,
-   microphone over camera (one alone sits in the middle). Orange and green, the
-   colours phones use for the same lights. They fade and settle in quickly. */
-.ns-privacy {
-  position: absolute;
-  top: 0;
-  right: 10px;
-  height: 32px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.15s ease-out;
-}
-
-#island.compact .ns-privacy.on {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.ns-light {
-  display: none;
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
-  place-items: center;
-}
-
-.ns-light.on {
-  display: grid;
-  animation: ns-light-in 0.2s cubic-bezier(0.23, 1, 0.32, 1);
-}
-
-.ns-light.mic {
-  color: #1a1206;
-  background: #F5A524;
-}
-
-.ns-light.camera {
-  color: #04150e;
-  background: #34D399;
-}
-
-@keyframes ns-light-in {
-  from {
-    opacity: 0;
-    transform: scale(0.85);
-  }
-}
-
-/* Nothing loops while the notch isn't compact. */
-#island:not(.compact) .notch-side * {
-  animation-play-state: paused;
-}
+/* The compact notch's sides: island/notch.css (imported at the top). */
 
 @media (prefers-reduced-motion: reduce) {
   .tab-indicator,
@@ -4061,26 +3865,11 @@ html[data-dir="rtl"] #views :is(.bubble, .reply .md-p, .reply .md-h, .reply .md-
     transition-duration: 0.01s;
     transition-delay: 0s;
   }
-
-  .ns-light.on {
-    animation: none;
-  }
-
-  .ns-layer,
-  .ns-layer.gone,
-  .ns-layer.enter {
-    transform: none;
-    transition: opacity 0.15s linear;
-  }
-
-  .notch-side.left.fired .ns-dot {
-    animation: none;
-  }
 }
 
 /* ── Tucked pill face (island/tuck.ts) ───────────────────────────────────────
    Over a maximized or fullscreen window Pod folds into a pill sized to what it
-   shows (at least 54×22). A running
+   shows (at least 56×24). A running
    timer takes Mochi's place as a countdown with a progress ring; something
    waiting (a fired reminder, a meeting about to start, a new download) makes the
    pill glow, with a shimmer passing across it. Only transform and opacity move,
@@ -4167,16 +3956,16 @@ html[data-dir="rtl"] #views :is(.bubble, .reply .md-p, .reply .md-h, .reply .md-
   flex: 0 0 auto;
   width: max-content;
   height: 100%;
-  padding: 0 11px;
+  padding: 0 13px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
 }
 
 /* Mochi's slot: his canvas is drawn over it. */
 .tuck-bot {
-  flex: 0 0 15px;
-  height: 15px;
+  flex: 0 0 16px;
+  height: 16px;
 }
 
 .tuck-ring,
@@ -4196,8 +3985,9 @@ html[data-dir="rtl"] #views :is(.bubble, .reply .md-p, .reply .md-h, .reply .md-
 }
 
 .tuck-ring {
-  width: 12px;
-  height: 12px;
+  flex: 0 0 13px;
+  width: 13px;
+  height: 13px;
   transform: rotate(-90deg);
   animation: tuck-in 0.24s cubic-bezier(0.23, 1, 0.32, 1);
 }
@@ -4219,17 +4009,20 @@ html[data-dir="rtl"] #views :is(.bubble, .reply .md-p, .reply .md-h, .reply .md-
 }
 
 .tuck-time {
-  margin-top: -1px;
   color: #fff;
-  font: 600 11.5px/1 var(--font);
+  font: 600 12px/1 var(--font);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
+  /* Centred on the digits themselves (cap height to baseline), not on the
+     line box, so they line up with the ring. */
+  text-box: trim-both cap alphabetic;
   animation: tuck-in 0.24s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .tuck-icon {
-  width: 11px;
-  height: 11px;
+  flex: 0 0 12px;
+  width: 12px;
+  height: 12px;
   color: rgb(var(--tuck-accent));
   animation: tuck-in 0.24s cubic-bezier(0.23, 1, 0.32, 1);
 }
@@ -4258,6 +4051,113 @@ html[data-dir="rtl"] #views :is(.bubble, .reply .md-p, .reply .md-h, .reply .md-
   stroke: #34d399;
 }
 
+/* A job running (convert, zip, resize…): the ring fills, the time is a percentage. */
+.tuck-face.job .tuck-ring-arc {
+  stroke: #7aa2ff;
+  transition: stroke-dashoffset 0.25s linear;
+}
+
+/* Music playing: three bars in Mochi's place, as wide as his slot. */
+.tuck-eq {
+  display: none;
+  flex: 0 0 16px;
+  height: 12px;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+}
+
+.tuck-face.music .tuck-bot {
+  display: none;
+}
+
+.tuck-face.music .tuck-eq {
+  display: flex;
+}
+
+.tuck-eq i {
+  width: 2.5px;
+  height: 100%;
+  border-radius: 1px;
+  background: #fff;
+  transform-origin: 50% 100%;
+  animation: tuck-eq 0.9s ease-in-out infinite alternate;
+}
+
+.tuck-eq i:nth-child(1) { animation-duration: 0.72s; }
+.tuck-eq i:nth-child(2) { animation-duration: 0.95s; animation-delay: -0.3s; }
+.tuck-eq i:nth-child(3) { animation-duration: 0.81s; animation-delay: -0.55s; }
+
+@keyframes tuck-eq {
+  from { transform: scaleY(0.28); }
+  to { transform: scaleY(1); }
+}
+
+/* A reminder due within the hour: a bell and its countdown. */
+.tuck-soon {
+  display: none;
+  align-items: center;
+  gap: 3px;
+  color: rgba(255, 255, 255, 0.82);
+  animation: tuck-in 0.24s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.tuck-face.soon .tuck-soon {
+  display: flex;
+}
+
+.tuck-soon svg {
+  display: block;
+  flex: 0 0 11px;
+  color: #f5a524;
+}
+
+.tuck-soon-text {
+  font: 600 11.5px/1 var(--font);
+  font-variant-numeric: tabular-nums;
+  text-box: trim-both cap alphabetic;
+}
+
+/* Camera and microphone in use: a light each, stacked (microphone on top),
+   the same colours as the compact notch's lights. */
+.tuck-lights {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.tuck-face.lights .tuck-lights {
+  display: flex;
+}
+
+.tuck-light {
+  display: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.tuck-light.on {
+  display: block;
+  animation: tuck-in 0.24s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.tuck-light.mic {
+  background: #f5a524;
+  box-shadow: 0 0 4px rgba(245, 165, 36, 0.7);
+}
+
+.tuck-light.camera {
+  background: #34d399;
+  box-shadow: 0 0 4px rgba(52, 211, 153, 0.7);
+}
+
+/* The tucked pill's own animations stop when it isn't showing. */
+#island:not(.tucked) .tuck-face * {
+  animation-play-state: paused;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tuck-face[data-alert] .tuck-glow,
   .tuck-face[data-alert] .tuck-shine {
@@ -4268,7 +4168,13 @@ html[data-dir="rtl"] #views :is(.bubble, .reply .md-p, .reply .md-h, .reply .md-
   }
   .tuck-ring,
   .tuck-time,
-  .tuck-icon {
+  .tuck-icon,
+  .tuck-soon,
+  .tuck-light.on {
     animation: none;
+  }
+  .tuck-eq i {
+    animation: none;
+    transform: scaleY(0.6);
   }
 }

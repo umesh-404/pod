@@ -1,5 +1,5 @@
-// "Zip / Unzip": files and folders dropped on the island become one .zip next to
-// them; .zip files dropped on it are extracted next to themselves.
+// "Zip / Unzip": files and folders dropped on the island become one .zip in the
+// workspace folder; .zip files dropped on it are extracted into a folder there.
 //
 // The rules, because these are the user's own files:
 //   * only paths a real drop just delivered are used (files::take_dropped);
@@ -52,7 +52,7 @@ const STORED_EXTS: &[&str] = &[
 ];
 
 #[tauri::command]
-pub async fn archive_run(_app: AppHandle, paths: Vec<String>) -> Result<ArchiveReport, String> {
+pub async fn archive_run(app: AppHandle, paths: Vec<String>) -> Result<ArchiveReport, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let mut failed = Vec::new();
         let mut inputs = Vec::new();
@@ -65,14 +65,15 @@ pub async fn archive_run(_app: AppHandle, paths: Vec<String>) -> Result<ArchiveR
                 failed.push(Failure { name: display_name(&src), error: t("Only files dropped on the island can be used.") });
             }
         }
-        Ok(run(&inputs, failed))
+        let out = crate::workspace::output_dir(&app)?;
+        Ok(run(&inputs, &out, failed))
     })
     .await
     .map_err(|e| e.to_string())?
 }
 
-/// Zips `inputs`, or extracts them when every one is a .zip.
-pub(crate) fn run(inputs: &[PathBuf], mut failed: Vec<Failure>) -> ArchiveReport {
+/// Zips `inputs`, or extracts them when every one is a .zip, into `out`.
+pub(crate) fn run(inputs: &[PathBuf], out: &Path, mut failed: Vec<Failure>) -> ArchiveReport {
     let _busy = crate::files::JobGuard::new();
     let mut usable = Vec::new();
     for input in inputs {
@@ -86,13 +87,13 @@ pub(crate) fn run(inputs: &[PathBuf], mut failed: Vec<Failure>) -> ArchiveReport
     let mut outputs = Vec::new();
     if unzip {
         for archive in &usable {
-            match extract(archive) {
+            match extract(archive, out) {
                 Ok(dir) => outputs.push(dir.to_string_lossy().to_string()),
                 Err(error) => failed.push(Failure { name: display_name(archive), error }),
             }
         }
     } else if !usable.is_empty() {
-        match create(&usable) {
+        match create(&usable, out) {
             Ok(dest) => outputs.push(dest.to_string_lossy().to_string()),
             Err(failure) => failed.push(failure),
         }
@@ -107,14 +108,6 @@ pub(crate) fn run(inputs: &[PathBuf], mut failed: Vec<Failure>) -> ArchiveReport
 
 pub(crate) fn display_name(path: &Path) -> String {
     path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| path.to_string_lossy().to_string())
-}
-
-/// The folder `path` is in; outputs land there.
-pub(crate) fn parent_dir(path: &Path) -> PathBuf {
-    match path.parent() {
-        Some(p) if !p.as_os_str().is_empty() => p.to_path_buf(),
-        _ => PathBuf::from("."),
-    }
 }
 
 /// Lowercase extension of `path`, if any.
@@ -175,11 +168,10 @@ fn archive_name(inputs: &[PathBuf]) -> String {
     }
 }
 
-fn create(inputs: &[PathBuf]) -> Result<PathBuf, Failure> {
+fn create(inputs: &[PathBuf], out: &Path) -> Result<PathBuf, Failure> {
     let name = archive_name(inputs);
-    let dir = parent_dir(&inputs[0]);
     let (dest, file) =
-        create_unique(&dir, &name).map_err(|e| Failure { name: name.clone(), error: cannot_write(&name, &e) })?;
+        create_unique(out, &name).map_err(|e| Failure { name: name.clone(), error: cannot_write(&name, &e) })?;
     match write_zip(file, inputs, &dest) {
         Ok(()) => Ok(dest),
         Err(error) => {
@@ -388,7 +380,7 @@ fn plan<R: Read + Seek>(archive: &mut ZipArchive<R>) -> Result<Vec<Planned>, Str
     Ok(planned)
 }
 
-fn extract(zip_path: &Path) -> Result<PathBuf, String> {
+fn extract(zip_path: &Path, out: &Path) -> Result<PathBuf, String> {
     let name = display_name(zip_path);
     let file = File::open(zip_path).map_err(|e| cannot_read(&name, &e))?;
     let mut archive = ZipArchive::new(BufReader::new(file)).map_err(zip_error)?;
@@ -398,7 +390,7 @@ fn extract(zip_path: &Path) -> Result<PathBuf, String> {
         .map(|s| s.to_string_lossy().to_string())
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| "Archive".into());
-    let target = create_unique_dir(&parent_dir(zip_path), &folder).map_err(|e| cannot_write(&folder, &e))?;
+    let target = create_unique_dir(out, &folder).map_err(|e| cannot_write(&folder, &e))?;
     match unpack(&mut archive, &planned, &target) {
         Ok(()) => Ok(target),
         Err(error) => {
@@ -507,7 +499,7 @@ mod tests {
             zip.write_all(b"bad").unwrap();
             zip.finish().unwrap();
         }
-        let report = run(&[zip_path], Vec::new());
+        let report = run(&[zip_path], &dir, Vec::new());
         assert_eq!(report.mode, "unzip");
         assert!(report.outputs.is_empty());
         assert_eq!(report.failed.len(), 1);
@@ -547,18 +539,25 @@ mod tests {
         // Something already has the name: it must not be overwritten.
         fs::write(dir.join("Archive.zip"), b"keep me").unwrap();
 
-        let report = run(&[folder.clone(), loose.clone()], Vec::new());
+        // Outputs go to the workspace (`ws`), not next to the originals.
+        let ws = dir.join("ws");
+        fs::create_dir(&ws).unwrap();
+        fs::write(ws.join("Archive.zip"), b"keep me").unwrap();
+        let report = run(&[folder.clone(), loose.clone()], &ws, Vec::new());
         assert_eq!(report.mode, "zip");
         assert!(report.failed.is_empty(), "{:?}", report.failed);
         let made = PathBuf::from(&report.outputs[0]);
         assert_eq!(display_name(&made), "Archive (2).zip");
+        assert_eq!(made.parent().unwrap(), ws.as_path());
+        assert_eq!(fs::read(ws.join("Archive.zip")).unwrap(), b"keep me");
         assert_eq!(fs::read(dir.join("Archive.zip")).unwrap(), b"keep me");
 
-        let report = run(&[made], Vec::new());
+        let report = run(&[made], &ws, Vec::new());
         assert_eq!(report.mode, "unzip");
         assert!(report.failed.is_empty(), "{:?}", report.failed);
         let out = PathBuf::from(&report.outputs[0]);
         assert_eq!(display_name(&out), "Archive (2)");
+        assert_eq!(out.parent().unwrap(), ws.as_path());
         assert_eq!(fs::read(out.join("project").join("a.txt")).unwrap(), b"hello");
         assert_eq!(fs::read(out.join("project").join("sub").join("b.bin")).unwrap(), big);
         assert!(out.join("project").join("sub").join("empty").is_dir());
@@ -578,7 +577,7 @@ mod tests {
         }
         let other = dir.join("note.txt");
         fs::write(&other, b"n").unwrap();
-        let report = run(&[zip_path, other], Vec::new());
+        let report = run(&[zip_path, other], &dir, Vec::new());
         assert_eq!(report.mode, "zip");
         assert_eq!(report.outputs.len(), 1);
         assert!(report.outputs[0].ends_with("Archive.zip"));
