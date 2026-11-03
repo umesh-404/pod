@@ -1,9 +1,7 @@
-// Small pieces the Coucou window's pages are drawn with: icons, rows, cards,
+// Small pieces the Pod window's pages are drawn with: icons, rows, cards,
 // switches, segmented controls. Same look as the Mac's (FlowHub.swift).
 
 import { h } from "../views/dom";
-import { t } from "../i18n/i18n";
-import type { FlowKey } from "../core/flow";
 
 /** Stroke icons on a 24×24 grid, standing in for the Mac's SF Symbols. */
 export const HUB_ICONS: Record<string, string> = {
@@ -17,9 +15,7 @@ export const HUB_ICONS: Record<string, string> = {
   gear: "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7",
   grid: "M4.5 4.5h6v6h-6zM13.5 4.5h6v6h-6zM4.5 13.5h6v6h-6zM13.5 13.5h6v6h-6z",
   terminal: "M3.5 5.5h17v13h-17zM7 10l3 2.5L7 15M12.5 15H17",
-  chat: "M4 5.5h16v10H10l-4 3.5v-3.5H4z",
   puzzle: "M9 4h4v2a1.8 1.8 0 1 0 3.6 0V4H20v5.5h-2a1.8 1.8 0 1 0 0 3.6h2V20h-5.5v-2a1.8 1.8 0 1 0-3.6 0v2H4v-6.4h2a1.8 1.8 0 1 0 0-3.6H4V4h5z",
-  phone: "M8 2.8h8a1.6 1.6 0 0 1 1.6 1.6v15.2a1.6 1.6 0 0 1-1.6 1.6H8a1.6 1.6 0 0 1-1.6-1.6V4.4A1.6 1.6 0 0 1 8 2.8zM11 18h2",
   wave: "M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4",
   keyboard: "M3 6.5h18v11H3zM6.5 10h1M10 10h1M13.5 10h1M17 10h.5M7 14h10",
   copy: "M8.5 8.5h11v11.5h-11zM5 15.5V4h11",
@@ -36,6 +32,9 @@ export const HUB_ICONS: Record<string, string> = {
   filter: "M4 7h16M7 12h10M10 17h4",
   nosign: "M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17zM6 6l12 12",
   star: "M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z",
+  notch: "M3.5 5.5h17v13h-17zM9 5.5v1a1.5 1.5 0 0 0 1.5 1.5h3A1.5 1.5 0 0 0 15 6.5v-1",
+  chevronUp: "M6.5 14.5 12 9l5.5 5.5",
+  chevronDown: "M6.5 9.5 12 15l5.5-5.5",
   search: "M10.5 3a7.5 7.5 0 0 1 5.96 12.06l4.24 4.24-1.4 1.4-4.24-4.24A7.5 7.5 0 1 1 10.5 3zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11z",
 };
 
@@ -126,29 +125,6 @@ export function select<T extends string>(options: [T, string][], value: T, onCha
   el.value = value;
   el.addEventListener("change", () => onChange(el.value as T));
   return el;
-}
-
-/** "Right Ctrl", "Ctrl + Win"… */
-export function keyLabel(key: FlowKey | "wayland" | "", platform: "windows" | "linux" = "windows"): string {
-  switch (key) {
-    case "right_alt":
-      return t("Right {0}", { 0: "Alt" });
-    case "right_shift":
-      return t("Right {0}", { 0: "Shift" });
-    case "left_ctrl_super":
-      return platform === "windows" ? "Ctrl + Win" : "Ctrl + Super";
-    case "wayland":
-      // Held by the desktop (GlobalShortcuts portal): the keys Coucou suggests.
-      return "Ctrl+Alt+V";
-    default:
-      return t("Right {0}", { 0: "Ctrl" });
-  }
-}
-
-/** The key written as keycaps: "Right Ctrl" twice for hands-free. */
-export function keyKeycap(key: FlowKey | "wayland" | "", platform: "windows" | "linux", twice = false): HTMLElement {
-  const label = keyLabel(key, platform);
-  return keycap(twice ? `${label} ${label}` : label);
 }
 
 /** A number written the way the language writes it. */

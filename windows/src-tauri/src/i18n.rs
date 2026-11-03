@@ -254,7 +254,7 @@ mod tests {
         // From the Mac's catalog.
         assert_eq!(t("Allow"), "Autoriser");
         // From extra.json.
-        assert_eq!(t("Open Coucou"), "Ouvrir Coucou");
+        assert_eq!(t("Open Pod"), "Ouvrir Pod");
         assert_eq!(t("A string nobody translated"), "A string nobody translated");
         assert_eq!(tf("Open {name}", &[("name", "Vercel")]), "Ouvrir Vercel");
         set_for_test("en");
@@ -298,14 +298,14 @@ mod tests {
         set_for_test("de");
         assert_eq!(t("Allow"), "Zulassen");
         assert_eq!(t("Deny"), "Ablehnen");
-        assert_eq!(t("Open the chat"), "Chat öffnen");
+        assert_eq!(t("Copy to workspace"), "In den Arbeitsbereich kopieren");
         assert_eq!(tf("Uploading {name}", &[("name", "Grüße.pdf")]), "Grüße.pdf wird hochgeladen");
         assert_eq!(t("A string nobody translated"), "A string nobody translated");
         for count in [0, 1, 2, 21] {
             assert_eq!(plural_category("de", count), if count == 1 { "one" } else { "other" });
-            let repo = if count == 1 { "Repository" } else { "Repositorys" };
+            let event = if count == 1 { "Termin" } else { "Termine" };
             let model = if count == 1 { "Modell" } else { "Modelle" };
-            assert_eq!(tn("{count} repo", "{count} repos", count, &[]), format!("{count} {repo}"));
+            assert_eq!(tn("{count} event found", "{count} events found", count, &[]), format!("{count} {event} gefunden"));
             assert_eq!(tn("✓ Connected · {count} model", "✓ Connected · {count} models", count, &[]),
                 format!("✓ Verbunden · {count} {model}"));
         }
@@ -322,12 +322,12 @@ mod tests {
         set_for_test("tr");
         assert_eq!(t("Allow"), "İzin ver");
         assert_eq!(t("Deny"), "Reddet");
-        assert_eq!(t("Open the chat"), "Sohbeti aç");
+        assert_eq!(t("Copy to workspace"), "Çalışma alanına kopyala");
         assert_eq!(tf("Uploading {name}", &[("name", "öğrenci.pdf")]), "öğrenci.pdf yükleniyor");
         assert_eq!(t("A string nobody translated"), "A string nobody translated");
         for n in [0, 1, 2, 21] {
             assert_eq!(plural_category("tr", n), if n == 1 { "one" } else { "other" });
-            assert_eq!(tn("{count} repo", "{count} repos", n, &[]), format!("{n} depo"));
+            assert_eq!(tn("{count} event found", "{count} events found", n, &[]), format!("{n} etkinlik bulundu"));
             assert_eq!(tn("✓ Connected · {count} model", "✓ Connected · {count} models", n, &[]),
                 format!("✓ Bağlı · {n} model"));
         }

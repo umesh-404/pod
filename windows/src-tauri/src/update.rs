@@ -1,17 +1,17 @@
-// "Coucou 0.6.0 is out" in the island, and on Windows one click to install it.
+// "Pod 0.6.0 is out" in the island, and on Windows one click to install it.
 // Port of MacUpdate.swift / MacUpdater.swift (the Mac's GitHub build).
 //
 // Nothing is asked of GitHub before the user says yes: the island asks once
 // (again a day later at most if the card was left unanswered), or Settings →
 // General → Updates. "Check now" is a click, so it works either way. Once
-// allowed, Coucou looks at launch and every 6 hours: one unauthenticated
-// `GET /repos/Louis-CFM/coucou/releases`, no cookies, nothing about the user.
+// allowed, Pod looks at launch and every 6 hours: one unauthenticated
+// `GET /repos/umesh-404/pod/releases`, no cookies, nothing about the user.
 //
 // Windows: the installer this copy came from — the per-user setup.exe in
-// %LOCALAPPDATA%\Coucou, the per-machine .msi under Program Files — is
+// %LOCALAPPDATA%\Pod, the per-machine .msi under Program Files — is
 // downloaded from GitHub only (redirects to github.com, api.github.com and
 // *.githubusercontent.com, nothing else), checked against the SHA-256 GitHub
-// publishes for that asset, then run; Coucou quits and the installer starts it
+// publishes for that asset, then run; Pod quits and the installer starts it
 // again. Anything else (the portable exe, every Linux package) gets the
 // release page: people update those the way they installed them.
 //
@@ -29,9 +29,9 @@ use tauri::{AppHandle, Emitter};
 use crate::i18n::t;
 use crate::island::WINDOW_LABEL;
 
-pub const RELEASES_URL: &str = "https://api.github.com/repos/Louis-CFM/coucou/releases?per_page=30";
+pub const RELEASES_URL: &str = "https://api.github.com/repos/umesh-404/pod/releases?per_page=30";
 /// Where "What's new" goes when no release is known.
-pub const RELEASES_PAGE: &str = "https://github.com/Louis-CFM/coucou/releases";
+pub const RELEASES_PAGE: &str = "https://github.com/umesh-404/pod/releases";
 
 /// This platform's release tags: `windows-vX.Y.Z` / `linux-vX.Y.Z`. Never the
 /// rolling `windows-latest` / `linux-latest`, nor the Mac's `v…` or Android's.
@@ -44,13 +44,14 @@ pub const TAG_PREFIX: &str = "linux-v";
 pub const CHECK_INTERVAL: i64 = 6 * 3600;
 /// "Later", or the card shown once: that version stays quiet for a day. A newer one shows at once.
 pub const SNOOZE: i64 = 24 * 3600;
-/// The question comes back a day later at most when it was left unanswered.
-pub const ASK_AGAIN: i64 = 24 * 3600;
 /// The first look, after launch: never on top of the greeting.
+/// Tray → Pause: while paused, nothing goes out to check for a new version.
+pub static PAUSED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 const FIRST_TICK: Duration = Duration::from_secs(30);
 /// How often the schedule is looked at; GitHub is only called when `should_check` says so.
 const TICK: Duration = Duration::from_secs(3600);
-/// An installer bigger than this is not Coucou's (0.5.0's .msi is 14 MB).
+/// An installer bigger than this is not Pod's (0.5.0's .msi is 14 MB).
 const MAX_INSTALLER: u64 = 512 * 1024 * 1024;
 
 // ── Releases ──────────────────────────────────────────────────────────────────
@@ -189,9 +190,9 @@ pub fn parse_digest(digest: &str) -> Option<String> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum InstallKind {
-    /// The per-user setup.exe (NSIS): %LOCALAPPDATA%\Coucou.
+    /// The per-user setup.exe (NSIS): %LOCALAPPDATA%\Pod.
     Setup,
-    /// The per-machine .msi (WiX): Program Files\Coucou.
+    /// The per-machine .msi (WiX): Program Files\Pod.
     Msi,
     /// Anything else — the portable exe, a build, Linux: the release page only.
     Manual,
@@ -203,8 +204,8 @@ fn win_path(p: &str) -> String {
 }
 
 /// The installer that put `exe` where it is, from its folder alone: Tauri's
-/// NSIS installer (per user) uses %LOCALAPPDATA%\Coucou, its MSI (per machine)
-/// Program Files\Coucou. `has_uninstaller` is whether NSIS's uninstall.exe sits
+/// NSIS installer (per user) uses %LOCALAPPDATA%\Pod, its MSI (per machine)
+/// Program Files\Pod. `has_uninstaller` is whether NSIS's uninstall.exe sits
 /// next to it, so a portable exe someone copied into that folder isn't taken
 /// for an installed one.
 #[cfg_attr(not(windows), allow(dead_code))]
@@ -212,11 +213,11 @@ pub fn install_kind(exe: &str, has_uninstaller: bool, local_app_data: Option<&st
     let exe = win_path(exe);
     let Some((dir, _)) = exe.rsplit_once('\\') else { return InstallKind::Manual };
     if let Some(local) = local_app_data.filter(|l| !l.trim().is_empty()) {
-        if dir == format!("{}\\coucou", win_path(local)) {
+        if dir == format!("{}\\pod", win_path(local)) {
             return if has_uninstaller { InstallKind::Setup } else { InstallKind::Manual };
         }
     }
-    if program_files.iter().filter(|p| !p.trim().is_empty()).any(|p| dir == format!("{}\\coucou", win_path(p))) {
+    if program_files.iter().filter(|p| !p.trim().is_empty()).any(|p| dir == format!("{}\\pod", win_path(p))) {
         return InstallKind::Msi;
     }
     InstallKind::Manual
@@ -226,8 +227,8 @@ pub fn install_kind(exe: &str, has_uninstaller: bool, local_app_data: Option<&st
 /// workflow publishes, nothing else.
 pub fn asset_name(kind: InstallKind, version: &str) -> Option<String> {
     match kind {
-        InstallKind::Setup => Some(format!("Coucou-Windows-{version}-setup.exe")),
-        InstallKind::Msi => Some(format!("Coucou-Windows-{version}.msi")),
+        InstallKind::Setup => Some(format!("Pod-Windows-{version}-setup.exe")),
+        InstallKind::Msi => Some(format!("Pod-Windows-{version}.msi")),
         InstallKind::Manual => None,
     }
 }
@@ -240,7 +241,7 @@ pub fn pick_asset(release: &Release, kind: InstallKind) -> Option<&Asset> {
 /// What runs the downloaded installer. The setup.exe with Tauri's own update
 /// flags: `/P` passive (a progress bar, no questions), `/UPDATE` (no "reinstall
 /// or uninstall?" step, the old uninstaller never runs, shortcuts are left as
-/// they are), `/R` (start Coucou again once done). The MSI through msiexec,
+/// they are), `/R` (start Pod again once done). The MSI through msiexec,
 /// passive, with Tauri's `AUTOLAUNCHAPP` to start it again; being per machine
 /// it asks for admin rights, as installing it by hand does.
 pub fn installer_command(kind: InstallKind, file: &Path, system_root: Option<&str>) -> Option<(PathBuf, Vec<String>)> {
@@ -269,11 +270,7 @@ pub fn should_check(last: Option<i64>, now: i64) -> bool {
     due(last, now, CHECK_INTERVAL)
 }
 
-pub fn should_ask(asked_at: Option<i64>, now: i64) -> bool {
-    due(asked_at, now, ASK_AGAIN)
-}
-
-/// Whether Mochi says "Coucou X is out": newer than what runs, and not shown
+/// Whether Mochi says "Pod X is out": newer than what runs, and not shown
 /// or put off for that version in the last day.
 pub fn should_announce(version: &str, current: &str, snoozed_version: Option<&str>, snoozed_at: Option<i64>, now: i64) -> bool {
     if !is_newer(version, current) {
@@ -288,8 +285,10 @@ pub fn should_announce(version: &str, current: &str, snoozed_version: Option<&st
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct Prefs {
-    /// None: not asked yet. true: Coucou may look at GitHub. false: never on its own.
+    /// Pod looks at GitHub on its own unless this is false (None: on, the default).
     consent: Option<bool>,
+    /// Installs a verified update by itself while the user is away (None: on, the default).
+    auto_install: Option<bool>,
     last_check: Option<i64>,
     snoozed_version: Option<String>,
     snoozed_at: Option<i64>,
@@ -332,6 +331,12 @@ pub struct Status {
     latest: Option<LatestView>,
     /// "Update now" can install it here (Windows, setup.exe or MSI install).
     can_install: bool,
+    /// Updates install by themselves (the setting, and a per-user setup.exe install).
+    auto_install: bool,
+    /// Whether this copy can install by itself at all (a per-user setup.exe install).
+    auto_possible: bool,
+    /// A newer version downloaded and verified, waiting for the user to be away.
+    ready: Option<String>,
     phase: Phase,
     check: CheckState,
     platform: &'static str,
@@ -342,6 +347,27 @@ struct Inner {
     latest: Option<Release>,
     phase: Phase,
     check: CheckState,
+    /// A background download for an automatic install is on its way.
+    preparing: bool,
+    /// The installer it left, verified, for `install_when_away`.
+    ready: Option<Ready>,
+}
+
+#[derive(Clone, Debug)]
+struct Ready {
+    version: String,
+    path: PathBuf,
+}
+
+/// Checks on by default: only an explicit "off" stops them.
+fn checks_on(prefs: &Prefs) -> bool {
+    prefs.consent != Some(false)
+}
+
+/// Automatic installs: on by default, and only for the per-user setup.exe,
+/// which updates without admin rights (the per-machine MSI would ask for them).
+fn auto_on(prefs: &Prefs) -> bool {
+    checks_on(prefs) && prefs.auto_install != Some(false) && this_install() == InstallKind::Setup
 }
 
 impl Inner {
@@ -353,7 +379,14 @@ impl Inner {
 fn state() -> MutexGuard<'static, Inner> {
     static S: OnceLock<Mutex<Inner>> = OnceLock::new();
     S.get_or_init(|| {
-        Mutex::new(Inner { prefs: load_prefs(), latest: None, phase: Phase::Idle, check: CheckState::None })
+        Mutex::new(Inner {
+            prefs: load_prefs(),
+            latest: None,
+            phase: Phase::Idle,
+            check: CheckState::None,
+            preparing: false,
+            ready: None,
+        })
     })
     .lock()
     .unwrap_or_else(PoisonError::into_inner)
@@ -378,7 +411,7 @@ fn load_prefs() -> Prefs {
 fn save_prefs(prefs: &Prefs) {
     let path = prefs_path();
     let Some(dir) = path.parent() else { return };
-    let temp = path.with_extension(format!("json.coucou-{}", std::process::id()));
+    let temp = path.with_extension(format!("json.pod-{}", std::process::id()));
     let written = crate::platform::ensure_private_dir(dir)
         .and_then(|()| serde_json::to_vec(prefs).map_err(std::io::Error::other))
         .and_then(|json| std::fs::write(&temp, json))
@@ -416,7 +449,7 @@ pub fn status() -> Status {
     let s = state();
     let latest = s.latest.as_ref().filter(|r| is_newer(&r.version, current_version()));
     Status {
-        consent: s.prefs.consent,
+        consent: Some(checks_on(&s.prefs)),
         current: current_version().to_string(),
         latest: latest.map(|r| LatestView {
             version: r.version.clone(),
@@ -424,13 +457,16 @@ pub fn status() -> Status {
             page_url: r.page_url.clone(),
         }),
         can_install: can_install(latest),
+        auto_install: auto_on(&s.prefs),
+        auto_possible: this_install() == InstallKind::Setup,
+        ready: s.ready.as_ref().filter(|r| is_newer(&r.version, current_version())).map(|r| r.version.clone()),
         phase: s.phase.clone(),
         check: s.check,
         platform: if cfg!(windows) { "windows" } else { "linux" },
     }
 }
 
-/// Tells both windows, and the tray's "Update Coucou to X…".
+/// Tells both windows, and the tray's "Update Pod to X…".
 fn changed(app: &AppHandle) {
     let status = status();
     crate::tray::set_update(app, status.latest.as_ref().map(|l| l.version.as_str()));
@@ -468,25 +504,29 @@ pub fn start(app: AppHandle) {
 
 async fn tick(app: &AppHandle, launch: bool) {
     // Paused means paused: no call out, no card.
-    if crate::integrations::PAUSED.load(std::sync::atomic::Ordering::Relaxed) {
+    if PAUSED.load(std::sync::atomic::Ordering::Relaxed) {
         return;
     }
-    let (consent, asked_at, last_check) = {
+    let (on, last_check) = {
         let s = state();
-        (s.prefs.consent, s.prefs.asked_at, s.prefs.last_check)
+        (checks_on(&s.prefs), s.prefs.last_check)
     };
-    match consent {
-        None if should_ask(asked_at, now()) => offer(app, "ask"),
-        Some(true) if launch || should_check(last_check, now()) => check(app, false).await,
-        Some(true) => announce_if_due(app),
-        _ => {}
+    if !on {
+        return;
+    }
+    if launch || should_check(last_check, now()) {
+        check(app, false).await;
+    } else {
+        announce_if_due(app);
     }
 }
 
 fn announce_if_due(app: &AppHandle) {
     let due = {
         let s = state();
+        // Installing by itself, Pod doesn't interrupt with a card.
         !s.busy()
+            && !auto_on(&s.prefs)
             && s.latest.as_ref().is_some_and(|r| {
                 should_announce(&r.version, current_version(), s.prefs.snoozed_version.as_deref(), s.prefs.snoozed_at, now())
             })
@@ -514,7 +554,7 @@ fn github_client(timeout: Duration) -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(15))
         .timeout(timeout)
-        .user_agent("Coucou")
+        .user_agent("Pod")
         .redirect(policy)
         .build()
         .map_err(|e| e.to_string())
@@ -581,17 +621,128 @@ pub async fn check(app: &AppHandle, manual: bool) {
         } else {
             announce_if_due(app);
         }
+        prepare_in_background(app);
     }
+}
+
+// ── Automatic install (Windows, per-user setup.exe) ───────────────────────────
+
+/// How long the keyboard and mouse must have been still before Pod restarts
+/// itself into a new version.
+const AWAY: Duration = Duration::from_secs(4 * 60);
+/// While an update waits, how often Pod looks whether the user is away.
+const AWAY_POLL: Duration = Duration::from_secs(60);
+
+/// Downloads and verifies the newest release without a card, then installs it
+/// the next time the user is away (`install_when_away`).
+fn prepare_in_background(app: &AppHandle) {
+    let release = {
+        let mut s = state();
+        if s.preparing || s.busy() || !auto_on(&s.prefs) {
+            return;
+        }
+        let Some(release) = s.latest.clone().filter(|r| is_newer(&r.version, current_version())) else { return };
+        if s.ready.as_ref().is_some_and(|r| r.version == release.version && r.path.is_file()) {
+            return;
+        }
+        if pick_asset(&release, InstallKind::Setup).is_none() {
+            return;
+        }
+        s.preparing = true;
+        release
+    };
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let result = fetch_verified(None, &release, InstallKind::Setup).await;
+        {
+            let mut s = state();
+            s.preparing = false;
+            match result {
+                Ok(path) => {
+                    crate::log::line(format!("update: {} downloaded and verified, installs when you're away", release.version));
+                    s.ready = Some(Ready { version: release.version.clone(), path });
+                }
+                Err(err) => crate::log::line(format!("update: background download failed: {err}")),
+            }
+        }
+        changed(&app);
+        // One look a minute, only while an update waits.
+        while state().ready.is_some() {
+            if install_when_away(&app) {
+                break;
+            }
+            tokio::time::sleep(AWAY_POLL).await;
+        }
+    });
+}
+
+/// Runs the waiting installer silently when nothing would be lost: the user
+/// has been away for a few minutes, no file is being converted, zipped or
+/// resized, nothing fullscreen covers the notch, and the island isn't paused.
+/// The installer closes Pod and starts the new version (`/R`). True once started.
+fn install_when_away(app: &AppHandle) -> bool {
+    let ready = {
+        let mut s = state();
+        if s.busy() || !auto_on(&s.prefs) {
+            return false;
+        }
+        match s.ready.clone() {
+            Some(r) if is_newer(&r.version, current_version()) && r.path.is_file() => r,
+            _ => {
+                s.ready = None;
+                return false;
+            }
+        }
+    };
+    if PAUSED.load(std::sync::atomic::Ordering::Relaxed)
+        || crate::files::busy()
+        || crate::cover::notch_covered()
+        || idle_for() < AWAY
+    {
+        return false;
+    }
+    let started = std::process::Command::new(&ready.path).args(["/S", "/UPDATE", "/R"]).spawn();
+    if let Err(err) = started {
+        crate::log::line(format!("update: could not start the installer: {err}"));
+        state().ready = None;
+        return false;
+    }
+    crate::log::line(format!("update: installing {} while you're away, quitting", ready.version));
+    set_phase(app, Phase::Installing);
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(600)).await;
+        app.exit(0);
+    });
+    true
+}
+
+/// How long since the last key press or mouse move, anywhere.
+#[cfg(windows)]
+fn idle_for() -> Duration {
+    use windows::Win32::System::SystemInformation::GetTickCount;
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
+    let mut info = LASTINPUTINFO { cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32, dwTime: 0 };
+    if unsafe { GetLastInputInfo(&mut info) }.as_bool() {
+        Duration::from_millis(u64::from(unsafe { GetTickCount() }.wrapping_sub(info.dwTime)))
+    } else {
+        Duration::ZERO
+    }
+}
+
+#[cfg(not(windows))]
+fn idle_for() -> Duration {
+    Duration::ZERO
 }
 
 // ── Install (Windows) ─────────────────────────────────────────────────────────
 
-/// Old downloads left in the temp folder by an update that ran: Coucou quits
+/// Old downloads left in the temp folder by an update that ran: Pod quits
 /// before the installer is done with its file, so they go at the next launch.
 fn remove_old_downloads() {
     let Ok(entries) = std::fs::read_dir(std::env::temp_dir()) else { return };
     for entry in entries.flatten() {
-        if entry.file_name().to_string_lossy().starts_with("coucou-update-") {
+        if entry.file_name().to_string_lossy().starts_with("pod-update-") {
             let _ = std::fs::remove_dir_all(entry.path());
         }
     }
@@ -620,7 +771,7 @@ pub fn install(app: &AppHandle) {
             Ok(()) => {
                 crate::log::line(format!("update: running the {kind:?} installer for {}, quitting", release.version));
                 set_phase(&app, Phase::Installing);
-                // Long enough for the card to say so; the installer closes a Coucou still open.
+                // Long enough for the card to say so; the installer closes a Pod still open.
                 tokio::time::sleep(Duration::from_millis(1200)).await;
                 app.exit(0);
             }
@@ -633,29 +784,7 @@ pub fn install(app: &AppHandle) {
 }
 
 async fn run(app: &AppHandle, release: &Release, kind: InstallKind) -> Result<(), String> {
-    let asset = pick_asset(release, kind).ok_or_else(|| t("The download failed. Try again, or get the new version on GitHub."))?;
-    let expected = asset
-        .digest
-        .as_deref()
-        .and_then(parse_digest)
-        .ok_or_else(|| t("GitHub gave no checksum for this download, so nothing was installed."))?;
-    if asset.size == 0 || asset.size > MAX_INSTALLER {
-        return Err(t("The download isn't the file GitHub published for this version, so nothing was installed."));
-    }
-    let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.subsec_nanos()).unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!("coucou-update-{}-{nonce}", std::process::id()));
-    std::fs::create_dir_all(&dir).map_err(|_| t("The download failed. Try again, or get the new version on GitHub."))?;
-    let path = dir.join(&asset.name);
-
-    let got = download(app, asset, &path).await.inspect_err(|_| {
-        let _ = std::fs::remove_dir_all(&dir);
-    })?;
-    set_phase(app, Phase::Verifying);
-    if got != expected {
-        let _ = std::fs::remove_dir_all(&dir);
-        return Err(t("The download isn't the file GitHub published for this version, so nothing was installed."));
-    }
-
+    let path = fetch_verified(Some(app), release, kind).await?;
     let system_root = std::env::var("SystemRoot").ok();
     let (program, args) = installer_command(kind, &path, system_root.as_deref())
         .ok_or_else(|| t("The download failed. Try again, or get the new version on GitHub."))?;
@@ -666,9 +795,46 @@ async fn run(app: &AppHandle, release: &Release, kind: InstallKind) -> Result<()
     Ok(())
 }
 
+/// Downloads the installer for `kind` into a fresh temp folder and checks it
+/// against GitHub's SHA-256. `app`: show progress on the card (None: in the
+/// background). Returns the verified file.
+async fn fetch_verified(app: Option<&AppHandle>, release: &Release, kind: InstallKind) -> Result<PathBuf, String> {
+    // The background download already left this version here, verified.
+    if kind == InstallKind::Setup {
+        if let Some(ready) = state().ready.clone().filter(|r| r.version == release.version && r.path.is_file()) {
+            return Ok(ready.path);
+        }
+    }
+    let asset = pick_asset(release, kind).ok_or_else(|| t("The download failed. Try again, or get the new version on GitHub."))?;
+    let expected = asset
+        .digest
+        .as_deref()
+        .and_then(parse_digest)
+        .ok_or_else(|| t("GitHub gave no checksum for this download, so nothing was installed."))?;
+    if asset.size == 0 || asset.size > MAX_INSTALLER {
+        return Err(t("The download isn't the file GitHub published for this version, so nothing was installed."));
+    }
+    let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.subsec_nanos()).unwrap_or(0);
+    let dir = std::env::temp_dir().join(format!("pod-update-{}-{nonce}", std::process::id()));
+    std::fs::create_dir_all(&dir).map_err(|_| t("The download failed. Try again, or get the new version on GitHub."))?;
+    let path = dir.join(&asset.name);
+
+    let got = download(app, asset, &path).await.inspect_err(|_| {
+        let _ = std::fs::remove_dir_all(&dir);
+    })?;
+    if let Some(app) = app {
+        set_phase(app, Phase::Verifying);
+    }
+    if got != expected {
+        let _ = std::fs::remove_dir_all(&dir);
+        return Err(t("The download isn't the file GitHub published for this version, so nothing was installed."));
+    }
+    Ok(path)
+}
+
 /// Streams the asset to `path` from GitHub only, hashing as it comes, with the
 /// progress on the card. Returns the SHA-256 of exactly `asset.size` bytes.
-async fn download(app: &AppHandle, asset: &Asset, path: &Path) -> Result<String, String> {
+async fn download(app: Option<&AppHandle>, asset: &Asset, path: &Path) -> Result<String, String> {
     use std::io::Write;
     let failed = || t("The download failed. Try again, or get the new version on GitHub.");
     if !allowed_url(&asset.url) {
@@ -695,7 +861,7 @@ async fn download(app: &AppHandle, asset: &Asset, path: &Path) -> Result<String,
         // Defender holding or removing the file shows up here.
         out.write_all(&chunk).map_err(|_| t("Windows blocked the installer. Get the new version from its release page instead."))?;
         hash.update(&chunk);
-        if last_emit.elapsed() > Duration::from_millis(250) {
+        if let Some(app) = app.filter(|_| last_emit.elapsed() > Duration::from_millis(250)) {
             last_emit = std::time::Instant::now();
             set_phase(app, Phase::Downloading { fraction: got as f64 / asset.size as f64 });
         }
@@ -726,6 +892,20 @@ pub fn update_set_consent(app: AppHandle, allowed: bool) {
     changed(&app);
     if allowed {
         tauri::async_runtime::spawn(async move { check(&app, false).await });
+    }
+}
+
+/// Settings' "Install updates automatically".
+#[tauri::command]
+pub fn update_set_auto_install(app: AppHandle, on: bool) {
+    {
+        let mut s = state();
+        s.prefs.auto_install = Some(on);
+        save_prefs(&s.prefs);
+    }
+    changed(&app);
+    if on {
+        prepare_in_background(&app);
     }
 }
 
@@ -810,45 +990,45 @@ mod tests {
     fn fixture() -> Vec<u8> {
         serde_json::json!([
             { "tag_name": "windows-v0.6.0", "draft": true, "prerelease": false,
-              "html_url": "https://github.com/Louis-CFM/coucou/releases/tag/windows-v0.6.0", "assets": [] },
+              "html_url": "https://github.com/umesh-404/pod/releases/tag/windows-v0.6.0", "assets": [] },
             { "tag_name": "windows-v0.7.0", "draft": false, "prerelease": true,
-              "html_url": "https://github.com/Louis-CFM/coucou/releases/tag/windows-v0.7.0", "assets": [] },
+              "html_url": "https://github.com/umesh-404/pod/releases/tag/windows-v0.7.0", "assets": [] },
             { "tag_name": "v0.9.0", "draft": false, "prerelease": false,
-              "html_url": "https://github.com/Louis-CFM/coucou/releases/tag/v0.9.0",
+              "html_url": "https://github.com/umesh-404/pod/releases/tag/v0.9.0",
               "body": "## What's new\n\n- **WhatsApp in one click** — Mac",
-              "assets": [{ "name": "Coucou.zip", "size": 34228988,
-                "browser_download_url": "https://github.com/Louis-CFM/coucou/releases/download/v0.9.0/Coucou.zip",
+              "assets": [{ "name": "Pod.zip", "size": 34228988,
+                "browser_download_url": "https://github.com/umesh-404/pod/releases/download/v0.9.0/Pod.zip",
                 "digest": "sha256:24175a765704082c8b2e751f8b5ccb76b1eb3440ff2fd1e9c4cbe780c2193baa" }] },
             { "tag_name": "windows-v0.5.0", "draft": false, "prerelease": false,
-              "html_url": "https://github.com/Louis-CFM/coucou/releases/tag/windows-v0.5.0",
-              "body": "Coucou for Windows 0.5.0 — Mochi at the top of your screen.\n\n## What's new\n\n- **Flow dictation** on Windows — hold right Ctrl\n- Other things",
+              "html_url": "https://github.com/umesh-404/pod/releases/tag/windows-v0.5.0",
+              "body": "Pod for Windows 0.5.0 — Mochi at the top of your screen.\n\n## What's new\n\n- **Flow dictation** on Windows — hold right Ctrl\n- Other things",
               "assets": [
-                { "name": "Coucou-Windows-0.5.0-setup.exe", "size": 10950620,
-                  "browser_download_url": "https://github.com/Louis-CFM/coucou/releases/download/windows-v0.5.0/Coucou-Windows-0.5.0-setup.exe",
+                { "name": "Pod-Windows-0.5.0-setup.exe", "size": 10950620,
+                  "browser_download_url": "https://github.com/umesh-404/pod/releases/download/windows-v0.5.0/Pod-Windows-0.5.0-setup.exe",
                   "digest": "sha256:e8234a092e8fe1bf6eed0395e6db13052be8fe47413949c2b7fa368467342337" },
-                { "name": "Coucou-Windows-0.5.0.msi", "size": 14086144,
-                  "browser_download_url": "https://github.com/Louis-CFM/coucou/releases/download/windows-v0.5.0/Coucou-Windows-0.5.0.msi",
+                { "name": "Pod-Windows-0.5.0.msi", "size": 14086144,
+                  "browser_download_url": "https://github.com/umesh-404/pod/releases/download/windows-v0.5.0/Pod-Windows-0.5.0.msi",
                   "digest": "sha256:79bced83c414722e84d47e99005a37910147624dc5e4edf55aa66ff6462cd09f" }] },
             { "tag_name": "windows-latest", "draft": false, "prerelease": false,
-              "html_url": "https://github.com/Louis-CFM/coucou/releases/tag/windows-latest",
-              "assets": [{ "name": "Coucou-Windows-setup.exe", "size": 10950620,
-                "browser_download_url": "https://github.com/Louis-CFM/coucou/releases/download/windows-latest/Coucou-Windows-setup.exe",
+              "html_url": "https://github.com/umesh-404/pod/releases/tag/windows-latest",
+              "assets": [{ "name": "Pod-Windows-setup.exe", "size": 10950620,
+                "browser_download_url": "https://github.com/umesh-404/pod/releases/download/windows-latest/Pod-Windows-setup.exe",
                 "digest": "sha256:e8234a092e8fe1bf6eed0395e6db13052be8fe47413949c2b7fa368467342337" }] },
             { "tag_name": "linux-v0.5.0", "draft": false, "prerelease": false,
-              "html_url": "https://github.com/Louis-CFM/coucou/releases/tag/linux-v0.5.0", "body": "Coucou for Linux 0.5.0",
-              "assets": [{ "name": "Coucou-Linux-0.5.0-x86_64.AppImage", "size": 107960824,
-                "browser_download_url": "https://github.com/Louis-CFM/coucou/releases/download/linux-v0.5.0/Coucou-Linux-0.5.0-x86_64.AppImage",
+              "html_url": "https://github.com/umesh-404/pod/releases/tag/linux-v0.5.0", "body": "Pod for Linux 0.5.0",
+              "assets": [{ "name": "Pod-Linux-0.5.0-x86_64.AppImage", "size": 107960824,
+                "browser_download_url": "https://github.com/umesh-404/pod/releases/download/linux-v0.5.0/Pod-Linux-0.5.0-x86_64.AppImage",
                 "digest": "sha256:b59e0a8e432b782ea029cc825d37675033e7ff4069d70d376c1d268495a242af" }] },
             { "tag_name": "linux-latest", "draft": false, "prerelease": false,
-              "html_url": "https://github.com/Louis-CFM/coucou/releases/tag/linux-latest", "assets": [] },
+              "html_url": "https://github.com/umesh-404/pod/releases/tag/linux-latest", "assets": [] },
             { "tag_name": "android-v0.2.0", "draft": false, "prerelease": false,
-              "html_url": "https://github.com/Louis-CFM/coucou/releases/tag/android-v0.2.0", "assets": [] },
+              "html_url": "https://github.com/umesh-404/pod/releases/tag/android-v0.2.0", "assets": [] },
             { "tag_name": "windows-v0.10.0", "draft": false, "prerelease": false,
               "html_url": "https://evil.example.com/windows-v0.10.0", "assets": [] },
             { "tag_name": "windows-v0.4.0", "draft": false, "prerelease": false,
-              "html_url": "https://github.com/Louis-CFM/coucou/releases/tag/windows-v0.4.0", "assets": [] },
+              "html_url": "https://github.com/umesh-404/pod/releases/tag/windows-v0.4.0", "assets": [] },
             { "tag_name": "linux-v0.4.0", "draft": false, "prerelease": false,
-              "html_url": "https://github.com/Louis-CFM/coucou/releases/tag/linux-v0.4.0", "assets": [] }
+              "html_url": "https://github.com/umesh-404/pod/releases/tag/linux-v0.4.0", "assets": [] }
         ])
         .to_string()
         .into_bytes()
@@ -881,7 +1061,7 @@ mod tests {
         // Not the draft 0.6.0, the prerelease 0.7.0, the Mac's 0.9.0 or the 0.10.0 whose page isn't GitHub's.
         assert_eq!(w.version, "0.5.0");
         assert_eq!(w.tag, "windows-v0.5.0");
-        assert_eq!(w.page_url, "https://github.com/Louis-CFM/coucou/releases/tag/windows-v0.5.0");
+        assert_eq!(w.page_url, "https://github.com/umesh-404/pod/releases/tag/windows-v0.5.0");
         assert_eq!(w.headline.as_deref(), Some("Flow dictation"));
         assert_eq!(w.assets.len(), 2);
         let l = latest(&fixture(), "linux-v").unwrap();
@@ -915,8 +1095,8 @@ mod tests {
             assert!(!allowed_host(Some(host)), "{host}");
         }
         assert!(!allowed_host(None));
-        assert!(allowed_url("https://github.com/Louis-CFM/coucou/releases/download/x/y.msi"));
-        assert!(!allowed_url("http://github.com/Louis-CFM/coucou"));
+        assert!(allowed_url("https://github.com/umesh-404/pod/releases/download/x/y.msi"));
+        assert!(!allowed_url("http://github.com/umesh-404/pod"));
         assert!(!allowed_url("file:///C:/Windows/notepad.exe"));
         assert!(!allowed_url("not a url"));
     }
@@ -926,33 +1106,33 @@ mod tests {
         let local = Some(r"C:\Users\Ana\AppData\Local");
         let pf = vec![r"C:\Program Files".to_string(), r"C:\Program Files (x86)".to_string()];
         let kind = |exe: &str, uninst: bool| install_kind(exe, uninst, local, &pf);
-        assert_eq!(kind(r"C:\Users\Ana\AppData\Local\Coucou\coucou.exe", true), InstallKind::Setup);
-        assert_eq!(kind(r"c:\users\ana\appdata\local\COUCOU\Coucou.exe", true), InstallKind::Setup);
+        assert_eq!(kind(r"C:\Users\Ana\AppData\Local\Pod\pod.exe", true), InstallKind::Setup);
+        assert_eq!(kind(r"c:\users\ana\appdata\local\POD\Pod.exe", true), InstallKind::Setup);
         // A portable exe copied there: no NSIS uninstaller next to it.
-        assert_eq!(kind(r"C:\Users\Ana\AppData\Local\Coucou\coucou.exe", false), InstallKind::Manual);
-        assert_eq!(kind(r"C:\Program Files\Coucou\coucou.exe", false), InstallKind::Msi);
-        assert_eq!(kind(r"C:\Program Files (x86)\Coucou\coucou.exe", false), InstallKind::Msi);
+        assert_eq!(kind(r"C:\Users\Ana\AppData\Local\Pod\pod.exe", false), InstallKind::Manual);
+        assert_eq!(kind(r"C:\Program Files\Pod\pod.exe", false), InstallKind::Msi);
+        assert_eq!(kind(r"C:\Program Files (x86)\Pod\pod.exe", false), InstallKind::Msi);
         // The portable exe, a build, a folder that only looks alike.
-        assert_eq!(kind(r"C:\Users\Ana\Downloads\coucou.exe", true), InstallKind::Manual);
-        assert_eq!(kind(r"C:\dev\coucou\windows\target\release\coucou.exe", false), InstallKind::Manual);
-        assert_eq!(kind(r"C:\Program Files\Coucou\bin\coucou.exe", false), InstallKind::Manual);
-        assert_eq!(kind(r"C:\Users\Ana\AppData\Local\Coucou\bin\coucou-hook.exe", true), InstallKind::Manual);
-        assert_eq!(kind("coucou.exe", true), InstallKind::Manual);
-        assert_eq!(install_kind(r"C:\Program Files\Coucou\coucou.exe", false, None, &[]), InstallKind::Manual);
-        assert_eq!(install_kind("/opt/Coucou/coucou", false, Some(""), &[String::new()]), InstallKind::Manual);
+        assert_eq!(kind(r"C:\Users\Ana\Downloads\pod.exe", true), InstallKind::Manual);
+        assert_eq!(kind(r"C:\dev\pod\windows\target\release\pod.exe", false), InstallKind::Manual);
+        assert_eq!(kind(r"C:\Program Files\Pod\bin\pod.exe", false), InstallKind::Manual);
+        assert_eq!(kind(r"C:\Users\Ana\AppData\Local\Pod\bin\pod-hook.exe", true), InstallKind::Manual);
+        assert_eq!(kind("pod.exe", true), InstallKind::Manual);
+        assert_eq!(install_kind(r"C:\Program Files\Pod\pod.exe", false, None, &[]), InstallKind::Manual);
+        assert_eq!(install_kind("/opt/Pod/pod", false, Some(""), &[String::new()]), InstallKind::Manual);
     }
 
     #[test]
     fn the_asset_is_the_exact_installer_for_the_kind() {
         let w = latest(&fixture(), "windows-v").unwrap();
-        assert_eq!(pick_asset(&w, InstallKind::Setup).unwrap().name, "Coucou-Windows-0.5.0-setup.exe");
-        assert_eq!(pick_asset(&w, InstallKind::Msi).unwrap().name, "Coucou-Windows-0.5.0.msi");
+        assert_eq!(pick_asset(&w, InstallKind::Setup).unwrap().name, "Pod-Windows-0.5.0-setup.exe");
+        assert_eq!(pick_asset(&w, InstallKind::Msi).unwrap().name, "Pod-Windows-0.5.0.msi");
         assert_eq!(pick_asset(&w, InstallKind::Manual), None);
         // A look-alike name, or one served from elsewhere, is never picked.
         let mut odd = w.clone();
         odd.assets = vec![
-            Asset { name: "Coucou-Windows-setup.exe".into(), url: w.assets[0].url.clone(), size: 1, digest: None },
-            Asset { name: "Coucou-Windows-0.5.0.msi".into(), url: "https://evil.example.com/x.msi".into(), size: 1, digest: None },
+            Asset { name: "Pod-Windows-setup.exe".into(), url: w.assets[0].url.clone(), size: 1, digest: None },
+            Asset { name: "Pod-Windows-0.5.0.msi".into(), url: "https://evil.example.com/x.msi".into(), size: 1, digest: None },
         ];
         assert_eq!(pick_asset(&odd, InstallKind::Setup), None);
         assert_eq!(pick_asset(&odd, InstallKind::Msi), None);
@@ -972,14 +1152,14 @@ mod tests {
 
     #[test]
     fn installers_run_with_tauris_update_flags() {
-        let file = Path::new(r"C:\Temp\coucou-update-1\Coucou-Windows-0.6.0-setup.exe");
+        let file = Path::new(r"C:\Temp\pod-update-1\Pod-Windows-0.6.0-setup.exe");
         let (program, args) = installer_command(InstallKind::Setup, file, Some(r"C:\Windows")).unwrap();
         assert_eq!(program, file);
         assert_eq!(args, ["/P", "/UPDATE", "/R"]);
-        let msi = Path::new(r"C:\Temp\coucou-update-1\Coucou-Windows-0.6.0.msi");
+        let msi = Path::new(r"C:\Temp\pod-update-1\Pod-Windows-0.6.0.msi");
         let (program, args) = installer_command(InstallKind::Msi, msi, Some(r"C:\Windows\")).unwrap();
         assert_eq!(program, PathBuf::from(r"C:\Windows\System32\msiexec.exe"));
-        assert_eq!(args, ["/i", r"C:\Temp\coucou-update-1\Coucou-Windows-0.6.0.msi", "/passive", "AUTOLAUNCHAPP=True"]);
+        assert_eq!(args, ["/i", r"C:\Temp\pod-update-1\Pod-Windows-0.6.0.msi", "/passive", "AUTOLAUNCHAPP=True"]);
         assert_eq!(installer_command(InstallKind::Msi, msi, None).unwrap().0, PathBuf::from("msiexec.exe"));
         assert_eq!(installer_command(InstallKind::Manual, file, None), None);
     }
@@ -991,9 +1171,6 @@ mod tests {
         assert!(!should_check(Some(now - CHECK_INTERVAL + 1), now));
         assert!(should_check(Some(now - CHECK_INTERVAL), now));
         assert!(should_check(Some(now + 60), now)); // clock set back
-        assert!(should_ask(None, now));
-        assert!(!should_ask(Some(now - 3600), now));
-        assert!(should_ask(Some(now - ASK_AGAIN), now));
     }
 
     #[test]
@@ -1016,9 +1193,10 @@ mod tests {
         let p: Prefs = serde_json::from_str("{}").unwrap();
         assert_eq!(p, Prefs::default());
         let round: Prefs = serde_json::from_str(&serde_json::to_string(&Prefs {
-            consent: Some(false), last_check: Some(5), snoozed_version: Some("0.6.0".into()), snoozed_at: Some(6), asked_at: Some(7),
+            consent: Some(false), auto_install: Some(false), last_check: Some(5), snoozed_version: Some("0.6.0".into()), snoozed_at: Some(6), asked_at: Some(7),
         }).unwrap()).unwrap();
         assert_eq!(round.snoozed_version.as_deref(), Some("0.6.0"));
         assert_eq!(round.asked_at, Some(7));
+        assert_eq!(round.auto_install, Some(false));
     }
 }

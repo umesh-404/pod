@@ -1,34 +1,43 @@
-# Coucou — guide for AI coding agents
+# Pod — guide for AI coding agents
 
-Coucou is a native macOS app (`NotchBuddy/`); `windows/` is the Tauri version for Windows and Linux. Mochi, a small animated character living in the MacBook notch, shows AI coding agent sessions (Claude Code, Gemini CLI, Antigravity and more) and a few integrations, and lets the user approve, answer, chat and drop files from the notch.
+Pod is a Windows and Linux app (Tauri 2) that turns the top of the screen into a small island, a "notch", with Mochi, an animated character, inside. The notch is a temporary workspace. Drag a file over it and drop it on an action (convert, move to the workspace, zip or unzip, resize, PDF tools…). The shelf keeps files and lets you drag copies back out. Reminders and deadlines sit on the left of the compact notch, and live items take turns on the right. Pod is a fork of Coucou (github.com/Louis-CFM/coucou).
 
 ## Where things are
-- `NotchBuddy/Sources/App/` — Mac-only Swift code. `NotchBuddy/Sources/CoucouKit/` — code shared with the iPhone app (Mochi's BotEngine and outfits, pills, diff, models). `NotchBuddy/Sources/Phone/` — iPhone app (`CoucouPhone` target), with its widgets in `Sources/Widgets/` and the expanded approval notification in `Sources/NotificationContent/`. `NotchBuddy/Resources/sounds/` — the 28 WAV sounds. `NotchBuddy/project.yml` — XcodeGen project (never edit the `.xcodeproj` by hand).
-- `NotchBuddy/Sources/CoucouKit/PillCatalog.swift` — single source of truth for all declared pills (workspace tools, agents, AI providers, services). Every pill ID, color, category and subtitle lives here.
-- `docs/SPEC.md`, `docs/INTEGRATIONS.md` — behaviour, views, states, integrations (in French).
-- `design/prototype/notch-buddy.html` — original prototype, the visual source of truth. `design/captures/` — target screenshots.
-- `windows/` — the Tauri app for Windows and Linux: Rust in `src-tauri/`, TypeScript in `src/`, the `coucou-hook` relay in `hook/`. `windows/README.md` lists what differs from the Mac.
-- `docs/*.html` — the GitHub Pages site (privacy, terms, support, legal notice).
-- `relay/` — the Coucou relay, a stateless Cloudflare Worker that forwards the iPhone Live Activity pushes (it holds the APNs key, which must never ship in an app). See `relay/README.md`.
+- `windows/src-tauri/src/` — Rust: the island window, settings, file drop (`webview_drop.rs`, `files.rs`), workspace, convert (ffmpeg), archive, shelf, reminders, and the right-side widgets (media, sysglance, privacy, calendar, downloads).
+- `windows/src/` — TypeScript, no framework:
+  - `island/` — the island and its state machine;
+  - `views/` — what the island shows;
+  - `settings/` — the Settings window;
+  - `mochi/` — the character, drawn in code;
+  - `i18n/` — `strings.json` + `extra.json`, 14 languages.
+- `windows/sounds/` — the WAV sounds (Coucou's, to be replaced before any release; see LICENSE-ASSETS.md).
+- `windows/README.md` — how the app works in detail.
 
 ## Build
 ```
-cd NotchBuddy && xcodegen && xcodebuild -scheme NotchBuddy -configuration Debug build
+cd windows && npm install && npm run tauri dev
 ```
-To run it day to day on the Mac (signed, iPhone link, permissions kept across builds): `./scripts/dev-install.sh` — it installs the only Coucou in /Applications and removes the copies earlier builds left.
-Windows and Linux: `cd windows && npm install && npm run tauri dev`
+Checks:
+- `cd windows && npx tsc --noEmit && npm test`
+- `cargo test --workspace`
+- `python scripts/test-whats-new.py`
 
 ## Rules
-- Swift 6, SwiftUI + AppKit. No third-party dependencies unless truly unavoidable. The character is drawn in code (`Canvas` + `TimelineView`), no Rive/Lottie/images.
-- Secrets live in the Keychain, never on disk or in git.
-- No telemetry. Network calls only to services the user configured.
-- Never block Claude Code: if the app doesn't answer, the hook exits immediately.
-- Never overwrite `~/.claude/settings.json`: dated backup, merge, show the diff, write only after the user confirms.
-- Never send an email or approve a Claude Code or Codex permission without an explicit click.
-- Performance: 0 % CPU when the island is hidden.
-- Keep the bundle identifier `fr.louisraille.NotchBuddy` (Keychain items, preferences and permissions depend on it).
-- Never restyle what already ships (pills, cards, Settings, chat…): existing views stay exactly as they are in `main`, which is the App Store build. Change the look of an existing view only when explicitly asked.
-- Pill IDs are stable contract values (Keychain, UserDefaults, hook routing): never rename an existing pill ID.
-- New views follow the existing app style. `design/prototype/notch-buddy.html` and `design/captures/` are references for new work, not a reason to change existing views.
-- Every release adds its CHANGELOG.md section, a row in the README Versions table, and commits the regenerated Info.plist with the new version.
-- Every release also adds its What's new, shown once in the notch or the island after Coucou updates itself: an entry for the new version in `NotchBuddy/Resources/whats-new.json` (Mac, the 16 languages) or `windows/src/whats-new/whats-new.json` (Windows and Linux, the 14 languages). 1 to 4 items picked from the CHANGELOG section, each with an icon from `scripts/test-whats-new.py`, a short title and one line, translated in every language. `python3 scripts/test-whats-new.py` checks it; CI and `release.sh` fail without it.
+- **No API keys, no accounts, no LLM features.** Pod works locally. Internet use is limited to what the user set up: .ics calendar links, update checks from github.com/umesh-404/pod, and the one-time ffmpeg download (checksum verified).
+- No telemetry.
+- Secrets, if any are ever needed, live in the OS keychain, never on disk or in git.
+- Keep the bundle identifier `io.github.umesh404.pod`.
+- Keep the island's existing look. New views follow its style.
+- Efficiency budgets:
+  - 0 % CPU while the island is hidden, under 0.5 % of a core when idle.
+  - Use events instead of polling, and sample only what is on screen.
+  - Coalesce timers.
+  - Animate only `transform` and `opacity`, and run rAF only while animating.
+  - Heavy jobs (ffmpeg) run at low priority (EcoQoS).
+- Files the user drops are only accepted through `files::take_dropped` (real drops, each path usable once). Never overwrite a file: use `files::unique_path`.
+- Every feature can be switched off in Settings, and a switched-off feature disappears from the notch.
+- Every user-facing string goes through `t()` and is translated in all 14 languages (`windows/src/i18n/extra.json`); `tests/i18n.test.mjs` enforces it.
+- Every release:
+  - adds its CHANGELOG.md section;
+  - adds a What's new entry in `windows/src/whats-new/whats-new.json`, with 1 to 4 items in every language (`python windows/scripts/test-whats-new.py` checks it).
+- Mochi, the icon and the sounds belong to Coucou's author: no public builds until they are replaced (LICENSE-ASSETS.md).

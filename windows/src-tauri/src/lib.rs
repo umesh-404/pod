@@ -1,49 +1,39 @@
-// Coucou for Windows — app wiring and the commands the island calls.
+// Pod for Windows — app wiring and the commands the island calls.
 
-mod agent_hooks;
-mod agents;
-mod chat;
-mod claude;
-mod claude_code;
-mod cli_relay;
-mod codex_plan;
-mod config_file;
+mod archive;
+mod capture;
+mod clipboard;
+mod calendar;
+mod convert;
+mod cover;
+mod downloads;
 mod desktop;
+mod devservers;
 mod files;
-mod flow;
-mod github;
-mod hooks;
 mod i18n;
-mod identity;
-mod integrations;
 mod island;
-mod local_chat;
 mod log;
-mod mail;
+mod media;
 mod net;
-mod notes;
-mod openai_compat;
-mod phone_link;
-mod pipe;
+mod pdf;
 mod platform;
 #[cfg(target_os = "linux")]
 mod portal;
-mod recap;
-mod secrets;
-mod session_window;
+mod privacy;
+mod quicknote;
+mod reminders;
+mod resize;
 mod settings;
+mod shelf;
 mod shortcuts;
 mod sounds;
-mod speech;
-mod spotify;
+mod sysglance;
 mod tray;
 mod update;
-mod voice;
 #[cfg(windows)]
 mod webview_drop;
-mod whatsapp;
+mod workspace;
 
-use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -51,11 +41,8 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_autostart::{ManagerExt, MacosLauncher};
 
-use chat::{Chat, ChatContext, ChatReply, ModelInfo};
 use files::DroppedFile;
-use hooks::{HookPreview, HookStatus};
 use island::{PollGate, ScreenInfo};
-use pipe::Pending;
 use settings::Settings;
 
 pub struct Shared {
@@ -69,7 +56,6 @@ pub struct BootInfo {
     settings: Settings,
     screen: ScreenInfo,
     version: String,
-    hook_path: String,
     /// False where the OS has no global cursor (Wayland): the page then reports
     /// the cursor from its own mouse events.
     cursor_poll: bool,
@@ -77,17 +63,12 @@ pub struct BootInfo {
 
 #[tauri::command]
 fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
-    let mut settings = shared.settings.lock().unwrap().clone();
-    // The real state of ~/.claude/settings.json wins over whatever we stored.
-    let hooks_status = hooks::status();
-    settings.hooks_installed = hooks_status.installed;
-    settings.plan_relay_installed = hooks_status.plan_relay_installed;
+    let settings = shared.settings.lock().unwrap().clone();
     let screen = island::screen_info(&app, &settings.screen);
     BootInfo {
         settings,
         screen,
         version: env!("CARGO_PKG_VERSION").to_string(),
-        hook_path: settings::hook_exe_path().to_string_lossy().to_string(),
         cursor_poll: platform::CURSOR_POLL,
     }
 }
@@ -102,18 +83,10 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
         // Where Mochi sits on the desktop is desktop.rs's to say, not a webview's.
         let mut settings = settings.clone();
         settings.desktop_mochi = current.desktop_mochi.clone();
-        // Same for the phone link: only its own commands turn it on or off.
-        settings.phone_link = current.phone_link;
-        settings.phone_chat = current.phone_chat;
-        settings.phone_details = current.phone_details;
-        settings.phone_answers = current.phone_answers;
-        settings.phone_diffs = current.phone_diffs;
-        settings.phone_usage = current.phone_usage;
-        settings.phone_recap = current.phone_recap;
-        settings.phone_services = current.phone_services.clone();
-        settings.phone_relay = current.phone_relay;
-        settings.phone_relay_url = current.phone_relay_url.clone();
-        settings.phone_chat_models = current.phone_chat_models.clone();
+        // Moving the workspace moves its files, and ffmpeg is picked natively:
+        // their own commands set them (workspace.rs, convert.rs).
+        settings.workspace_dir = current.workspace_dir.clone();
+        settings.ffmpeg_path = current.ffmpeg_path.clone();
         *current = settings;
         (current.clone(), screen_changed, autostart_changed, shortcuts_changed)
     };
@@ -124,16 +97,13 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
         let manager = app.autolaunch();
         let result = if settings.autostart { manager.enable() } else { manager.disable() };
         if let Err(err) = result {
-            eprintln!("[coucou] autostart: {err}");
+            eprintln!("[pod] autostart: {err}");
         }
     }
     if screen_changed {
         let collapsed = shared.gate.collapsed.load(Ordering::Relaxed);
         island::apply_geometry(&app, &settings.screen, collapsed);
     }
-    integrations::settings_saved(&app, &settings.active_integrations);
-    spotify::sync(&app, &settings.active_integrations);
-    whatsapp::sync(&settings.active_integrations);
     if shortcuts_changed {
         shortcuts::apply(&app, &settings.shortcuts);
     }
@@ -158,7 +128,7 @@ fn set_system_languages(app: AppHandle, languages: Vec<String>) {
 fn language_changed(app: &AppHandle) {
     tray::retitle(app);
     if let Some(window) = app.get_webview_window(HUB_LABEL) {
-        let _ = window.set_title("Coucou");
+        let _ = window.set_title("Pod");
     }
 }
 
@@ -167,11 +137,18 @@ fn language_changed(app: &AppHandle) {
 #[tauri::command]
 fn set_collapsed(app: AppHandle, shared: State<Shared>, collapsed: bool) {
     let pref = shared.settings.lock().unwrap().screen.clone();
+    // Park the poll before anything else: no tick may decide click-through for
+    // the wake strip from the panel's geometry.
+    if collapsed {
+        shared.gate.set_active(false);
+    }
     shared.gate.collapsed.store(collapsed, Ordering::Relaxed);
     island::apply_geometry(&app, &pref, collapsed);
     // The wake strip must always take the mouse, and a resize invalidates the flag.
     island::refresh_click_through(&app, &shared.gate);
-    shared.gate.set_active(!collapsed);
+    if !collapsed {
+        shared.gate.set_active(true);
+    }
     platform::set_pointer_watch(!collapsed);
 }
 
@@ -235,144 +212,6 @@ fn open_url(url: String) {
     platform::open_url(&url);
 }
 
-/// Opens a GitLab link only when it belongs to the configured instance. This
-/// also covers self-hosted installations without exposing their token.
-#[tauri::command]
-fn open_gitlab_url(url: String) {
-    let base = secrets::get("gitlab-url").unwrap_or_else(|| "https://gitlab.com".into());
-    let (Ok(target), Ok(instance)) = (reqwest::Url::parse(&url), reqwest::Url::parse(base.trim())) else { return };
-    if is_forge_instance_url(&target, &instance) {
-        open_url(url);
-    }
-}
-
-fn is_forge_instance_url(target: &reqwest::Url, instance: &reqwest::Url) -> bool {
-    if !matches!(target.scheme(), "http" | "https")
-        || target.scheme() != instance.scheme()
-        || target.host_str() != instance.host_str()
-        || target.port_or_known_default() != instance.port_or_known_default()
-    {
-        return false;
-    }
-    let base = instance.path().trim_end_matches('/');
-    base.is_empty() || target.path() == base || target.path().starts_with(&format!("{base}/"))
-}
-
-/// The configured Gitea address is a credential-store value, so the island
-/// asks Rust to open it instead of ever receiving it.
-#[tauri::command]
-fn open_gitea() {
-    if let Some(url) = secrets::get("gitea-url") {
-        open_url(url);
-    }
-}
-
-#[tauri::command]
-fn open_gitea_url(url: String) {
-    let (Ok(target), Some(base)) = (reqwest::Url::parse(&url), secrets::get("gitea-url")) else { return };
-    let Ok(instance) = reqwest::Url::parse(&base) else { return };
-    if is_forge_instance_url(&target, &instance) {
-        open_url(url);
-    }
-}
-
-/// "Open terminal" opens the working folder in VS Code when `code` is on PATH,
-/// and falls back to the file manager otherwise.
-#[tauri::command]
-fn open_in_vscode(path: Option<String>) -> bool {
-    // No shell anywhere near this. The path is a project folder chosen by
-    // whoever is using Claude Code, and a shell would happily read `&`, `^`, `%`
-    // or `$` in a folder name as syntax. Finding the launcher ourselves and
-    // handing the path over as a separate argument keeps it a path.
-    let path = path.filter(|p| !p.is_empty());
-    // It arrives in a hook payload: only an existing folder, given by its full
-    // path, goes any further. `code` would read `--something` as an option, and
-    // xdg-open would launch a file with whatever handles its type.
-    if let Some(p) = path.as_deref() {
-        let p = std::path::Path::new(p);
-        if !(p.is_absolute() && p.is_dir()) {
-            return false;
-        }
-    }
-    if let Some(code) = platform::find_on_path("code") {
-        let mut cmd = Command::new(code);
-        if let Some(p) = path.as_deref() {
-            cmd.arg(p);
-        }
-        if platform::no_console(&mut cmd).spawn().is_ok() {
-            return true;
-        }
-    }
-    if let Some(p) = path.as_deref() {
-        platform::reveal_folder(p);
-    }
-    false
-}
-
-/// "Open terminal": brings forward the terminal or editor window the session
-/// runs in, when it was found (see session_window.rs); otherwise opens the
-/// folder in VS Code, as before.
-#[tauri::command]
-fn open_session(session_id: Option<String>, path: Option<String>) -> bool {
-    let Some(owners) = session_id.as_deref().and_then(session_window::lookup) else {
-        return open_in_vscode(path);
-    };
-    let folder = path.as_deref().map(session_window::folder_name).unwrap_or_default().to_string();
-    #[cfg(windows)]
-    {
-        if platform::focus_session_window(&owners, &folder) {
-            return true;
-        }
-        open_in_vscode(path)
-    }
-    // Linux asks the display server, KWin or the terminal, which can take a
-    // moment: never on the UI thread a sync command runs on. VS Code still
-    // opens when none of them could bring the window forward.
-    #[cfg(target_os = "linux")]
-    {
-        std::thread::spawn(move || {
-            if !platform::focus_session_window(&owners, &folder) {
-                open_in_vscode(path);
-            }
-        });
-        true
-    }
-}
-
-/// The Claude Desktop pill's target: the Claude app (Windows, and Linux with
-/// Anthropic's .deb).
-#[tauri::command]
-fn open_claude_desktop() -> bool {
-    platform::open_claude_desktop()
-}
-
-/// The file behind a live diff, if it may be handed to the editor: an existing
-/// regular file given by its full path. Anything else — a relative path, a
-/// folder, a path `code` could read as an option — goes no further.
-fn diff_file(path: &str) -> Option<&std::path::Path> {
-    let p = std::path::Path::new(path);
-    (p.is_absolute() && p.is_file()).then_some(p)
-}
-
-/// The diff card's ↗: opens the edited file in VS Code when `code` is on PATH,
-/// otherwise shows its folder. The file itself is never opened by its type —
-/// xdg-open or Explorer would run a script that Claude just wrote.
-#[tauri::command]
-fn open_file_in_vscode(path: String) -> bool {
-    let Some(file) = diff_file(&path) else { return false };
-    if let Some(code) = platform::find_on_path("code") {
-        let mut cmd = Command::new(code);
-        cmd.arg(file);
-        if platform::no_console(&mut cmd).spawn().is_ok() {
-            return true;
-        }
-    }
-    if let Some(folder) = file.parent().filter(|d| d.is_dir()) {
-        platform::reveal_folder(&folder.to_string_lossy());
-    }
-    false
-}
-
 #[tauri::command]
 fn quit_app(app: AppHandle) {
     app.exit(0);
@@ -382,307 +221,13 @@ fn quit_app(app: AppHandle) {
 /// not just the island stopping showing things.
 #[tauri::command]
 fn set_paused(paused: bool) {
-    integrations::set_paused(paused);
-}
-
-// ── Claude Code hooks ─────────────────────────────────────────────────────────
-
-#[tauri::command]
-fn hooks_status() -> HookStatus {
-    hooks::status()
-}
-
-/// Pill ID → whether that agent's hooks reach Coucou. Read-only.
-#[tauri::command]
-fn agent_hooks_status() -> std::collections::HashMap<String, bool> {
-    agent_hooks::status()
-}
-
-/// Returns the diff the user has to look at before anything is written.
-#[tauri::command]
-fn hooks_preview(install: bool) -> Result<HookPreview, String> {
-    hooks::preview(install)
-}
-
-/// Only ever called from an explicit click in the settings window.
-#[tauri::command]
-fn hooks_apply(
-    app: AppHandle,
-    shared: State<Shared>,
-    install: bool,
-    fingerprint: String,
-) -> Result<String, String> {
-    // The fingerprint comes from the preview the user actually looked at, so a
-    // settings.json that changed in between is refused rather than overwritten.
-    let backup = hooks::write(install, &fingerprint)?;
-    let updated = {
-        let mut current = shared.settings.lock().unwrap();
-        current.hooks_installed = install;
-        if let Err(err) = settings::save(&current) {
-            log::line(format!("could not save settings: {err}"));
-        }
-        current.clone()
-    };
-    let _ = app.emit("settings-changed", updated);
-    Ok(backup)
-}
-
-// ── Other agents' hooks and plugins ──────────────────────────────────────────
-
-#[tauri::command]
-fn agent_hooks_list() -> Vec<agents::AgentStatus> {
-    agents::list()
-}
-
-/// The diff the user has to look at before anything is written.
-#[tauri::command]
-fn agent_hooks_preview(agent: String, install: bool) -> Result<config_file::Plan, String> {
-    agents::preview(&agent, install)
-}
-
-/// Only ever called from an explicit click in the settings window, with the
-/// fingerprint of the preview the user looked at.
-#[tauri::command]
-fn agent_hooks_apply(agent: String, install: bool, fingerprint: String) -> Result<String, String> {
-    let backups = agents::apply(&agent, install, &fingerprint)?;
-    let done = if install { "installed" } else { "removed" };
-    log::line(format!("agent hooks {done} for {agent}"));
-    Ok(backups)
-}
-
-// ── Plan usage ────────────────────────────────────────────────────────────────
-
-/// The diff of putting the plan usage relay into (or taking it out of) the
-/// status line, before anything is written.
-#[tauri::command]
-fn status_line_preview(install: bool) -> Result<HookPreview, String> {
-    hooks::status_line_preview(install)
-}
-
-/// Only ever called from an explicit click in the settings window.
-#[tauri::command]
-fn status_line_apply(
-    app: AppHandle,
-    shared: State<Shared>,
-    install: bool,
-    fingerprint: String,
-) -> Result<String, String> {
-    let backup = hooks::status_line_write(install, &fingerprint)?;
-    let updated = {
-        let mut current = shared.settings.lock().unwrap();
-        current.plan_relay_installed = install;
-        // As on the Mac: taking the relay out turns the pill off with it.
-        if !install {
-            current.show_plan_in_notch = false;
-            current.show_plan_in_compact_island = false;
-        }
-        if let Err(err) = settings::save(&current) {
-            log::line(format!("could not save settings: {err}"));
-        }
-        current.clone()
-    };
-    let _ = app.emit("settings-changed", updated);
-    Ok(backup)
-}
-
-/// Codex plan usage, asked of the Codex CLI (`codex app-server`) when its pill
-/// shows. Off the main thread: it can take a few seconds.
-#[tauri::command]
-async fn codex_plan_usage() -> Option<serde_json::Value> {
-    tauri::async_runtime::spawn_blocking(codex_plan::read).await.ok().flatten()
-}
-
-#[tauri::command]
-fn approval_decision(app: AppHandle, request_id: String, decision: String) {
-    recap::record_decision(&app, &request_id, &decision);
-    pipe::answer(&app, &request_id, &decision);
-}
-
-/// An option picked on the island for a question Claude Code asked.
-#[tauri::command]
-fn approval_answer(
-    app: AppHandle,
-    request_id: String,
-    answers: std::collections::HashMap<String, serde_json::Value>,
-) {
-    // An answered question is not an Allow / Deny: nothing for the recap.
-    recap::forget_request(&app, &request_id);
-    pipe::answer_question(&app, &request_id, &answers);
-}
-
-/// The island has the card on screen, so the long wait for a human may begin.
-/// Until this arrives the relay only waits a few hundred milliseconds, which is
-/// what stops a paused or unresponsive island from freezing Claude Code.
-#[tauri::command]
-fn approval_ack(app: AppHandle, request_id: String) {
-    pipe::acknowledge(&app, &request_id);
-}
-
-/// Nobody can act on this request — the island is paused, or another card is
-/// already up. Claude Code falls back to asking in the terminal immediately.
-#[tauri::command]
-fn approval_decline(app: AppHandle, request_id: String) {
-    recap::forget_request(&app, &request_id);
-    pipe::decline(&app, &request_id);
-}
-
-// ── Chat, files and secrets ───────────────────────────────────────────────────
-
-/// One chat turn with the provider picked in the chat view. API keys and any
-/// file bytes stay on the Rust side.
-#[tauri::command]
-async fn chat_send(
-    app: AppHandle,
-    shared: State<'_, Shared>,
-    chat: State<'_, Chat>,
-    query: String,
-    context: Option<ChatContext>,
-    mail: Option<bool>,
-) -> Result<ChatReply, String> {
-    let settings = shared.settings.lock().unwrap().clone();
-    // The chat's Mail switch: the latest Outlook messages ride under the request, and the
-    // system prompt says how to write a plan (mail/plan.rs) that runs only after a click.
-    if mail == Some(true) {
-        let query = mail::decorate(&query).await;
-        mail::MAIL_TURN.store(true, std::sync::atomic::Ordering::Relaxed);
-        let reply = chat::send(&app, &chat, &settings, query, context).await;
-        mail::MAIL_TURN.store(false, std::sync::atomic::Ordering::Relaxed);
-        return reply;
-    }
-    chat::send(&app, &chat, &settings, query, context).await
-}
-
-/// The models a provider offers, for the picker in the chat view. Only asked
-/// once the user picked that provider, and only with its key or address.
-#[tauri::command]
-async fn chat_models(shared: State<'_, Shared>, provider: String) -> Result<Vec<ModelInfo>, String> {
-    let settings = shared.settings.lock().unwrap().clone();
-    chat::models(&settings, &provider).await
-}
-
-/// The Claude API settings use their own key even when chat uses a CLI plan.
-#[tauri::command]
-async fn claude_api_models() -> Result<Vec<ModelInfo>, String> {
-    claude::available_models().await
-}
-
-/// Settings → Local models → Connect: does the server answer, and with which models?
-#[tauri::command]
-async fn local_connect(provider: String, url: String) -> Result<local_chat::Connected, String> {
-    local_chat::connect(&provider, &url).await
-}
-
-/// Stores the custom server's key for the address typed next to it; it is only
-/// ever sent to that address.
-#[tauri::command]
-fn local_set_key(url: String, key: String) -> Result<(), String> {
-    local_chat::set_custom_key(&url, &key)
-}
-
-#[tauri::command]
-fn chat_reset(chat: State<Chat>) {
-    chat.reset();
+    update::PAUSED.store(paused, Ordering::Relaxed);
 }
 
 /// Copies a dropped file into the inbox and reports its name back.
 #[tauri::command]
 fn ingest_file(path: String) -> Result<DroppedFile, String> {
     files::ingest(&path)
-}
-
-/// The island may only ask whether a key exists — never read it.
-#[tauri::command]
-fn secret_present(key: String) -> bool {
-    secrets::present(&key)
-}
-
-/// Whether Claude can answer: an API key, or else the user's own Claude Code.
-#[tauri::command]
-fn claude_ready() -> bool {
-    claude::ready()
-}
-
-/// Settings → Chat → Your AI subscriptions: each provider's switch and
-/// whether its terminal tool is installed (looked up again on every call).
-#[tauri::command]
-fn subscription_status(shared: State<Shared>) -> Vec<cli_relay::Status> {
-    let settings = shared.settings.lock().unwrap().clone();
-    cli_relay::status(&settings)
-}
-
-/// A switch under "Your AI subscriptions" moved: saved, and both windows told.
-#[tauri::command]
-fn subscription_set(app: AppHandle, shared: State<Shared>, provider: String, on: bool) -> Vec<cli_relay::Status> {
-    let settings = {
-        let mut current = shared.settings.lock().unwrap();
-        cli_relay::set(&mut current, &provider, on);
-        current.clone()
-    };
-    if let Err(err) = settings::save(&settings) {
-        log::line(format!("could not save settings: {err}"));
-    }
-    let status = cli_relay::status(&settings);
-    let _ = app.emit("settings-changed", settings);
-    status
-}
-
-#[tauri::command]
-fn secret_set(app: AppHandle, key: String, value: String) -> Result<(), String> {
-    // Bound to its server's address: only local_set_key may store it.
-    if key == local_chat::CUSTOM_KEY {
-        return Err("use local_set_key".into());
-    }
-    let before = (key == "github-token").then(|| secrets::get(&key));
-    secrets::set(&key, &value)?;
-    if key == claude::KEY {
-        voice::sync(&app);
-    }
-    if let Some(before) = before {
-        if secrets::get(&key) != before {
-            integrations::github_token_changed(&app);
-        }
-    }
-    if key == "gitea-token" || key == "gitea-url" {
-        integrations::gitea_credentials_changed(&app);
-    }
-    Ok(())
-}
-
-#[tauri::command]
-fn secret_clear(app: AppHandle, key: String) -> Result<(), String> {
-    let had = key == "github-token" && secrets::present(&key);
-    secrets::clear(&key)?;
-    if key == claude::KEY {
-        voice::sync(&app);
-    }
-    if had {
-        integrations::github_token_changed(&app);
-    }
-    if key == "gitea-token" || key == "gitea-url" {
-        integrations::gitea_credentials_changed(&app);
-    }
-    Ok(())
-}
-
-/// Opens the configured n8n instance — the URL lives in the Credential Manager.
-#[tauri::command]
-fn open_n8n() {
-    if let Some(url) = secrets::get("n8n-url") {
-        open_url(url);
-    }
-}
-
-/// Refresh buttons in the integration cards.
-#[tauri::command]
-async fn refresh_integration(app: AppHandle, id: String) {
-    integrations::poll_once(app, &id).await;
-}
-
-/// The GitHub card was opened: refetch its `section` ("pulse" or "activity")
-/// if it is stale. The pollers still decline while the pill is off or paused.
-#[tauri::command]
-fn github_refresh(section: String) {
-    integrations::github_refresh_if_stale(&section);
 }
 
 /// Lets the island write to the same log as the Rust side.
@@ -732,11 +277,11 @@ fn settings_page_url(app: &AppHandle) -> WebviewUrl {
     WebviewUrl::App("settings.html".into())
 }
 
-/// The Coucou window (Flow dictation, the Notetaker and every setting of the
-/// island), labelled "settings" since it grew out of the settings window.
+/// The Pod window (every setting of the island), labelled "settings" since
+/// it grew out of the settings window.
 pub const HUB_LABEL: &str = "settings";
 
-/// The Coucou window is created hidden at launch and only ever shown and
+/// The Pod window is created hidden at launch and only ever shown and
 /// hidden afterwards. A WebView2 window created later — on the main thread or
 /// not — silently comes up blank in this app, so the window that works is the
 /// one that exists before the island's webview does.
@@ -744,7 +289,7 @@ fn create_settings_window(app: &AppHandle) {
     let url = settings_page_url(app);
     match WebviewWindowBuilder::new(app, HUB_LABEL, url)
         .additional_browser_args(BROWSER_ARGS)
-        .title("Coucou")
+        .title("Pod")
         .inner_size(1100.0, 720.0)
         .min_inner_size(820.0, 560.0)
         .resizable(true)
@@ -769,11 +314,11 @@ fn create_settings_window(app: &AppHandle) {
                 _ => {}
             });
         }
-        Err(err) => log::line(format!("Coucou window failed: {err}")),
+        Err(err) => log::line(format!("Pod window failed: {err}")),
     }
 }
 
-/// Whether the Coucou window is on screen (shown and not minimised). Its page
+/// Whether the Pod window is on screen (shown and not minimised). Its page
 /// animates its canvases only then (hub/hero.ts): WebKitGTK can keep
 /// `document.visibilityState` at "visible" for a hidden window, and its
 /// animation loop then kept a core busy with the window closed (#792).
@@ -795,14 +340,13 @@ pub fn show_settings_window(app: &AppHandle) {
     show_hub(app, Some("general"));
 }
 
-/// Shows the Coucou window, on `page` when given ("dictation", "notes",
-/// "settings", "general", "shortcuts"…).
+/// Shows the Pod window, on `page` when given ("general", "shortcuts"…).
 pub fn show_hub(app: &AppHandle, page: Option<&str>) {
     let Some(win) = app.get_webview_window(HUB_LABEL) else {
         // Creating it at startup can fail on some machines (WebView2
         // 0x80070578, #775): try again now, on the main thread, where
         // window creation can't deadlock a command.
-        log::line("Coucou window missing, creating it again");
+        log::line("Pod window missing, creating it again");
         let handle = app.clone();
         let _ = app.run_on_main_thread(move || {
             create_settings_window(&handle);
@@ -822,13 +366,8 @@ pub fn show_hub(app: &AppHandle, page: Option<&str>) {
     set_hub_shown(&win, true);
 }
 
-/// The argument the login item starts Coucou with.
+/// The argument the login item starts Pod with.
 const AUTOSTART_ARG: &str = "--autostart";
-
-/// Coucou started with the computer, not opened by the user: the window stays hidden.
-pub fn launched_at_login() -> bool {
-    std::env::args().any(|a| a == AUTOSTART_ARG)
-}
 
 #[tauri::command]
 fn open_settings_window(app: AppHandle, page: Option<String>) {
@@ -843,15 +382,17 @@ pub fn run() {
 
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            // `coucou --shortcut <action>`: what a desktop's own keyboard
+            // `pod --shortcut <action>`: what a desktop's own keyboard
             // settings run where we can't listen for keys ourselves (Wayland).
             match shortcuts::from_args(&argv) {
                 Some(action) => shortcuts::dispatch(app, action),
-                // Opening Coucou again (its shortcut, the Start menu) shows its window.
+                // Opening Pod again (its shortcut, the Start menu) shows its window.
                 None => show_hub(app, None),
             }
         }))
-        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec![AUTOSTART_ARG])));
+        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec![AUTOSTART_ARG])))
+        // Native folder and file pickers for the workspace and ffmpeg (workspace.rs, convert.rs).
+        .plugin(tauri_plugin_dialog::init());
     // Where no global shortcut can work, the plugin isn't even started.
     if platform::global_shortcuts_blocked().is_none() {
         builder = builder.plugin(shortcuts::plugin());
@@ -862,26 +403,9 @@ pub fn run() {
             settings: Mutex::new(loaded.clone()),
             gate: gate.clone(),
         })
-        .manage(Pending::default())
-        .manage(Chat::default())
         .manage(shortcuts::Registry::default())
-        .manage(recap::load())
         .invoke_handler(tauri::generate_handler![
             boot,
-            mail::mail_refresh,
-            mail::mail_more,
-            mail::mail_search,
-            mail::mail_detail,
-            mail::mail_open,
-            mail::mail_act,
-            mail::mail_triage,
-            mail::mail_triage_set,
-            mail::mail_journal_clear,
-            mail::mail_undo,
-            mail::mail_plan_show,
-            mail::mail_plan_test,
-            mail::mail_plan_start,
-            mail::mail_plan_cancel,
             save_settings,
             set_system_languages,
             set_collapsed,
@@ -892,86 +416,13 @@ pub fn run() {
             hub_shown,
             list_monitors,
             open_url,
-            open_gitlab_url,
-            open_gitea,
-            open_gitea_url,
-            open_in_vscode,
-            open_session,
-            open_claude_desktop,
-            open_file_in_vscode,
             quit_app,
-            hooks_status,
-            agent_hooks_status,
-            hooks_preview,
-            hooks_apply,
-            agent_hooks_list,
-            agent_hooks_preview,
-            agent_hooks_apply,
-            status_line_preview,
-            status_line_apply,
-            codex_plan_usage,
-            approval_decision,
-            approval_answer,
-            approval_ack,
-            approval_decline,
             log_line,
-            chat_send,
-            chat_models,
-            claude_api_models,
-            local_connect,
-            local_set_key,
-            chat_reset,
             ingest_file,
-            secret_present,
-            claude_ready,
-            subscription_status,
-            subscription_set,
-            secret_set,
-            secret_clear,
-            refresh_integration,
-            github_refresh,
-            open_n8n,
             open_settings_window,
             set_paused,
             shortcuts_status,
             shortcuts_suspend,
-            phone_link::phone_link_status,
-            phone_link::phone_link_set_enabled,
-            phone_link::phone_link_pairing,
-            phone_link::phone_link_new_pairing,
-            phone_link::phone_link_publish,
-            phone_link::phone_link_publish_question,
-            phone_link::phone_link_publish_prefs,
-            phone_link::phone_answers_status,
-            phone_link::phone_answers_set_enabled,
-            phone_link::phone_diffs_status,
-            phone_link::phone_diffs_set_enabled,
-            phone_link::phone_link_send_diff,
-            phone_link::phone_usage_status,
-            phone_link::phone_usage_set_enabled,
-            phone_link::phone_recap_status,
-            phone_link::phone_recap_set_enabled,
-            phone_link::phone_relay_status,
-            phone_link::phone_relay_set,
-            phone_link::phone_relay_set_access,
-            phone_link::phone_link_publish_usage,
-            phone_link::phone_link_publish_recap,
-            phone_link::phone_services_status,
-            phone_link::phone_services_set,
-            phone_link::phone_link_publish_services,
-            phone_link::phone_details_status,
-            phone_link::phone_details_set_enabled,
-            phone_link::phone_chat_status,
-            phone_link::phone_chat_set_enabled,
-            phone_link::phone_chat_set_models,
-            recap::recap_history,
-            recap::recap_prefs,
-            recap::recap_set_enabled,
-            recap::recap_set_hide_projects,
-            recap::recap_mark_shown,
-            recap::recap_clear,
-            recap::recap_save_png,
-            recap::recap_reveal_saved,
             desktop::desktop_mochi_info,
             desktop::desktop_mochi_pick_up,
             desktop::desktop_mochi_carry,
@@ -986,57 +437,9 @@ pub fn run() {
             sounds::custom_sound,
             sounds::reveal_sounds_folder,
             sounds::reload_sounds,
-            spotify::spotify_refresh,
-            spotify::spotify_control,
-            spotify::spotify_open,
-            spotify::spotify_installed,
-            whatsapp::whatsapp_island,
-            whatsapp::whatsapp_open,
-            whatsapp::whatsapp_close,
-            whatsapp::whatsapp_send,
-            whatsapp::whatsapp_ignore,
-            whatsapp::whatsapp_unignore,
-            whatsapp::whatsapp_settings,
-            whatsapp::whatsapp_set_options,
-            whatsapp::whatsapp_save_gateway,
-            whatsapp::whatsapp_test,
-            whatsapp::whatsapp_install,
-            flow::flow_status,
-            flow::flow_set_prefs,
-            flow::flow_history,
-            flow::flow_delete,
-            flow::flow_clear,
-            flow::flow_stats,
-            flow::flow_words,
-            flow::flow_set_words,
-            flow::flow_snippets,
-            flow::flow_set_snippets,
-            flow::flow_styles,
-            flow::flow_set_styles,
-            flow::flow_running_apps,
-            flow::flow_copy,
-            flow::flow_paste_again,
-            flow::flow_models_download,
-            flow::flow_models_remove,
-            flow::pill_state,
-            flow::pill_hot,
-            flow::pill_hover,
-            flow::pill_action,
-            notes::notes_state,
-            notes::notes_start,
-            notes::notes_stop,
-            notes::notes_rename,
-            notes::notes_rename_speaker,
-            notes::notes_toggle_todo,
-            notes::notes_delete,
-            notes::notes_summarize,
-            notes::notes_retry,
-            notes::notes_markdown,
-            notes::notes_export,
-            voice::voice_done,
-            voice::voice_say_native,
             update::update_status,
             update::update_set_consent,
+            update::update_set_auto_install,
             update::update_check,
             update::update_shown,
             update::update_show,
@@ -1045,17 +448,62 @@ pub fn run() {
             update::update_dismiss,
             update::update_install,
             update::update_open_page,
+            workspace::workspace_info,
+            workspace::workspace_move_in,
+            workspace::workspace_change,
+            workspace::workspace_open,
+            convert::convert_prepare,
+            convert::convert_start,
+            convert::convert_cancel,
+            convert::ffmpeg_status,
+            convert::ffmpeg_download,
+            convert::ffmpeg_choose,
+            convert::reveal_output,
+            archive::archive_run,
+            shelf::shelf_list,
+            shelf::shelf_drag,
+            shelf::shelf_remove,
+            shelf::shelf_open,
+            shelf::shelf_thumb,
+            shelf::shelf_add,
+            cover::notch_covered,
+            resize::resize_run,
+            pdf::pdf_run,
+            capture::capture_to_shelf,
+            quicknote::note_save,
+            quicknote::note_read,
+            clipboard::clipboard_text,
+            clipboard::clipboard_set_text,
+            devservers::devservers_watch,
+            devservers::devservers_now,
+            devservers::devserver_open,
+            media::media_watch,
+            media::media_now,
+            media::media_control,
+            sysglance::glance_watch,
+            privacy::privacy_watch,
+            privacy::privacy_now,
+            calendar::calendar_refresh,
+            calendar::calendar_test,
+            downloads::downloads_watch,
+            downloads::download_to_shelf,
+            reminders::reminders_list,
+            reminders::reminder_parse,
+            reminders::reminder_add,
+            reminders::reminder_done,
+            reminders::reminder_snooze,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
-            app.manage(phone_link::PhoneLink::new(handle.clone()));
             tray::build(&handle)?;
             // Before the island: see create_settings_window.
             create_settings_window(&handle);
-            // Same rule for Mochi's desktop window and the dictation pill.
+            // Same rule for Mochi's desktop window.
             desktop::setup(&handle);
-            flow::setup(&handle);
-            notes::setup(&handle);
+            reminders::start(&handle);
+            shelf::start(&handle);
+            calendar::start(&handle);
+            cover::start(&handle);
 
             if let Some(win) = island::window(&handle) {
                 // Where Tauri takes the drop itself (Linux), its paths are the
@@ -1080,78 +528,18 @@ pub fn run() {
             gate.set_active(true);
             island::spawn_cursor_poll(handle.clone(), gate.clone());
 
-            log::line(format!("--- Coucou {} started ---", env!("CARGO_PKG_VERSION")));
-            hooks::ensure_hook_exe(&handle);
-            pipe::start(handle.clone());
-            phone_link::start_if_enabled(&handle);
-            integrations::start(handle.clone());
-            mail::start(handle.clone());
-            spotify::sync(&handle, &loaded.active_integrations);
-            // WhatsApp (experimental): nothing runs unless it is turned on and its pill is active.
-            whatsapp::start(&handle, &loaded.active_integrations);
+            log::line(format!("--- Pod {} started ---", env!("CARGO_PKG_VERSION")));
             shortcuts::apply(&handle, &loaded.shortcuts);
             // New versions: nothing goes to GitHub until the user agrees (update.rs).
             update::start(handle.clone());
             if loaded.autostart {
-                // Login items written before 0.5 start Coucou without --autostart:
+                // Login items written before 0.5 start Pod without --autostart:
                 // writing it again adds it, so the window stays hidden at login.
                 let _ = handle.autolaunch().enable();
-            }
-            let open_window = flow::get(&handle).map(|f| f.store.lock().unwrap().prefs.open_at_launch).unwrap_or(true);
-            if open_window && !launched_at_login() {
-                show_hub(&handle, None);
             }
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("error while building Coucou")
-        .run(|app, event| {
-            // Withdraw the phone link's announcement on the local network before the process ends.
-            if let tauri::RunEvent::Exit = event {
-                phone_link::stop_on_exit(app);
-                notes::shutdown(app);
-                // GOWA started by Coucou stops with it; the conversations were only in memory.
-                whatsapp::shutdown();
-            }
-        });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{diff_file, is_forge_instance_url};
-
-    #[test]
-    fn forge_links_stay_on_the_configured_instance() {
-        let instance = reqwest::Url::parse("https://git.example.com/team/").unwrap();
-        assert!(is_forge_instance_url(
-            &reqwest::Url::parse("https://git.example.com/team/me/project").unwrap(),
-            &instance,
-        ));
-        assert!(!is_forge_instance_url(
-            &reqwest::Url::parse("https://git.example.com/other/project").unwrap(),
-            &instance,
-        ));
-        assert!(!is_forge_instance_url(
-            &reqwest::Url::parse("https://evil.example/team/me/project").unwrap(),
-            &instance,
-        ));
-    }
-
-    #[test]
-    fn only_an_existing_file_by_its_full_path_reaches_the_editor() {
-        let dir = std::env::temp_dir().join(format!("coucou-diff-file-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let file = dir.join("edited.ts");
-        std::fs::write(&file, "x").unwrap();
-
-        assert!(diff_file(&file.to_string_lossy()).is_some());
-        // A folder, a missing file, a relative path or an option never pass.
-        assert!(diff_file(&dir.to_string_lossy()).is_none());
-        assert!(diff_file(&dir.join("missing.ts").to_string_lossy()).is_none());
-        assert!(diff_file("edited.ts").is_none());
-        assert!(diff_file("--help").is_none());
-        assert!(diff_file("").is_none());
-
-        let _ = std::fs::remove_dir_all(&dir);
-    }
+        .expect("error while building Pod")
+        .run(|_app, _event| {});
 }

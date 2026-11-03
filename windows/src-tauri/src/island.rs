@@ -5,8 +5,8 @@
 // centre of the main display inside a borderless, transparent, always-on-top
 // window that never takes focus.
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::time::Duration;
 
 use serde::Serialize;
@@ -16,16 +16,33 @@ use crate::platform::{self, cursor_physical, left_button_down};
 
 /// Logical size of the full window — the largest island view, like the macOS panel.
 pub const PANEL_W: f64 = 720.0;
-pub const PANEL_H: f64 = 320.0;
+pub const PANEL_H: f64 = 480.0;
 /// Logical size of the invisible strip that wakes the island when it is hidden.
-pub const STRIP_W: f64 = 240.0;
-pub const STRIP_H: f64 = 6.0;
+pub const STRIP_W: f64 = 120.0;
+pub const STRIP_H: f64 = 26.0;
 
 pub const WINDOW_LABEL: &str = "island";
 
 /// Margin around the island that still counts as "on the island", in logical px.
 /// Wider than the macOS 6 pt because a click must never be swallowed.
 const HIT_MARGIN: f64 = 14.0;
+/// How far around the island a held button (a file being dragged) still finds it, logical px.
+const DRAG_MARGIN: f64 = 28.0;
+
+/// Tallest island that is still the compact bar (32 px), with room for its
+/// animation: anything taller is an open view.
+const COMPACT_MAX_H: f64 = 40.0;
+
+/// The app, for the webview memory target, which follows the island's shape
+/// from wherever the shape is reported. Set when the cursor poll starts.
+static APP: OnceLock<AppHandle> = OnceLock::new();
+
+/// Whether the island's webview should keep its memory low: while the window
+/// is the wake strip, before anything is drawn, and while the island is the
+/// compact bar. Only an open view (expanded) needs the normal level.
+fn memory_low(collapsed: bool, rect: IslandRect) -> bool {
+    collapsed || rect.w <= 0.0 || rect.h <= COMPACT_MAX_H
+}
 
 #[derive(Serialize, Clone)]
 pub struct CursorPayload {
@@ -61,6 +78,8 @@ pub struct PollGate {
     pub rect: Mutex<IslandRect>,
     /// Mirrors the window flag so we only call into the OS when it changes.
     ignoring: AtomicBool,
+    /// The webview memory target last asked for: 0 none yet, 1 low, 2 normal.
+    memory: AtomicU8,
 }
 
 impl PollGate {
@@ -71,11 +90,33 @@ impl PollGate {
             collapsed: AtomicBool::new(true),
             rect: Mutex::new(IslandRect::default()),
             ignoring: AtomicBool::new(false),
+            memory: AtomicU8::new(0),
         }
     }
 
     pub fn set_rect(&self, rect: IslandRect) {
         *self.rect.lock().unwrap() = rect;
+        self.sync_memory_target();
+    }
+
+    /// Low memory while hidden or compact, normal while open. The page reports
+    /// the shape on every animation frame, so the webview is only told when
+    /// the level actually changes.
+    pub fn sync_memory_target(&self) {
+        let rect = *self.rect.lock().unwrap();
+        let low = memory_low(self.collapsed.load(Ordering::Relaxed), rect);
+        let level = if low { 1 } else { 2 };
+        if self.memory.swap(level, Ordering::Relaxed) == level {
+            return;
+        }
+        let Some(app) = APP.get() else {
+            // Too early: asked again with the next shape.
+            self.memory.store(0, Ordering::Relaxed);
+            return;
+        };
+        if let Some(win) = window(app) {
+            platform::set_webview_memory_low(&win, low);
+        }
     }
 
     /// Forces the next poll tick to re-apply the flag (after a window resize).
@@ -236,6 +277,28 @@ fn target_monitor(app: &AppHandle, pref: &str) -> Option<Monitor> {
         .ok()
         .flatten()
         .or_else(|| monitors.into_iter().next())
+}
+
+#[cfg(test)]
+mod memory_tests {
+    use super::*;
+
+    fn rect(w: f64, h: f64) -> IslandRect {
+        IslandRect { x: 0.0, y: 0.0, w, h }
+    }
+
+    #[test]
+    fn memory_is_low_unless_the_island_is_open() {
+        // The wake strip, whatever shape was last reported.
+        assert!(memory_low(true, rect(640.0, 220.0)));
+        // Nothing drawn yet, hidden (zero height), compact bar.
+        assert!(memory_low(false, rect(0.0, 0.0)));
+        assert!(memory_low(false, rect(184.0, 0.0)));
+        assert!(memory_low(false, rect(288.0, 32.0)));
+        // Any open view.
+        assert!(!memory_low(false, rect(640.0, 160.0)));
+        assert!(!memory_low(false, rect(400.0, 48.0)));
+    }
 }
 
 #[cfg(test)]
@@ -438,6 +501,8 @@ fn current_screen_key(app: &AppHandle) -> Option<(i32, i32, u32, u32, u64)> {
 /// Emits `cursor` (window-logical coordinates) at ~60 Hz while the island is
 /// visible. Parked on a condvar the rest of the time.
 pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
+    let _ = APP.set(app.clone());
+    gate.sync_memory_target();
     std::thread::spawn(move || {
         let mut was_down = false;
         // Remembered across wakes so a display change while hidden is noticed the
@@ -501,8 +566,10 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
                 // WindowFromPoint, so OLE finds no drop target and shows the "no
                 // drop" cursor. macOS has no such problem: AppKit delivers drags to
                 // registered destinations whatever ignoresMouseEvents says. So while
-                // a button is held anywhere over the panel, the whole panel takes
-                // the mouse, which also makes the drop zone as forgiving as the Mac's.
+                // a button is held near the island (the notch, or the drop tiles once
+                // they are open), the window takes the mouse a little beyond its shape.
+                // Only there: a drag lower down the screen passes through to whatever
+                // is under it.
                 // A press may be the start of a drag: make sure the drop target is
                 // ours before the file arrives.
                 let down = left_button_down();
@@ -513,16 +580,26 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
                 was_down = down;
 
                 let dragging = down
-                    && x >= 0.0
-                    && x <= size.0
+                    && r.w > 0.0
+                    && x >= (r.x - DRAG_MARGIN).max(0.0)
+                    && x <= (r.x + r.w + DRAG_MARGIN).min(size.0)
                     && y >= 0.0
-                    && y <= size.1;
+                    && y <= (r.y + r.h + DRAG_MARGIN).min(size.1);
 
                 let accept = on_island || dragging;
+                // Decided under the gate lock: once the window has collapsed to the
+                // wake strip, a tick that started before it (and measured the old
+                // panel) must not make the strip click-through, or hovering it never
+                // wakes the island again.
+                let active = gate.active.lock().unwrap();
+                if !*active || gate.collapsed.load(Ordering::Relaxed) {
+                    continue;
+                }
                 if gate.ignoring.load(Ordering::Relaxed) == accept {
                     gate.ignoring.store(!accept, Ordering::Relaxed);
                     let _ = win.set_ignore_cursor_events(!accept);
                 }
+                drop(active);
 
                 let _ = win.emit("cursor", CursorPayload { x, y });
             }
@@ -536,9 +613,17 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
 /// tick decides from the cursor. Without it (Linux) the input region is set to
 /// the island itself, or to the whole wake strip while collapsed.
 pub fn refresh_click_through(app: &AppHandle, gate: &PollGate) {
+    // Called whenever the window collapses to the wake strip or grows back.
+    gate.sync_memory_target();
     if platform::CURSOR_POLL {
         set_ignore_cursor(app, false);
         gate.forget_ignore_state();
+        if gate.collapsed.load(Ordering::Relaxed) {
+            // A click-through from the last poll tick may still be queued on the
+            // event loop: say it again behind it, so the strip ends up taking the mouse.
+            let handle = app.clone();
+            let _ = app.run_on_main_thread(move || set_ignore_cursor(&handle, false));
+        }
         return;
     }
     let Some(win) = window(app) else { return };

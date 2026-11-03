@@ -1,4 +1,5 @@
-/* Coucou for Windows — same palette, sizes and type scale as the macOS island.
+@import "./fonts.css";
+/* Pod for Windows — same palette, sizes and type scale as the macOS island.
    Every colour below is copied from the Swift views. */
 
 :root {
@@ -7,7 +8,7 @@
   /* After the Latin fonts: the scripts of the other interface languages —
      Devanagari and Bengali (Nirmala UI), Simplified Chinese (Microsoft YaHei)
      on Windows, the Noto families on Linux. Arabic and Cyrillic are in Segoe UI. */
-  --font: system-ui, "Segoe UI Variable Text", "Segoe UI", "Segoe UI Emoji", "Nirmala UI",
+  --font: "PP Mori", system-ui, "Segoe UI Variable Text", "Segoe UI", "Segoe UI Emoji", "Nirmala UI",
     "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans", "Noto Sans Devanagari", "Noto Sans Bengali",
     "Noto Sans Arabic", "Noto Sans CJK SC", "Noto Sans SC", "Droid Sans Fallback", sans-serif;
   --mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
@@ -57,15 +58,21 @@ body {
   inset: 0;
 }
 
-/* Invisible strip that wakes the island when it is hidden. */
+/* Invisible strip around the tucked pill that wakes the island (the window
+   shrinks to it while hidden: 120×26, island.rs STRIP_W/STRIP_H). */
 #wake-strip {
   position: fixed;
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 240px;
-  height: 6px;
+  width: 120px;
+  height: 26px;
   background: transparent;
+}
+
+/* Tucked, the pill lets the pointer through to the wake strip under it. */
+#island.tucked {
+  pointer-events: none;
 }
 
 /* ── Island ─────────────────────────────────────────────────────────────── */
@@ -163,19 +170,6 @@ body {
   width: 0;
 }
 
-/* Compact 2×2 mini grid, to the right of the notch. */
-#mini-grid {
-  position: absolute;
-  width: 29px;
-  height: 29px;
-  display: grid;
-  grid-template-columns: 13px 13px;
-  grid-auto-rows: 13px;
-  gap: 3px;
-  pointer-events: none;
-  transition: opacity 0.25s ease-in-out;
-}
-
 /* Compact Claude plan gauge, next to the agent dots in the compact island. */
 #compact-plan {
   --plan: #6b7079;
@@ -257,7 +251,13 @@ body {
   padding: 8px 10px 10px;
   display: flex;
   flex-direction: column;
-  transition: opacity 0.2s ease-in-out;
+  /* Gone at once when the island folds; on opening it waits a beat, so Mochi
+     reaches his corner before the tabs beside him appear. */
+  transition: opacity 0.08s ease-out;
+}
+
+#island.expanded #content {
+  transition: opacity 0.2s cubic-bezier(0.23, 1, 0.32, 1) 0.12s;
 }
 
 #header {
@@ -266,7 +266,12 @@ body {
   display: flex;
   align-items: center;
   margin: 0 -10px;
-  transition: opacity 0.2s ease-in-out;
+  transform: translateY(-3px);
+  transition: opacity 0.2s ease-in-out, transform 0.26s cubic-bezier(0.23, 1, 0.32, 1) 0.12s;
+}
+
+#island.expanded #header {
+  transform: none;
 }
 
 .tabs {
@@ -329,14 +334,14 @@ body {
   opacity: 0;
   transform: scale(0.97);
   pointer-events: none;
-  transition: opacity 0.16s ease-in;
+  transition: opacity 0.1s ease-out;
 }
 
 .view.on {
   opacity: 1;
   transform: scale(1);
   pointer-events: auto;
-  transition: opacity 0.3s ease-out 0.16s, transform 0.3s cubic-bezier(0.3, 1.2, 0.4, 1) 0.16s;
+  transition: opacity 0.2s cubic-bezier(0.23, 1, 0.32, 1) 0.07s, transform 0.24s cubic-bezier(0.23, 1, 0.32, 1) 0.07s;
 }
 
 /* A view that is not on is only transparent, not gone: an infinite animation
@@ -1563,6 +1568,250 @@ input[type="range"]::-webkit-slider-thumb {
   background: rgba(110, 231, 183, 0.45);
   filter: blur(5px);
   pointer-events: none;
+}
+
+/* ── Drop targets (views/files.ts) ──────────────────────────────────────────
+   Files dragged over the island: one dashed drop card per action, laid out by
+   dropTargetsGeometry (core/layout.ts). The tile under the pointer lights up
+   in its own colour, the way the drop card turns green. */
+
+/* The view covers the header row too: the header fades out but keeps its room. */
+.view.drop-targets {
+  top: -34px;
+}
+
+.drop-targets .drop-tile {
+  --tile: 34, 197, 94;
+  position: absolute;
+  border-radius: 16px;
+}
+
+/* Staggered entry, after the view's own fade (same curve as .view.on). */
+.view.drop-targets.on .drop-tile {
+  animation: tile-in 0.28s cubic-bezier(0.3, 1.2, 0.4, 1) both;
+  animation-delay: calc(0.12s + var(--i, 0) * 0.035s);
+}
+
+@keyframes tile-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+.drop-tile.convert { --tile: 59, 158, 255; }
+.drop-tile.zip { --tile: 245, 165, 36; }
+.drop-tile.resize { --tile: 167, 139, 250; }
+.drop-tile.workspace { --tile: 34, 197, 94; }
+
+/* The highlight: a glow and a lit outline over the plain ones, cross-faded in.
+   Only opacity changes, so the tile never re-lays out. */
+.tile-glow,
+.drop-frame.lit {
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+
+.tile-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(160px 110px at 50% 115%, rgba(var(--tile), 0.18), transparent 70%);
+}
+
+.drop-frame.lit rect {
+  stroke: rgba(var(--tile), 0.7);
+  animation: dash-march 1.1s linear infinite;
+}
+
+.drop-tile.hot .tile-glow,
+.drop-tile.hot .drop-frame.lit {
+  opacity: 1;
+}
+
+.tile-body {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 12px;
+  text-align: center;
+}
+
+/* Short tiles (the 2×2 grid): the icon beside the two lines. */
+.drop-tile.flat .tile-body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  align-items: center;
+  column-gap: 11px;
+  row-gap: 2px;
+  padding: 0 16px;
+  text-align: left;
+}
+
+.drop-tile.flat .tile-icon {
+  grid-row: 1 / span 2;
+}
+
+.tile-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  color: #b9bdc4;
+  transition: color 0.15s ease-out, background-color 0.15s ease-out;
+}
+
+.drop-tile.hot .tile-icon {
+  background: rgba(var(--tile), 0.16);
+  color: rgb(var(--tile));
+}
+
+.tile-title,
+.tile-sub {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tile-title {
+  font: 500 13px var(--font);
+  color: #d5d7db;
+  transition: color 0.15s ease-out;
+}
+
+.drop-tile.hot .tile-title {
+  color: var(--ink);
+}
+
+.tile-sub {
+  font: 400 11px var(--font);
+  color: var(--dim-3);
+}
+
+/* ── File action card (views/files.ts) ──────────────────────────────────────
+   Moved, convert (formats, ffmpeg, progress), done, error. Same insets as the
+   other cards, Mochi on the left. */
+
+.fa-stack {
+  padding: 4px 16px 4px 116px;
+}
+
+.fa-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.fa-title-text {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fa-check {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: var(--green-2);
+}
+
+.fa-sub {
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fa-sub.error {
+  color: var(--red-text);
+}
+
+/* A failure may say why at some length: two lines, not one. */
+.fa-sub.error {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* The upload bar, at the card's width instead of the upload card's 526 px. */
+.up-track.fa-track {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: 100%;
+  margin: 3px 0 2px;
+}
+
+/* Driven by transform only, eased between progress events. */
+.fa-track .up-fill {
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.35s cubic-bezier(0.25, 0.8, 0.3, 1);
+}
+
+.fa-rail {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: transform 0.35s cubic-bezier(0.25, 0.8, 0.3, 1);
+}
+
+.fa-track .up-glow {
+  left: -14px;
+  transition: opacity 0.2s ease-out;
+}
+
+.fa-actions {
+  margin-top: 3px;
+}
+
+.fa-actions:empty {
+  display: none;
+}
+
+.fa-link {
+  color: var(--dim-2);
+  padding: 0 6px;
+}
+
+.fa-link:hover {
+  color: #b0b5be;
+}
+
+/* Nothing loops while the island is folded or hidden: 0 % CPU (the drop
+   tiles' dashes would otherwise march on under a compact island). */
+#island:not(.expanded) .view * {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .view.drop-targets.on .drop-tile {
+    animation: none;
+  }
+
+  .drop-targets .drop-frame rect {
+    animation: none;
+  }
+
+  .fa-track .up-fill,
+  .fa-rail {
+    transition-duration: 0.01s;
+  }
 }
 
 /* ── Integration cards (overview, left card) ────────────────────────────── */
@@ -3526,4 +3775,500 @@ html[data-dir="rtl"] #views :is(.bubble, .reply .md-p, .reply .md-h, .reply .md-
 .plan-bar i {
   display: block;
   height: 100%;
+}
+
+/* ── Workspace: tabs, notch sides, more drop tiles (island/tabs.ts, island/notch.ts) ── */
+
+/* More drop actions, each in its own colour. */
+.drop-tile.unzip { --tile: 245, 165, 36; }
+.drop-tile.images { --tile: 244, 114, 182; }
+.drop-tile.merge { --tile: 244, 80, 94; }
+.drop-tile.split { --tile: 251, 146, 60; }
+.drop-tile.rotate { --tile: 34, 211, 238; }
+.drop-tile.compress { --tile: 99, 102, 241; }
+
+/* The header's tabs. Mochi sits left of them while a tab is open; the
+   selection slides between the buttons (transform only). */
+.tabs {
+  position: relative;
+}
+
+.tabs.with-tabs {
+  padding-left: 46px;
+}
+
+.tab-indicator {
+  position: absolute;
+  left: 46px;
+  top: 0;
+  width: 30px;
+  height: 22px;
+  border-radius: 11px;
+  background: var(--tab-on);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.16s ease-out;
+}
+
+.tabs:not(.with-tabs) .tab-indicator {
+  display: none;
+}
+
+.tabs.with-tabs .tab {
+  position: relative;
+  z-index: 1;
+}
+
+.tabs.with-tabs .tab.on {
+  background: transparent;
+}
+
+/* The overview hosts the tabs; while there are any, its card steps aside. */
+.view.overview.has-tabs .home-card,
+.view.overview:not(.has-tabs) .tab-stack {
+  display: none;
+}
+
+.tab-stack {
+  position: absolute;
+  inset: 0;
+}
+
+/* Switching tabs: a quick crossfade, the new one a beat after the old.
+   (.tab-stack > keeps the panes stacked over tabs.css's .tab-view, loaded later.) */
+.tab-stack > .tab-pane {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease-out;
+}
+
+.tab-pane.on {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.18s ease-out 0.05s;
+}
+
+/* A view that is not on takes no clicks, its tab included. */
+.view:not(.on) .tab-pane {
+  pointer-events: none;
+}
+
+/* The compact notch's sides, around Mochi (40 px between them). */
+.notch-side {
+  position: absolute;
+  top: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 11.5px var(--font);
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.82);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  /* Out fast, so the sides are gone before the opening island's header arrives. */
+  transition: opacity 0.08s ease-out;
+  user-select: none;
+}
+
+#island.compact .notch-side {
+  opacity: 1;
+  transition: opacity 0.2s ease-out;
+}
+
+/* Each side fills its wing (island edge to Mochi) and centres what it shows. */
+.notch-side.left {
+  left: 12px;
+  right: calc(50% + 20px);
+  justify-content: center;
+}
+
+.ns-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+#island.compact .notch-side.left.on {
+  pointer-events: auto;
+}
+
+.notch-side.left:not(.on) {
+  visibility: hidden;
+}
+
+.notch-side.right {
+  left: calc(50% + 20px);
+  right: 12px;
+}
+
+/* The camera and microphone lights take the right end. */
+.notch-side.right.with-privacy {
+  right: 28px;
+}
+
+.ns-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ns-dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #F5A524;
+}
+
+.notch-side.left .ns-dot {
+  display: none;
+}
+
+/* A reminder that is due: its dot pulses until it is handled. */
+.notch-side.left.fired .ns-dot {
+  display: block;
+  animation: ns-pulse 1.6s ease-in-out infinite;
+}
+
+.ns-dot.mic { background: #F5A524; }
+.ns-dot.camera { background: #34D399; }
+
+@keyframes ns-pulse {
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+
+/* One item at a time; the next slides up into place as the last one leaves. */
+.ns-layer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  margin: 0 auto;
+  height: 32px;
+  width: max-content;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.24s ease-out, transform 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.ns-layer.gone {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.ns-layer.enter {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+#island.compact .ns-layer.clickable:not(.gone) {
+  pointer-events: auto;
+}
+
+.ns-layer.clickable:hover,
+.notch-side.left.on:hover {
+  color: var(--ink);
+}
+
+.ns-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.ns-chip {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 10.5px;
+  color: var(--ink);
+}
+
+/* Camera and microphone in use: small lights stacked at the island's right end,
+   microphone over camera (one alone sits in the middle). Orange and green, the
+   colours phones use for the same lights. They fade and settle in quickly. */
+.ns-privacy {
+  position: absolute;
+  top: 0;
+  right: 10px;
+  height: 32px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+
+#island.compact .ns-privacy.on {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ns-light {
+  display: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  place-items: center;
+}
+
+.ns-light.on {
+  display: grid;
+  animation: ns-light-in 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.ns-light.mic {
+  color: #1a1206;
+  background: #F5A524;
+}
+
+.ns-light.camera {
+  color: #04150e;
+  background: #34D399;
+}
+
+@keyframes ns-light-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+
+/* Nothing loops while the notch isn't compact. */
+#island:not(.compact) .notch-side * {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-indicator,
+  .tab-pane,
+  .tab-pane.on {
+    transition-duration: 0.01s;
+    transition-delay: 0s;
+  }
+
+  .ns-light.on {
+    animation: none;
+  }
+
+  .ns-layer,
+  .ns-layer.gone,
+  .ns-layer.enter {
+    transform: none;
+    transition: opacity 0.15s linear;
+  }
+
+  .notch-side.left.fired .ns-dot {
+    animation: none;
+  }
+}
+
+/* ── Tucked pill face (island/tuck.ts) ───────────────────────────────────────
+   Over a maximized or fullscreen window Pod folds into a pill sized to what it
+   shows (at least 54×22). A running
+   timer takes Mochi's place as a countdown with a progress ring; something
+   waiting (a fired reminder, a meeting about to start, a new download) makes the
+   pill glow, with a shimmer passing across it. Only transform and opacity move,
+   and the pulses stop after a few rounds: a waiting alert keeps a steady glow. */
+.tuck-face {
+  --tuck-accent: 245, 165, 36;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+}
+
+#island.tucked .tuck-face {
+  opacity: 1;
+}
+
+.tuck-face[data-alert="meeting"] {
+  --tuck-accent: 122, 162, 255;
+}
+
+.tuck-face[data-alert="download"] {
+  --tuck-accent: 52, 211, 153;
+}
+
+.tuck-inner {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tuck-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    0 0 0 1px rgba(var(--tuck-accent), 0.6),
+    0 3px 12px 1px rgba(var(--tuck-accent), 0.5);
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+}
+
+.tuck-face[data-alert] .tuck-glow {
+  opacity: 0.85;
+  animation: tuck-glow 1.6s ease-in-out 5;
+}
+
+@keyframes tuck-glow {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 0.3; }
+}
+
+.tuck-shine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 70%;
+  background: linear-gradient(100deg,
+    transparent 15%,
+    rgba(var(--tuck-accent), 0.55) 50%,
+    transparent 85%);
+  transform: translateX(-110%);
+  opacity: 0;
+}
+
+.tuck-face[data-alert] .tuck-shine {
+  animation: tuck-shine 2.6s cubic-bezier(0.4, 0, 0.2, 1) 0.2s 3;
+}
+
+@keyframes tuck-shine {
+  0% { transform: translateX(-110%); opacity: 1; }
+  55% { transform: translateX(160%); opacity: 1; }
+  56%, 100% { transform: translateX(160%); opacity: 0; }
+}
+
+.tuck-row {
+  position: relative;
+  flex: 0 0 auto;
+  width: max-content;
+  height: 100%;
+  padding: 0 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Mochi's slot: his canvas is drawn over it. */
+.tuck-bot {
+  flex: 0 0 15px;
+  height: 15px;
+}
+
+.tuck-ring,
+.tuck-time,
+.tuck-icon {
+  display: none;
+}
+
+.tuck-face.timer .tuck-bot {
+  display: none;
+}
+
+.tuck-face.timer .tuck-ring,
+.tuck-face.timer .tuck-time,
+.tuck-face[data-alert] .tuck-icon {
+  display: block;
+}
+
+.tuck-ring {
+  width: 12px;
+  height: 12px;
+  transform: rotate(-90deg);
+  animation: tuck-in 0.24s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.tuck-ring circle {
+  fill: none;
+  stroke-width: 1.9;
+}
+
+.tuck-ring-track {
+  stroke: rgba(255, 255, 255, 0.16);
+}
+
+.tuck-ring-arc {
+  stroke: #fff;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  transition: stroke-dashoffset 1s linear;
+}
+
+.tuck-time {
+  margin-top: -1px;
+  color: #fff;
+  font: 600 11.5px/1 var(--font);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  animation: tuck-in 0.24s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.tuck-icon {
+  width: 11px;
+  height: 11px;
+  color: rgb(var(--tuck-accent));
+  animation: tuck-in 0.24s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.tuck-icon svg {
+  display: block;
+}
+
+@keyframes tuck-in {
+  from { opacity: 0; transform: scale(0.85); }
+}
+
+.tuck-ring {
+  animation-name: tuck-ring-in;
+}
+
+@keyframes tuck-ring-in {
+  from { opacity: 0; transform: rotate(-90deg) scale(0.85); }
+}
+
+.tuck-face.break .tuck-time {
+  color: #6ee7b7;
+}
+
+.tuck-face.break .tuck-ring-arc {
+  stroke: #34d399;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tuck-face[data-alert] .tuck-glow,
+  .tuck-face[data-alert] .tuck-shine {
+    animation: none;
+  }
+  .tuck-ring-arc {
+    transition: none;
+  }
+  .tuck-ring,
+  .tuck-time,
+  .tuck-icon {
+    animation: none;
+  }
 }

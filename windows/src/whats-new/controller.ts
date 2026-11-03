@@ -1,18 +1,16 @@
 // What's new after an update — when the card opens. Once per version, a few
-// seconds after Coucou starts (after the greeting), and only when nothing
-// waits in the island: a permission or a question always comes first, and
-// another card the user is reading is never replaced. The rules are in
+// seconds after Pod starts (after the greeting), and only when the island
+// is quiet: another card the user is reading is never replaced. The rules are in
 // whats-new.ts; the card is views/whatsnew.ts.
 //
-// The numbers of "Your Coucou so far" are read from this computer (the
-// recap, Flow, the Notetaker) at that moment; nothing goes out.
+// "Your Pod so far" has no numbers to count yet (the recap, Flow and the
+// Notetaker are gone); nothing goes out.
 
 import { Bridge, IS_TAURI } from "../core/bridge";
-import { FlowBridge } from "../core/flow";
 import type { IslandViewName } from "../core/layout";
 import { State } from "../core/state";
 import { Updates } from "../island/update";
-import { sampleHistory, previousWeekStart, type RecapHistory } from "../recap/summary";
+import { sampleHistory, previousWeekStart } from "../recap/summary";
 import FILE from "./whats-new.json";
 import {
   decideOnLaunch, releaseFor, soFar, usedBefore,
@@ -26,7 +24,7 @@ export interface WhatsNewHost {
 }
 
 /** The last version this install saw. A convenience of this install, like the plan usage. */
-const LAST_KEY = "coucou.whatsNew.lastVersion";
+const LAST_KEY = "pod.whatsNew.lastVersion";
 
 /** After the greeting, so the two never meet; then every few seconds while the island is busy. */
 const FIRST_DELAY_MS = 3000;
@@ -34,7 +32,7 @@ const RETRY_MS = 5000;
 const RETRIES = 24;
 
 /** Views the card may replace: the island at rest. */
-const QUIET_VIEWS: ReadonlySet<IslandViewName> = new Set(["overview", "empty"]);
+const QUIET_VIEWS: ReadonlySet<IslandViewName> = new Set(["overview"]);
 
 function readLast(): string | null {
   try {
@@ -56,14 +54,14 @@ class WhatsNewController {
   /** The release the card shows (null: no card). */
   release: WhatsNewRelease | null = null;
   stats: Stat[] = [];
-  /** 1: what's new; 2: your Coucou so far. */
+  /** 1: what's new; 2: your Pod so far. */
   step: 1 | 2 = 1;
   /** Bumped when the card opens, so the view rebuilds. */
   generation = 0;
   private host: WhatsNewHost | null = null;
   private started = false;
 
-  /** At launch, once: show the card if Coucou was just updated. */
+  /** At launch, once: show the card if Pod was just updated. */
   async launch(host: WhatsNewHost) {
     if (this.started) return;
     this.started = true;
@@ -86,28 +84,17 @@ class WhatsNewController {
     if (!current || lastSeen === current) return;
 
     const release = releaseFor(FILE as WhatsNewFile, current);
-    const [history, flow, notes] = await Promise.all([
-      Bridge.recapHistory(0),
-      FlowBridge.stats(),
-      FlowBridge.notes(),
-    ]);
-    const calls = notes?.notes.filter((n) => n.status === "ready").length ?? 0;
     const decision = decideOnLaunch({
       current,
       lastSeen,
-      usedBefore: usedBefore({
-        consent: Updates.status.consent,
-        history,
-        dictations: flow?.all.dictations ?? 0,
-        notes: notes?.notes.length ?? 0,
-      }),
+      usedBefore: usedBefore({ consent: Updates.status.consent, history: null, dictations: 0, notes: 0 }),
       hasEntry: release != null,
     });
     if (!decision.show || !release) {
       if (decision.record) writeLast(current);
       return;
     }
-    this.prepare(release, soFar({ history: history as RecapHistory | null, flow: flow?.all ?? null, calls }));
+    this.prepare(release, soFar({ history: null, flow: null, calls: 0 }));
     this.openWhenQuiet(current, 0);
   }
 
@@ -131,7 +118,7 @@ class WhatsNewController {
   }
 
   private quiet(): boolean {
-    if (State.paused || State.pendingApproval) return false;
+    if (State.paused) return false;
     return State.mode !== "expanded" || QUIET_VIEWS.has(State.view);
   }
 

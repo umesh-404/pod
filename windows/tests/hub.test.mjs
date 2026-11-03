@@ -38,8 +38,8 @@ window.addEventListener = () => {};
 
 const { h } = await import("../src/views/dom.ts");
 const { onLanguageChange, setLanguage, t } = await import("../src/i18n/i18n.ts");
-const { FLOW_PAGES, NOTCH_PAGES, startHub } = await import("../src/hub/shell.ts");
-const pages = [...FLOW_PAGES, ...NOTCH_PAGES];
+const { NOTCH_PAGES, startHub } = await import("../src/hub/shell.ts");
+const pages = NOTCH_PAGES;
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 
 beforeEach(() => {
@@ -51,10 +51,9 @@ async function openHub() {
   const root = dom.root();
   const hub = await startHub(root, {
     version: "test",
-    flowPages: Object.fromEntries(FLOW_PAGES.map((page) => [page.id, (container) => {
-      container.append(h("h1", { text: page.title() }));
-    }])),
-    renderNotch: async () => {},
+    renderPage: async (page, container) => {
+      container.append(h("h1", { text: pages.find((p) => p.id === page).title() }));
+    },
   });
   // The fake DOM keeps no input value: the settings search field starts empty.
   for (const input of root.find(".hub-search-input")) input.value = "";
@@ -69,10 +68,11 @@ test("language redraw relabels sidebar nodes and preserves selection and navigat
     const logo = root.find(".hub-brand")[0].find("CANVAS")[0];
     const labels = buttons.map((button) => button.find("SPAN")[0]);
     const groups = root.find(".hub-group");
-    buttons[FLOW_PAGES.length].fire("click");
+    const shortcuts = pages.findIndex((p) => p.id === "shortcuts");
+    buttons[shortcuts].fire("click");
     await settle();
-    assert.equal(hub.current(), "general");
-    assert.equal(root.find("H1")[0].textContent, "General");
+    assert.equal(hub.current(), "shortcuts");
+    assert.equal(root.find("H1")[0].textContent, "Shortcuts");
     calls.length = 0;
 
     for (const language of ["fr", "ar", "en"]) {
@@ -81,42 +81,18 @@ test("language redraw relabels sidebar nodes and preserves selection and navigat
       assert.deepEqual(root.find(".hub-item"), buttons, "keep the existing buttons");
       assert.deepEqual(buttons.map((button) => button.find("SPAN")[0]), labels);
       assert.deepEqual(buttons.map((button) => button.textContent), pages.map((page) => page.title()));
-      assert.equal(groups[0].textContent, "Flow");
-      assert.equal(groups[1].textContent, t("Notch"));
-      assert.equal(root.find(".hub-status")[0].textContent, t("Dictation is off"));
+      assert.equal(groups.length, 1);
+      assert.equal(groups[0].textContent, t("Notch"));
       assert.equal(root.find(".hub-brand")[0].find("CANVAS")[0], logo);
-      assert.equal(hub.current(), "general");
-      assert.deepEqual(buttons.filter((button) => button.classList.contains("on")), [buttons[FLOW_PAGES.length]]);
-      assert.equal(root.find("H1")[0].textContent, t("General"));
+      assert.equal(hub.current(), "shortcuts");
+      assert.deepEqual(buttons.filter((button) => button.classList.contains("on")), [buttons[shortcuts]]);
+      assert.equal(root.find("H1")[0].textContent, t("Shortcuts"));
       assert.equal(document.documentElement.dataset.dir, language === "ar" ? "rtl" : "ltr");
     }
     assert.deepEqual(calls, [], "redrawing must not save settings or request data");
     buttons[0].fire("click");
     await settle();
-    assert.equal(hub.current(), "dictation", "existing click listeners still work");
-  } finally {
-    off();
-  }
-});
-
-test("language redraw retains the latest dictation state and key in the status line", async () => {
-  const { root, off } = await openHub();
-  try {
-    const status = root.find(".hub-status")[0];
-    emit("flow-prefs", { enabled: true, key: "right_ctrl" });
-    emit("speech-models", { parakeet: { state: "ready" } });
-    const english = status.textContent;
-    assert.match(english, /^Ready · hold /);
-    calls.length = 0;
-    setLanguage("fr");
-    await settle();
-    assert.notEqual(status.textContent, english);
-    assert.equal(status.textContent, "Prête · maintiens Ctrl de droite");
-    setLanguage("en");
-    await settle();
-    assert.equal(status.textContent, english);
-    assert.deepEqual(sent("flow_set_prefs"), []);
-    assert.deepEqual(calls, []);
+    assert.equal(hub.current(), "general", "existing click listeners still work");
   } finally {
     off();
   }
@@ -127,8 +103,7 @@ test("the sidebar uses the selected language on its first render", async () => {
   const { root, off, buttons } = await openHub();
   try {
     assert.deepEqual(buttons.map((button) => button.textContent), pages.map((page) => page.title()));
-    assert.equal(root.find(".hub-group")[1].textContent, t("Notch"));
-    assert.equal(root.find(".hub-status")[0].textContent, t("Dictation is off"));
+    assert.equal(root.find(".hub-group")[0].textContent, t("Notch"));
   } finally {
     off();
   }

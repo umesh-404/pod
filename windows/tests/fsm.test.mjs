@@ -21,15 +21,15 @@ const seconds = (n) => mock.timers.tick(n * 1000);
 test("starts hidden and opens on the greeting at launch", () => {
   assert.equal(fsm.state, "hidden");
   fsm.launch();
-  assert.equal(fsm.state, "coucou");
-  assert.deepEqual(transitions, ["hidden>coucou"]);
+  assert.equal(fsm.state, "pod");
+  assert.deepEqual(transitions, ["hidden>pod"]);
 });
 
 test("the greeting collapses to the compact island 0.6 s after it ends", () => {
   fsm.launch();
   fsm.greetComplete();
   seconds(0.5);
-  assert.equal(fsm.state, "coucou");
+  assert.equal(fsm.state, "pod");
   seconds(0.1);
   assert.equal(fsm.state, "petit");
 });
@@ -39,7 +39,7 @@ test("a hovered greeting stays for 10 s, whatever the animation does", () => {
   fsm.mouseEntered();
   fsm.greetComplete();
   seconds(9.9);
-  assert.equal(fsm.state, "coucou");
+  assert.equal(fsm.state, "pod");
   seconds(0.1);
   assert.equal(fsm.state, "petit");
 });
@@ -227,7 +227,7 @@ test("the greeting keeps its own timing whatever the auto-close delay", () => {
   fsm.greetComplete();
   fsm.homeToPetitDelay = 0.01;
   seconds(0.05);
-  assert.equal(fsm.state, "coucou");
+  assert.equal(fsm.state, "pod");
   seconds(0.1);
   assert.equal(fsm.state, "petit");
 });
@@ -366,14 +366,17 @@ test("open on hover: a waiting card holds the island, hover neither opens nor fo
   assert.equal(fsm.state, "home");
 });
 
-test("open on hover: an island opened by an alert keeps the normal delay", () => {
+test("open on hover: an island opened by an alert keeps the normal delay until the pointer has been in", () => {
   fsm.openOnHover = true;
   fsm.homeToPetitDelay = 3;
   fsm.forceHome();
-  fsm.mouseEntered();
+  // The pointer was never over it: the normal countdown.
   fsm.mouseLeft();
   seconds(1);
   assert.equal(fsm.state, "home");
-  seconds(2);
+  // Once it has been hovered, leaving folds it back to the notch quickly.
+  fsm.mouseEntered();
+  fsm.mouseLeft();
+  seconds(1);
   assert.equal(fsm.state, "petit");
 });

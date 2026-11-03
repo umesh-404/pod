@@ -1,4 +1,4 @@
-// The launch "coucou" (greeting v2) — port of GreetingCanvasView.swift.
+// The launch "pod" (greeting v2) — port of GreetingCanvasView.swift.
 // Mochi drops into the island, bounces, slides to the side and waves hello with
 // a quick little hand, then comes back and settles in the compact island.
 // Everything is laid out in the same 640×150 reference space as on macOS.
@@ -38,7 +38,6 @@ export const GREETING_H = 150;
 const C0 = { x: 320, y: 90 };
 const HB = 58;
 export const ASP = 1.34;
-const EAR_X = 40;
 const EAR_HB = 17;
 const CARD = { x: 10, y: 36, w: 620, h: 104 };
 const CARD_R = 20;
@@ -49,8 +48,6 @@ const COMPACT = {
   height: NOTCH_H,
   botDiameter: Math.min(20, Math.max(0, NOTCH_H - 6)),
   botCenterY: NOTCH_H / 2,
-  miniGridScale: Math.min(1, Math.max(0, NOTCH_H - 4) / 28),
-  miniGridCenterX: COMPACT_W - 40,
 };
 
 // ── Easing ────────────────────────────────────────────────────────────────────
@@ -79,7 +76,7 @@ export interface Pose {
   eye: EyeType; open: number; eyeRoll: number;
   lookX: number; lookY: number;
   handL: number; handR: number; wave: number;
-  badge: number; tint: number; halo: number; haloBlue: number; minis: number; fx: number;
+  badge: number; tint: number; halo: number; haloBlue: number; fx: number;
   header: number; card: number;
   iw: number; ih: number;
 }
@@ -196,7 +193,6 @@ function greetPose(t: number): Pose {
     tint: 0.6 * E.inOut(seg(t, T.tint0, T.tint1)),
     halo: E.out(seg(t, 0.3, 0.7)),
     haloBlue: seg(t, T.tint0, T.tint1),
-    minis: 0,
     fx: 1,
     header: seg(t, 0.35, 0.6),
     card: seg(t, 0.18, 0.45),
@@ -207,14 +203,14 @@ function greetPose(t: number): Pose {
 function smallPose(): Pose {
   return {
     hb: (EAR_HB * COMPACT.botDiameter) / 20,
-    x: GREETING_W / 2 - COMPACT.width / 2 + EAR_X,
+    x: GREETING_W / 2,
     y: COMPACT.botCenterY,
     sx: 1, sy: 1, tilt: 0,
     eye: "dot", open: 1, eyeRoll: 0,
     lookX: 0, lookY: 0,
     handL: 0, handR: 0, wave: -1,
     badge: 1, tint: 0.6, halo: 0.6, haloBlue: 1,
-    minis: 1, fx: 1,
+    fx: 1,
     header: 0, card: 0,
     iw: COMPACT.width, ih: COMPACT.height,
   };
@@ -253,7 +249,6 @@ export function greetingPose(t: number, tc = Number.POSITIVE_INFINITY): Pose {
   p.open = bk > 0 && bk < 1 ? 1 - Math.sin(Math.PI * bk) * 0.94 : 1;
   p.lookX = a.lookX * (1 - e);
   p.lookY = a.lookY * (1 - e);
-  p.minis = E.back(seg(t, tc + 0.24, tc + 0.42));
   p.fx = 1 - seg(t, tc, tc + 0.2);
   return p;
 }
@@ -563,25 +558,6 @@ function drawParticles(x: CanvasRenderingContext2D, t: number, p: Pose) {
   }
 }
 
-const MINI_COLORS = ["#E86A6A", "#3E86E0", "#EFAE5A", "#8C73F2"];
-
-function drawMinis(x: CanvasRenderingContext2D, alpha: number) {
-  if (alpha <= 0.01) return;
-  const cx = GREETING_W / 2 - COMPACT.width / 2 + COMPACT.miniGridCenterX;
-  const cy = COMPACT.botCenterY;
-  const sp = 6 * COMPACT.miniGridScale;
-  const offsets: [number, number][] = [[-sp, -sp], [sp, -sp], [-sp, sp], [sp, sp]];
-  offsets.forEach(([dx, dy], i) => {
-    x.save();
-    x.translate(cx + dx, cy + dy);
-    const scale = alpha * COMPACT.miniGridScale;
-    x.scale(scale, scale);
-    x.fillStyle = MINI_COLORS[i];
-    x.fill(mochiPath(5.3, 4));
-    x.restore();
-  });
-}
-
 // ── Controller ────────────────────────────────────────────────────────────────
 
 /**
@@ -670,7 +646,6 @@ export class Greeting {
       drawParticles(x, t, p);
     }
 
-    drawMinis(x, p.minis);
     drawMochi(x, p);
   }
 }

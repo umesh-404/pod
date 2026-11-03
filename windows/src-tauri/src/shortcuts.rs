@@ -3,7 +3,7 @@
 // The shortcuts are registered from Rust through tauri-plugin-global-shortcut
 // (RegisterHotKey on Windows, XGrabKey on X11). Wayland has no key grabs: there
 // they go to the desktop through the XDG GlobalShortcuts portal (portal.rs), and
-// where there is no such portal Settings lists `coucou --shortcut <id>` commands
+// where there is no such portal Settings lists `pod --shortcut <id>` commands
 // to bind by hand. A press is handed to the island
 // as a `shortcut` event carrying the action id; the island does the rest, the
 // same way it handles the tray menu. The wardrobe is the exception: it goes out
@@ -21,6 +21,10 @@
 //   Ctrl+Alt+T       open the terminal       Ctrl+Alt+G      wardrobe
 //   Ctrl+Alt+D       Mochi to the desktop, or home again (the Mac's ⌃⌥D)
 //   Ctrl+Alt+N       open / close the island (off by default, as on the Mac)
+//
+// The workspace's own actions (not on the Mac): Ctrl+Alt+Space opens the
+// shelf; New reminder, Quick note, Screenshot and Smart clipboard have no key
+// until one is recorded in Settings.
 //
 // ⌃⌥[ and ⌃⌥] became the arrows (brackets are AltGr characters almost
 // everywhere) and ⌃⌥M became S (AltGr+M is µ in German). Layouts outside that
@@ -59,16 +63,14 @@ const fn action(id: &'static str, keys: &'static str, on: bool, ported: bool) ->
 /// Same order as `ShortcutAction.allCases`.
 pub const ACTIONS: &[ActionDef] = &[
     action("toggleIsland", "Ctrl+Alt+N", false, true),
-    action("openChat", "Ctrl+Alt+Space", true, true),
-    action("goToAlert", "Ctrl+Alt+A", true, true),
-    action("jumpToTerminal", "Ctrl+Alt+T", true, true),
-    // Dragging Mochi onto a window is not in this version.
-    action("attachFrontWindow", "Ctrl+Alt+F", true, false),
-    action("nextPill", "Ctrl+Alt+Right", true, true),
-    action("prevPill", "Ctrl+Alt+Left", true, true),
     action("muteToggle", "Ctrl+Alt+S", true, true),
     action("desktopToggle", "Ctrl+Alt+D", true, true),
     action("wardrobeToggle", "Ctrl+Alt+G", true, true),
+    action("openShelf", "Ctrl+Alt+Space", true, true),
+    action("newReminder", "", false, true),
+    action("quickNote", "", false, true),
+    action("screenshot", "", false, true),
+    action("smartClipboard", "", false, true),
 ];
 
 pub fn find(id: &str) -> Option<&'static ActionDef> {
@@ -83,16 +85,15 @@ pub fn description(id: &str) -> &'static str {
     use crate::i18n::n_;
     match id {
         "toggleIsland" => n_("Open or close the island"),
-        "openChat" => n_("Open the chat"),
-        "goToAlert" => n_("Go to the waiting permission or question"),
-        "jumpToTerminal" => n_("Open the terminal"),
-        "attachFrontWindow" => n_("Attach the front window to the chat"),
-        "nextPill" => n_("Next pill"),
-        "prevPill" => n_("Previous pill"),
         "muteToggle" => n_("Mute or unmute Mochi"),
         "desktopToggle" => n_("Send Mochi to the desktop"),
         "wardrobeToggle" => n_("Open the wardrobe"),
-        _ => "Coucou",
+        "openShelf" => n_("Open the shelf"),
+        "newReminder" => n_("New reminder"),
+        "quickNote" => n_("Quick note"),
+        "screenshot" => n_("Screenshot to the shelf"),
+        "smartClipboard" => n_("Smart clipboard"),
+        _ => "Pod",
     }
 }
 
@@ -133,7 +134,7 @@ pub enum Status {
     Off,
     /// Another app already holds this combination.
     InUse,
-    /// Another Coucou shortcut has the same combination.
+    /// Another Pod shortcut has the same combination.
     Duplicate,
     /// Not a combination the OS can register.
     Invalid,
@@ -173,7 +174,7 @@ pub struct ActionStatus {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub typed: Option<String>,
     /// Wayland: the keys the desktop says run it, in its own words. It may
-    /// let the user pick other keys than the ones Coucou asked for.
+    /// let the user pick other keys than the ones Pod asked for.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trigger: Option<String>,
 }
@@ -294,7 +295,7 @@ pub fn plan(
         .collect()
 }
 
-/// `coucou --shortcut <id>` → the action id, when it names a ported one.
+/// `pod --shortcut <id>` → the action id, when it names a ported one.
 pub fn from_args(args: &[String]) -> Option<&'static str> {
     let at = args.iter().position(|a| a == "--shortcut")?;
     let def = find(args.get(at + 1)?)?;
@@ -329,7 +330,7 @@ pub fn dispatch<R: Runtime>(app: &AppHandle<R>, action: &str) {
     }
 }
 
-/// Unregisters everything Coucou holds.
+/// Unregisters everything Pod holds.
 fn release<R: Runtime>(app: &AppHandle<R>) {
     if let Some(gs) = app.try_state::<GlobalShortcut<R>>() {
         if let Err(err) = gs.unregister_all() {
@@ -395,7 +396,7 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, stored: &Bindings) {
 }
 
 /// Lets go of every shortcut while a new one is being recorded in Settings,
-/// so pressing a combination Coucou already holds records it instead of
+/// so pressing a combination Pod already holds records it instead of
 /// running it.
 pub fn suspend<R: Runtime>(app: &AppHandle<R>) {
     release(app);
@@ -422,7 +423,7 @@ fn launch_command() -> String {
         .map(std::path::PathBuf::from)
         .or_else(|| std::env::current_exe().ok())
         .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|| "coucou".to_string());
+        .unwrap_or_else(|| "pod".to_string());
     if exe.contains(' ') {
         format!("\"{exe}\"")
     } else {
@@ -630,18 +631,16 @@ mod wayland {
         #[test]
         fn the_desktop_answer_marks_each_shortcut() {
             let mut r = report();
-            let answer = [bound("openChat", Some("Ctrl+Alt+Space")), bound("goToAlert", None)];
+            let answer = [bound("muteToggle", Some("Ctrl+Alt+S")), bound("wardrobeToggle", None)];
             mark_bound(&mut r, Some(&answer));
-            assert_eq!(of(&r, "openChat").status, Status::Active);
-            assert_eq!(of(&r, "openChat").trigger.as_deref(), Some("Ctrl+Alt+Space"));
-            assert_eq!(of(&r, "goToAlert").status, Status::Active);
-            assert_eq!(of(&r, "goToAlert").trigger, None);
+            assert_eq!(of(&r, "muteToggle").status, Status::Active);
+            assert_eq!(of(&r, "muteToggle").trigger.as_deref(), Some("Ctrl+Alt+S"));
+            assert_eq!(of(&r, "wardrobeToggle").status, Status::Active);
+            assert_eq!(of(&r, "wardrobeToggle").trigger, None);
             // Left out of the answer.
-            assert_eq!(of(&r, "muteToggle").status, Status::Refused);
             assert_eq!(of(&r, "desktopToggle").status, Status::Refused);
             // Never handed over: untouched.
             assert_eq!(of(&r, "toggleIsland").status, Status::Off);
-            assert_eq!(of(&r, "attachFrontWindow").status, Status::NotPorted);
         }
 
         #[test]
@@ -649,15 +648,15 @@ mod wayland {
             let mut r = report();
             mark_bound(&mut r, None);
             assert!(r.iter().all(|s| matches!(s.status, Status::Active | Status::Off | Status::NotPorted)));
-            assert_eq!(of(&r, "nextPill").status, Status::Active);
+            assert_eq!(of(&r, "desktopToggle").status, Status::Active);
         }
 
         #[test]
         fn new_keys_from_the_desktop_replace_the_old_ones() {
             let mut r = report();
-            mark_bound(&mut r, Some(&[bound("openChat", Some("Ctrl+Alt+Space"))]));
-            mark_changed(&mut r, &[bound("openChat", Some("Meta+C")), bound("muteToggle", Some("Meta+M"))]);
-            assert_eq!(of(&r, "openChat").trigger.as_deref(), Some("Meta+C"));
+            mark_bound(&mut r, Some(&[bound("wardrobeToggle", Some("Ctrl+Alt+G"))]));
+            mark_changed(&mut r, &[bound("wardrobeToggle", Some("Meta+C")), bound("muteToggle", Some("Meta+M"))]);
+            assert_eq!(of(&r, "wardrobeToggle").trigger.as_deref(), Some("Meta+C"));
             assert_eq!(of(&r, "muteToggle").status, Status::Active);
             assert_eq!(of(&r, "muteToggle").trigger.as_deref(), Some("Meta+M"));
             assert_eq!(of(&r, "toggleIsland").status, Status::Off);
@@ -666,19 +665,19 @@ mod wayland {
         #[test]
         fn a_failure_goes_back_to_unsupported() {
             let mut r = report();
-            mark_bound(&mut r, Some(&[bound("openChat", Some("Ctrl+Alt+Space"))]));
+            mark_bound(&mut r, Some(&[bound("wardrobeToggle", Some("Ctrl+Alt+G"))]));
             mark_failed(&mut r);
             for s in &r {
                 assert!(matches!(s.status, Status::Unsupported | Status::Off | Status::NotPorted), "{}", s.id);
                 assert_eq!(s.trigger, None);
             }
-            assert_eq!(of(&r, "openChat").status, Status::Unsupported);
+            assert_eq!(of(&r, "wardrobeToggle").status, Status::Unsupported);
         }
 
         #[test]
         fn every_action_has_a_description() {
             for def in ACTIONS {
-                assert_ne!(description(def.id), "Coucou", "{}", def.id);
+                assert_ne!(description(def.id), "Pod", "{}", def.id);
             }
         }
     }
@@ -688,10 +687,14 @@ mod wayland {
 mod tests {
     use super::*;
 
-    const MAC_IDS: [&str; 10] = [
-        "toggleIsland", "openChat", "goToAlert", "jumpToTerminal", "attachFrontWindow",
-        "nextPill", "prevPill", "muteToggle", "desktopToggle", "wardrobeToggle",
-    ];
+    const MAC_IDS: [&str; 4] = ["toggleIsland", "muteToggle", "desktopToggle", "wardrobeToggle"];
+    /// The workspace's actions, after the Mac's.
+    const WORKSPACE_IDS: [&str; 5] = ["openShelf", "newReminder", "quickNote", "screenshot", "smartClipboard"];
+
+    /// Actions that come with a key; the others wait for one in Settings.
+    fn with_keys() -> impl Iterator<Item = &'static ActionDef> {
+        ACTIONS.iter().filter(|a| !a.default_keys.is_empty())
+    }
 
     fn never(_: &Shortcut) -> Option<String> {
         None
@@ -701,13 +704,14 @@ mod tests {
     #[test]
     fn every_mac_action_has_a_default_and_keeps_its_id() {
         let ids: Vec<_> = ACTIONS.iter().map(|a| a.id).collect();
-        assert_eq!(ids, MAC_IDS);
+        let want: Vec<_> = MAC_IDS.iter().chain(WORKSPACE_IDS.iter()).copied().collect();
+        assert_eq!(ids, want);
     }
 
     // testAllDefaultsHaveModifier
     #[test]
     fn every_default_parses_and_has_a_modifier() {
-        for def in ACTIONS {
+        for def in with_keys() {
             let shortcut = parse(def.default_keys)
                 .unwrap_or_else(|| panic!("{} default does not parse", def.id));
             assert!(is_altgr_like(&shortcut), "{} default is not Ctrl+Alt", def.id);
@@ -718,29 +722,32 @@ mod tests {
     #[test]
     fn no_two_defaults_share_a_combination() {
         let mut seen = HashSet::new();
-        for def in ACTIONS {
+        for def in with_keys() {
             assert!(seen.insert(parse(def.default_keys).unwrap().id()), "{} duplicates", def.id);
         }
     }
 
     // testEnabledByDefault
     #[test]
-    fn only_the_island_toggle_is_off_by_default() {
+    fn only_the_island_toggle_and_the_keyless_are_off_by_default() {
         for def in ACTIONS {
-            assert_eq!(def.enabled_by_default, def.id != "toggleIsland", "{}", def.id);
+            let off = def.id == "toggleIsland" || def.default_keys.is_empty();
+            assert_eq!(def.enabled_by_default, !off, "{}", def.id);
         }
+        assert!(find("openShelf").unwrap().enabled_by_default);
     }
 
     #[test]
-    fn the_action_not_ported_yet_is_reserved_not_registered() {
+    fn every_action_is_ported_and_only_the_island_toggle_waits_to_be_turned_on() {
         let plan = plan(&Bindings::new(), never);
         for (def, outcome) in plan {
-            let reserved = def.id == "attachFrontWindow";
-            assert_eq!(def.ported, !reserved);
+            assert!(def.ported, "{}", def.id);
             match outcome {
-                Ok(_) => assert!(def.ported && def.enabled_by_default, "{}", def.id),
-                Err(s) if reserved => assert_eq!(s.status, Status::NotPorted),
-                Err(s) => assert_eq!((def.id, s.status), ("toggleIsland", Status::Off)),
+                Ok(_) => assert!(def.enabled_by_default, "{}", def.id),
+                Err(s) => {
+                    assert!(!def.enabled_by_default, "{}", def.id);
+                    assert_eq!(s.status, Status::Off, "{}", def.id);
+                }
             }
         }
     }
@@ -787,46 +794,46 @@ mod tests {
     #[test]
     fn a_combination_used_twice_is_registered_once() {
         let mut stored = Bindings::new();
-        let same = Binding { keys: "Ctrl+Alt+A".into(), enabled: true };
-        stored.insert("jumpToTerminal".into(), same.clone());
+        let same = Binding { keys: "Ctrl+Alt+S".into(), enabled: true };
+        stored.insert("desktopToggle".into(), same.clone());
         let plan = plan(&stored, never);
-        let alert = plan.iter().find(|(d, _)| d.id == "goToAlert").unwrap();
-        let term = plan.iter().find(|(d, _)| d.id == "jumpToTerminal").unwrap();
-        assert!(alert.1.is_ok());
+        let mute = plan.iter().find(|(d, _)| d.id == "muteToggle").unwrap();
+        let term = plan.iter().find(|(d, _)| d.id == "desktopToggle").unwrap();
+        assert!(mute.1.is_ok());
         assert_eq!(term.1.as_ref().unwrap_err().status, Status::Duplicate);
 
         // Same key, other modifiers: not a duplicate.
-        stored.insert("jumpToTerminal".into(), Binding { keys: "Ctrl+Shift+A".into(), enabled: true });
+        stored.insert("desktopToggle".into(), Binding { keys: "Ctrl+Shift+S".into(), enabled: true });
         let plan = super::plan(&stored, never);
-        assert!(plan.iter().all(|(d, o)| o.is_ok() || !d.ported || d.id == "toggleIsland"));
+        assert!(plan.iter().all(|(d, o)| o.is_ok() || !d.ported || !d.enabled_by_default));
 
         // A disabled action doesn't hold its keys.
-        stored.insert("goToAlert".into(), Binding { keys: "Ctrl+Alt+A".into(), enabled: false });
-        stored.insert("jumpToTerminal".into(), same);
+        stored.insert("muteToggle".into(), Binding { keys: "Ctrl+Alt+S".into(), enabled: false });
+        stored.insert("desktopToggle".into(), same);
         let plan = super::plan(&stored, never);
-        let term = plan.iter().find(|(d, _)| d.id == "jumpToTerminal").unwrap();
+        let term = plan.iter().find(|(d, _)| d.id == "desktopToggle").unwrap();
         assert!(term.1.is_ok());
     }
 
     #[test]
     fn a_combination_that_types_a_character_is_not_registered() {
-        let euro = |s: &Shortcut| (s.key == Code::KeyA).then(|| "ą".to_string());
-        let plan = plan(&Bindings::new(), euro);
-        let alert = plan.iter().find(|(d, _)| d.id == "goToAlert").unwrap();
-        let refused = alert.1.as_ref().unwrap_err();
+        let sharp = |s: &Shortcut| (s.key == Code::KeyS).then(|| "ß".to_string());
+        let plan = plan(&Bindings::new(), sharp);
+        let mute = plan.iter().find(|(d, _)| d.id == "muteToggle").unwrap();
+        let refused = mute.1.as_ref().unwrap_err();
         assert_eq!(refused.status, Status::TypesCharacter);
-        assert_eq!(refused.typed.as_deref(), Some("ą"));
+        assert_eq!(refused.typed.as_deref(), Some("ß"));
     }
 
     #[test]
     fn stored_bindings_override_the_defaults_and_the_rest_fall_back() {
         let mut stored = Bindings::new();
-        stored.insert("openChat".into(), Binding { keys: "Ctrl+Shift+K".into(), enabled: true });
+        stored.insert("wardrobeToggle".into(), Binding { keys: "Ctrl+Shift+K".into(), enabled: true });
         stored.insert("muteToggle".into(), Binding { keys: String::new(), enabled: true });
-        let chat = effective(find("openChat").unwrap(), &stored);
-        assert_eq!(chat.keys, "Ctrl+Shift+K");
-        let alert = effective(find("goToAlert").unwrap(), &stored);
-        assert_eq!(alert, Binding { keys: "Ctrl+Alt+A".into(), enabled: true });
+        let wardrobe = effective(find("wardrobeToggle").unwrap(), &stored);
+        assert_eq!(wardrobe.keys, "Ctrl+Shift+K");
+        let desktop = effective(find("desktopToggle").unwrap(), &stored);
+        assert_eq!(desktop, Binding { keys: "Ctrl+Alt+D".into(), enabled: true });
         let toggle = effective(find("toggleIsland").unwrap(), &stored);
         assert!(!toggle.enabled);
         let plan = plan(&stored, never);
@@ -838,24 +845,24 @@ mod tests {
     #[test]
     fn bindings_round_trip_through_json() {
         let mut stored = Bindings::new();
-        stored.insert("openChat".into(), Binding { keys: "Ctrl+Alt+K".into(), enabled: false });
+        stored.insert("wardrobeToggle".into(), Binding { keys: "Ctrl+Alt+K".into(), enabled: false });
         let json = serde_json::to_string(&stored).unwrap();
-        assert_eq!(json, r#"{"openChat":{"keys":"Ctrl+Alt+K","enabled":false}}"#);
+        assert_eq!(json, r#"{"wardrobeToggle":{"keys":"Ctrl+Alt+K","enabled":false}}"#);
         assert_eq!(serde_json::from_str::<Bindings>(&json).unwrap(), stored);
         // A hand-edited entry without `enabled` stays on.
-        let partial: Bindings = serde_json::from_str(r#"{"openChat":{"keys":"Ctrl+Alt+K"}}"#).unwrap();
-        assert!(partial["openChat"].enabled);
+        let partial: Bindings = serde_json::from_str(r#"{"wardrobeToggle":{"keys":"Ctrl+Alt+K"}}"#).unwrap();
+        assert!(partial["wardrobeToggle"].enabled);
     }
 
     #[test]
     fn the_command_line_names_an_action() {
         let args = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-        assert_eq!(from_args(&args(&["coucou", "--shortcut", "openChat"])), Some("openChat"));
-        assert_eq!(from_args(&args(&["coucou", "--shortcut", "wardrobeToggle"])), Some("wardrobeToggle"));
-        assert_eq!(from_args(&args(&["coucou", "--shortcut"])), None);
-        assert_eq!(from_args(&args(&["coucou", "--shortcut", "rm -rf"])), None);
-        assert_eq!(from_args(&args(&["coucou", "--shortcut", "desktopToggle"])), Some("desktopToggle"));
-        assert_eq!(from_args(&args(&["coucou", "--shortcut", "attachFrontWindow"])), None);
-        assert_eq!(from_args(&args(&["coucou"])), None);
+        assert_eq!(from_args(&args(&["pod", "--shortcut", "muteToggle"])), Some("muteToggle"));
+        assert_eq!(from_args(&args(&["pod", "--shortcut", "wardrobeToggle"])), Some("wardrobeToggle"));
+        assert_eq!(from_args(&args(&["pod", "--shortcut"])), None);
+        assert_eq!(from_args(&args(&["pod", "--shortcut", "rm -rf"])), None);
+        assert_eq!(from_args(&args(&["pod", "--shortcut", "desktopToggle"])), Some("desktopToggle"));
+        assert_eq!(from_args(&args(&["pod", "--shortcut", "openChat"])), None);
+        assert_eq!(from_args(&args(&["pod"])), None);
     }
 }

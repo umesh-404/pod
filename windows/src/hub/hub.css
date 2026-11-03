@@ -1,6 +1,6 @@
-/* The Coucou window: an OLED-black sidebar, a dark panel holding the pages,
+/* The Pod window: an OLED-black sidebar, a dark panel holding the pages,
    and on top of each page a coloured band where little Mochis walk. Same
-   look as the Mac's Coucou window (FlowHub.swift). */
+   look as the Mac's Pod window (FlowHub.swift). */
 
 :root {
   --hub-panel: #0e0f11;
@@ -1079,46 +1079,4 @@ button.hub-icon svg {
 
 .hub-note-detail > button {
   align-self: flex-start;
-}
-
-/* ── Mail (classic Outlook) — MailHubPages.swift ──────────────────────────── */
-.mail-stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.mail-stat {
-  font: 700 28px var(--font);
-  font-variant-numeric: tabular-nums;
-}
-
-.mail-journal {
-  gap: 12px;
-  align-items: center;
-}
-
-.mail-journal b {
-  font-weight: 600;
-}
-
-.mail-dim {
-  color: #8e939c;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.mail-dim.small {
-  font-size: 11.5px;
-  color: #6b7079;
-}
-
-.mail-rule-line {
-  gap: 8px;
-}
-
-.mail-if {
-  width: 44px;
-  flex: 0 0 auto;
 }

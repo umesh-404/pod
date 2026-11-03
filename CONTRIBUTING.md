@@ -1,56 +1,29 @@
-# Contributing to Coucou
+# Contributing to Pod
 
-Thanks for wanting to help Mochi grow up! 🫶
+Thanks for helping. Pod is the Tauri app in `windows/` (Windows and Linux).
 
-## Getting started
-
-```bash
-brew install xcodegen
-cd NotchBuddy && xcodegen && open NotchBuddy.xcodeproj
+## Run it
+```
+cd windows
+npm install
+npm run tauri dev
 ```
 
-Never edit `NotchBuddy.xcodeproj` by hand: change `project.yml` and run `xcodegen`.
+## Font
+Pod's interface is set in PP Mori by Pangram Pangram. Its licence doesn't allow redistributing the files, so they aren't in the repository. If you have a licence, put the six `PPMori-*.otf` files (Extralight, Regular, SemiBold and their italics) in `windows/public/fonts/local/`; the folder is ignored by git. Without them Pod uses the system font.
 
-Check resting island dimensions on screens with and without a notch:
-
-```bash
-bash scripts/test-screen-geometry.sh
-bash scripts/test-display-choice.sh
+## Before a pull request
+```
+cd windows
+npx tsc --noEmit
+npm test
+cargo test --workspace
+python scripts/test-whats-new.py
 ```
 
-Check auto-close timing and live setting changes:
-
-```bash
-bash scripts/test-auto-close.sh
-```
-
-Check macOS translations:
-
-```bash
-python3 scripts/test-localization.py
-```
-
-Add English and Traditional Chinese entries for every new localized label. Keep
-format arguments and plural paths intact. This check does not replace building
-both Mac targets or checking the language and layout in the app.
-
-## Good first contributions
-
-- A new service integration (a poller + an entry in `PillCatalog.swift` in the `.service` category + a detail card). Look at `StripePoller.swift` for a compact example.
-- A new agent: any agent already gets its own automatic pill by sending `coucou_agent` in its hook payload (see `docs/AGENTS.md`). Add an entry in `PillCatalog.swift` in the `.agent` or `.workspace` category only if you want it to be declarable in Settings → Active pills.
-- A new emote or sound for Mochi.
-- Bug fixes — please describe how to reproduce.
-
-## Rules of the house
-
-- Swift 6, SwiftUI + AppKit, **no third-party dependencies** unless there's really no other way.
-- Secrets go in the Keychain, never on disk or in git.
-- No telemetry, no network calls except to services the user configured.
-- Never block Claude Code: if the app doesn't answer, the hook must exit right away.
-- Never write `~/.claude/settings.json` without a backup and the user's confirmation.
-- Keep it light: 0 % CPU when the island is hidden.
-
-## Pull requests
-
-- One topic per PR, with a short GIF or screenshot for anything visual.
-- Build must pass with no new warnings.
+## Rules
+- Local first, with no API keys and no accounts. Network calls go only to things the user set up (calendar links, update checks, the one-time ffmpeg download).
+- No telemetry.
+- Every user-facing string goes through `t()` and is translated in the 14 languages (`windows/src/i18n/extra.json`).
+- Efficiency budget: 0 % CPU while the island is hidden, under 0.5 % of a core when idle. Prefer events to polling, and animate only `transform` and `opacity`.
+- Keep the existing look. New views follow the island's style.

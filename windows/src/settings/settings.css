@@ -1,3 +1,4 @@
+@import "../fonts.css";
 /* Settings window — same palette as the island, laid out as a normal window. */
 
 :root {
@@ -6,7 +7,7 @@
   color-scheme: dark;
 
   /* Then the scripts of the other interface languages (see src/style.css). */
-  --font: system-ui, "Segoe UI Variable Text", "Segoe UI", "Nirmala UI", "Microsoft YaHei UI",
+  --font: "PP Mori", system-ui, "Segoe UI Variable Text", "Segoe UI", "Nirmala UI", "Microsoft YaHei UI",
     "Microsoft YaHei", "Noto Sans", "Noto Sans Devanagari", "Noto Sans Bengali", "Noto Sans Arabic",
     "Noto Sans CJK SC", "Noto Sans SC", "Droid Sans Fallback", sans-serif;
   --mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
@@ -269,84 +270,15 @@ select option {
   color: #fbc06a;
 }
 
-/* Active pills — one group per catalog category, one row per pill. */
-
-.pill-group {
+/* Result lines under a row: stacked notices, nothing (no gap) when empty. */
+.feedback {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-top: 10px;
-  border-top: 1px solid var(--hairline);
 }
 
-.pill-group > h3 {
-  font: 600 11px var(--font);
-  color: var(--dim);
-}
-
-.pill-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 24px;
-}
-
-.pill-row .name {
-  font-size: 12.5px;
-}
-
-/* The dot of a pill's row opens the colour palette (see ./colors.ts). The dot
-   itself is unchanged. */
-.color-dot {
-  cursor: pointer;
-}
-
-.color-dot:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.5);
-  outline-offset: 2px;
-}
-
-.palette {
-  position: fixed;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 10px;
-  background: var(--card);
-  border: 1px solid var(--hairline);
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-}
-
-.palette .swatch {
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  border-radius: 50%;
-}
-
-.palette .swatch.on {
-  box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--ink);
-}
-
-.palette .reset {
-  padding: 3px 10px;
-  font-size: 11.5px;
-}
-
-.pill-row.full .name {
-  color: var(--dim-2);
-}
-
-.pill-row .state {
-  margin-left: auto;
-  font: 400 11.5px var(--font);
-  color: var(--dim);
-}
-
-.hint.full {
-  color: var(--amber);
+.feedback:empty {
+  display: none;
 }
 
 /* Shortcuts section */
@@ -428,6 +360,68 @@ html[dir="rtl"] :is(.diff, .path, .keycap, input[type="password"], input[type="t
   direction: ltr;
 }
 
-/* Settings → Android phone: the pairing QR code (an SVG from Rust, black on white). */
-.qr { width: 220px; max-width: 100%; background: #fff; border-radius: 8px; padding: 4px; }
-.qr svg { display: block; width: 100%; height: auto; }
+/* Features and Notch pages: one row per item, its name and one line under it. */
+
+.feature-list,
+.notch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feature-row,
+.notch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+}
+
+.feature-row .text,
+.notch-row .text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.feature-row .name,
+.notch-row .name {
+  font-size: 12.5px;
+}
+
+.feature-row .detail,
+.notch-row .detail {
+  font: 400 11.5px var(--font);
+  color: var(--dim);
+}
+
+.feature-row.off .name,
+.notch-row.off .name {
+  color: var(--dim-2);
+}
+
+.notch-row button.hub-icon:disabled {
+  opacity: 0.3;
+}
+
+.notch-row.calendar .path {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: normal;
+}
+
+.notch-row.calendar .tag {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tag.ok {
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+}

@@ -9,24 +9,22 @@ import { State } from "../src/core/state.ts";
 import { NO_UPDATE, headerLine, isBusy, mayOffer, percent } from "../src/core/update.ts";
 import { Updates } from "../src/island/update.ts";
 
-const free = { paused: false, pending: false, mode: "hidden", view: "overview" };
+const free = { paused: false, mode: "hidden", view: "overview" };
 
 test("the question and an announcement come only when the island is free", () => {
   for (const offer of ["ask", "announce"]) {
     assert.equal(mayOffer(offer, free), true);
     assert.equal(mayOffer(offer, { ...free, mode: "compact" }), true);
     assert.equal(mayOffer(offer, { ...free, mode: "expanded", view: "update" }), true);
-    assert.equal(mayOffer(offer, { ...free, mode: "expanded", view: "prompt" }), false, `${offer} over the chat`);
+    assert.equal(mayOffer(offer, { ...free, mode: "expanded", view: "settings" }), false, `${offer} over another card`);
     assert.equal(mayOffer(offer, { ...free, mode: "expanded", view: "overview" }), false);
-    assert.equal(mayOffer(offer, { ...free, pending: true }), false, `${offer} over an approval`);
     assert.equal(mayOffer(offer, { ...free, paused: true }), false);
   }
 });
 
-test("the card asked for (tray, Settings) opens over any view but never over an approval", () => {
-  assert.equal(mayOffer("show", { ...free, mode: "expanded", view: "prompt" }), true);
+test("the card asked for (tray, Settings) opens over any view", () => {
+  assert.equal(mayOffer("show", { ...free, mode: "expanded", view: "settings" }), true);
   assert.equal(mayOffer("show", { ...free, paused: true }), true);
-  assert.equal(mayOffer("show", { ...free, mode: "expanded", view: "question", pending: true }), false);
 });
 
 test("progress, the header line and the busy phases", () => {
@@ -52,7 +50,7 @@ const OUT = {
   ...NO_UPDATE,
   consent: true,
   current: "0.5.0",
-  latest: { version: "0.6.0", headline: "Flow dictation", pageUrl: "https://github.com/Louis-CFM/coucou/releases/tag/windows-v0.6.0" },
+  latest: { version: "0.6.0", headline: "Flow dictation", pageUrl: "https://github.com/umesh-404/pod/releases/tag/windows-v0.6.0" },
   canInstall: true,
 };
 let shown;
@@ -76,7 +74,6 @@ beforeEach(async () => {
   State.mode = "hidden";
   State.view = "overview";
   State.paused = false;
-  State.pendingApproval = null;
   await Updates.register(host);
 });
 
@@ -95,16 +92,6 @@ test("the question opens the card once Rust offers it, and says it was shown", (
   assert.equal(collapsed, 1);
 });
 
-test("nothing opens over a waiting permission, and nothing is marked shown", () => {
-  State.pendingApproval = { requestId: "r1", tool: "Bash", command: "ls", pillId: "integration_claude" };
-  emit("update-status", OUT);
-  emit("update-offer", "ask");
-  emit("update-offer", "announce");
-  emit("update-offer", "show");
-  assert.deepEqual(shown, []);
-  assert.deepEqual(sent("update_shown"), []);
-});
-
 test("an announcement opens the card with Mochi surprised; Later snoozes it", () => {
   emit("update-status", OUT);
   assert.equal(Updates.status.latest.version, "0.6.0");
@@ -117,20 +104,20 @@ test("an announcement opens the card with Mochi surprised; Later snoozes it", ()
   assert.equal(collapsed, 1);
 });
 
-test("an announcement with no version known yet, or while the chat is open, waits", () => {
+test("an announcement with no version known yet, or while another card is open, waits", () => {
   emit("update-status", { ...OUT, latest: null });
   emit("update-offer", "announce");
   emit("update-status", OUT);
   State.mode = "expanded";
-  State.view = "prompt";
+  State.view = "settings";
   emit("update-offer", "announce");
   assert.deepEqual(shown, []);
 });
 
-test("the tray's Update Coucou to X… opens the card without marking anything", () => {
+test("the tray's Update Pod to X… opens the card without marking anything", () => {
   emit("update-status", OUT);
   State.mode = "expanded";
-  State.view = "prompt";
+  State.view = "settings";
   Updates.show();
   assert.deepEqual(shown, ["update"]);
   assert.deepEqual(emotes, []);

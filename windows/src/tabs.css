@@ -1,0 +1,1182 @@
+/* The island's tabs (src/views/tabs/*): Shelf, Reminders, Notes, Tools.
+   Same palette and type as style.css. Motion: transform and opacity only,
+   ease-out curves under 250 ms, press feedback at scale(0.96), hover effects
+   only where a fine pointer can hover, and prefers-reduced-motion keeps the
+   fades but drops every movement. */
+
+.tab-view {
+  --tab-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --tab-spring: cubic-bezier(0.3, 1.2, 0.4, 1);
+  --tab-line: rgba(255, 255, 255, 0.07);
+  --tab-fill: rgba(255, 255, 255, 0.05);
+  --tab-fill-hover: rgba(255, 255, 255, 0.09);
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: var(--font);
+  color: var(--ink);
+  overflow: hidden;
+}
+
+/* Entrances play once per element (the views add .settled when they end). */
+.tab-view .settled {
+  animation: none !important;
+}
+
+.tab-view [hidden] {
+  display: none !important;
+}
+
+.tab-view button {
+  font-family: inherit;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tab-view button:focus-visible,
+.tab-view .shelf-grid:focus-visible {
+  outline: 1.5px solid rgba(255, 255, 255, 0.45);
+  outline-offset: 2px;
+}
+
+/* ── Shared pieces ──────────────────────────────────────────────────────── */
+
+.tab-head {
+  flex: 0 0 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tab-count {
+  font: 600 12px var(--font);
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.tab-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--tab-fill);
+  color: var(--ink-2);
+  font: 500 11.5px var(--font);
+  transition: background 0.15s ease, transform 0.12s var(--tab-ease);
+}
+
+.tab-link svg {
+  color: var(--dim);
+}
+
+.tab-link:active {
+  transform: scale(0.96);
+}
+
+.tab-empty {
+  display: none;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  animation: tab-fade 0.24s var(--tab-ease) both;
+}
+
+.tab-view.is-empty .tab-empty {
+  display: flex;
+}
+
+.tab-empty.small {
+  flex: 0 0 auto;
+  min-height: 40px;
+}
+
+.tab-empty-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--tab-fill);
+  color: var(--dim);
+}
+
+.tab-empty-text {
+  font: 400 12.5px var(--font);
+  color: var(--dim);
+  max-width: 320px;
+}
+
+.mini-btn {
+  height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--ink-2);
+  font: 500 11.5px var(--font);
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s var(--tab-ease), opacity 0.15s ease;
+}
+
+.mini-btn.primary {
+  background: var(--ink);
+  color: #0b0c0e;
+}
+
+.mini-btn.icon {
+  width: 24px;
+  padding: 0;
+}
+
+.mini-btn.done {
+  background: rgba(34, 197, 94, 0.18);
+  color: var(--green-2);
+}
+
+.mini-btn.busy {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.mini-btn:active {
+  transform: scale(0.95);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tab-link:hover {
+    background: var(--tab-fill-hover);
+  }
+  .mini-btn:not(.primary):not(.done):hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
+  .mini-btn.primary:hover {
+    background: #ffffff;
+  }
+}
+
+@keyframes tab-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes tab-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* ── Shelf ──────────────────────────────────────────────────────────────── */
+
+.shelf-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  grid-auto-rows: 98px;
+  gap: 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  outline: none;
+  border-radius: 14px;
+}
+
+.shelf-grid::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-shelf.is-empty .shelf-grid,
+.tab-shelf.is-empty .tab-head {
+  display: none;
+}
+
+.shelf-tile {
+  position: relative;
+  min-width: 0;
+  padding: 6px 6px 0;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.14s var(--tab-ease), opacity 0.18s ease;
+  animation: tab-rise 0.22s var(--tab-ease) both;
+}
+
+.shelf-tile:active {
+  transform: scale(0.97);
+}
+
+.shelf-tile.selected {
+  background: #1c2230;
+  border-color: rgba(99, 102, 241, 0.65);
+}
+
+.shelf-tile.leaving {
+  opacity: 0;
+  transform: scale(0.94);
+  pointer-events: none;
+}
+
+.tab-shelf.dragging .shelf-tile.selected {
+  opacity: 0.55;
+}
+
+.shelf-thumb {
+  position: relative;
+  height: 64px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--card-flat);
+  display: grid;
+  place-items: center;
+  color: var(--dim);
+}
+
+.shelf-ph {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transition: opacity 0.2s ease;
+}
+
+.shelf-thumb.has-img .shelf-ph {
+  opacity: 0;
+}
+
+.shelf-ext {
+  font: 700 8.5px var(--font);
+  letter-spacing: 0.06em;
+  color: var(--dim-3);
+}
+
+.shelf-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transform: scale(1.03);
+  transition: opacity 0.24s var(--tab-ease), transform 0.3s var(--tab-ease);
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+.shelf-thumb.page .shelf-img {
+  object-position: center top;
+}
+
+.shelf-img.loaded {
+  opacity: 1;
+  transform: none;
+}
+
+.shelf-img.instant {
+  transition: none;
+}
+
+.shelf-name {
+  font: 500 11px var(--font);
+  color: var(--ink-2);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 14px;
+}
+
+/* Size and age: a caption over the thumbnail's foot, shown on hover. */
+.shelf-meta {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 50px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 0 0 10px 10px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0));
+  font: 500 9.5px var(--font);
+  color: #e3e5e9;
+  line-height: 22px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+.shelf-del {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(14, 15, 17, 0.88);
+  color: var(--dim);
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 0.15s ease, transform 0.15s var(--tab-ease), color 0.15s ease, background 0.15s ease;
+}
+
+.shelf-del:active {
+  transform: scale(0.88);
+}
+
+.shelf-tile:focus-within .shelf-del,
+.shelf-tile.selected .shelf-del {
+  opacity: 1;
+  transform: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .shelf-tile:hover {
+    background: #181a1e;
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+  .shelf-tile.selected:hover {
+    background: #1f2636;
+    border-color: rgba(99, 102, 241, 0.75);
+  }
+  .shelf-tile:hover .shelf-meta,
+  .shelf-tile:hover .shelf-del {
+    opacity: 1;
+    transform: none;
+  }
+  .shelf-del:hover {
+    color: var(--red-text);
+    background: rgba(40, 14, 18, 0.95);
+  }
+}
+
+/* ── Reminders ──────────────────────────────────────────────────────────── */
+
+.rem-form {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px;
+  border-radius: 16px;
+  background: var(--card);
+  border: 1px solid var(--hairline);
+}
+
+.rem-form.nudge {
+  animation: rem-nudge 0.32s var(--tab-ease);
+}
+
+@keyframes rem-nudge {
+  20% {
+    transform: translateX(-4px);
+  }
+  45% {
+    transform: translateX(3px);
+  }
+  70% {
+    transform: translateX(-1.5px);
+  }
+}
+
+.rem-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rem-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--card-flat);
+  color: var(--ink);
+  font: 400 13px var(--font);
+  outline: none;
+  user-select: text;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.rem-input::placeholder {
+  color: var(--dim-3);
+}
+
+.rem-input:focus {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: #121316;
+}
+
+/* Reminder / Deadline: the thumb slides under the picked half. */
+.rem-seg {
+  position: relative;
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: 32px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--card-flat);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.rem-seg-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  border-radius: 7px;
+  background: var(--tab-on);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: transform 0.22s var(--tab-ease);
+}
+
+.rem-seg.right .rem-seg-thumb {
+  transform: translateX(100%);
+}
+
+.rem-seg-btn {
+  position: relative;
+  z-index: 1;
+  min-width: 74px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  font: 500 11.5px var(--font);
+  transition: color 0.15s ease;
+}
+
+.rem-seg-btn[aria-pressed="true"] {
+  color: var(--ink);
+}
+
+.rem-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 18px;
+  padding: 0 4px;
+  font: 400 12px var(--font);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.rem-preview.hint {
+  color: var(--dim-3);
+}
+
+.rem-preview.ok {
+  color: var(--ink-2);
+}
+
+.rem-preview.ok .rem-preview-icon {
+  color: var(--amber);
+  display: inline-grid;
+  animation: tab-fade 0.18s ease both;
+}
+
+.rem-preview-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rem-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.rem-list::-webkit-scrollbar {
+  display: none;
+}
+
+.rem-row {
+  flex: 0 0 40px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px 0 12px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  transition: opacity 0.18s ease, transform 0.18s var(--tab-ease), background 0.15s ease;
+  animation: tab-rise 0.22s var(--tab-ease) both;
+}
+
+.rem-row.leaving {
+  opacity: 0;
+  transform: scale(0.98);
+  pointer-events: none;
+}
+
+.rem-row.fired {
+  background: linear-gradient(90deg, rgba(245, 165, 36, 0.16), rgba(245, 165, 36, 0.05));
+  border-color: rgba(245, 165, 36, 0.35);
+}
+
+.rem-icon {
+  display: grid;
+  place-items: center;
+  color: var(--dim);
+  flex: 0 0 auto;
+}
+
+.rem-row.deadline .rem-icon {
+  color: var(--pink);
+}
+
+.rem-row.fired .rem-icon {
+  color: var(--amber);
+}
+
+.rem-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 500 12.5px var(--font);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rem-side {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rem-when {
+  font: 400 11.5px var(--font);
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.rem-when.countdown {
+  color: #f9a8d4;
+  font-weight: 600;
+}
+
+.rem-x {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--dim-3);
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease, transform 0.12s var(--tab-ease);
+}
+
+.rem-x:active {
+  transform: scale(0.9);
+}
+
+.rem-row:focus-within .rem-x {
+  opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .rem-row:hover .rem-x {
+    opacity: 1;
+  }
+  .rem-x:hover {
+    background: var(--tab-fill-hover);
+    color: var(--ink-2);
+  }
+}
+
+/* ── Notes ──────────────────────────────────────────────────────────────── */
+
+.note-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font: 500 11.5px var(--font);
+  color: var(--dim);
+}
+
+.note-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dim-4);
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.18s ease, transform 0.2s var(--tab-ease), background 0.18s ease;
+}
+
+.note-status.editing .note-status-dot,
+.note-status.saving .note-status-dot,
+.note-status.saved .note-status-dot,
+.note-status.error .note-status-dot {
+  opacity: 1;
+  transform: none;
+}
+
+.note-status.saving .note-status-dot {
+  background: var(--amber);
+}
+
+.note-status.saved .note-status-dot {
+  background: var(--green);
+}
+
+.note-status.error {
+  color: var(--red-text);
+}
+
+.note-status.error .note-status-dot {
+  background: var(--red);
+}
+
+.note-status-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: tab-fade 0.18s ease both;
+}
+
+.note-area {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  resize: none;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--hairline);
+  background: var(--card);
+  color: var(--ink);
+  font: 400 13px/1.5 var(--mono);
+  outline: none;
+  user-select: text;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  transition: border-color 0.15s ease;
+}
+
+.note-area::placeholder {
+  color: var(--dim-3);
+  font-family: var(--font);
+}
+
+.note-area:focus {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.note-strip {
+  flex: 0 0 30px;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.note-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-notes.no-recent .note-strip {
+  display: none;
+}
+
+.note-chip {
+  flex: 0 0 auto;
+  height: 28px;
+  max-width: 200px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--card-flat);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink-2);
+  font: 500 11.5px var(--font);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s var(--tab-ease);
+}
+
+.note-chip:active {
+  transform: scale(0.96);
+}
+
+.note-chip.on {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: var(--tab-on);
+}
+
+.note-chip-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.note-chip-age {
+  color: var(--dim-3);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .note-chip:not(.on):hover {
+    background: #16171a;
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+}
+
+/* ── Tools ──────────────────────────────────────────────────────────────── */
+
+.tools-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-content: start;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.tools-grid::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-tools.is-empty .tools-grid {
+  display: none;
+}
+
+.tool-card {
+  position: relative;
+  min-width: 0;
+  height: 120px;
+  padding: 11px 12px;
+  border-radius: 16px;
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  overflow: hidden;
+  animation: tab-rise 0.24s var(--tab-ease) both;
+}
+
+.tool-card:nth-child(2) {
+  animation-delay: 30ms;
+}
+
+.tool-card:nth-child(3) {
+  animation-delay: 60ms;
+}
+
+.tool-card:nth-child(4) {
+  animation-delay: 90ms;
+}
+
+.tool-card.tall {
+  height: 184px;
+}
+
+.tool-card.wide {
+  grid-column: 1 / -1;
+}
+
+.tool-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.tool-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  background: var(--tab-fill);
+  color: var(--ink-2);
+  flex: 0 0 auto;
+}
+
+.tool-capture .tool-icon {
+  color: var(--cyan);
+}
+
+.tool-focus .tool-icon {
+  color: var(--pink);
+}
+
+.tool-clipboard .tool-icon {
+  color: var(--amber);
+}
+
+.tool-devservers .tool-icon {
+  color: var(--green-2);
+}
+
+.tool-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 600 12.5px var(--font);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-sub {
+  font: 400 11.5px var(--font);
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.tool-refresh {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--dim);
+  flex: 0 0 auto;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s var(--tab-ease);
+}
+
+.tool-refresh:active {
+  transform: scale(0.9) rotate(-30deg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tool-refresh:hover {
+    background: var(--tab-fill-hover);
+    color: var(--ink-2);
+  }
+}
+
+.tool-toast {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 10px;
+  min-height: 24px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  font: 500 11px var(--font);
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.24s var(--tab-ease);
+}
+
+.tool-toast.on {
+  opacity: 1;
+  transform: none;
+}
+
+.tool-toast.ok {
+  background: rgba(34, 197, 94, 0.16);
+  color: var(--green-2);
+}
+
+.tool-toast.error {
+  background: rgba(244, 80, 94, 0.16);
+  color: var(--red-text);
+}
+
+/* The toast covers the button while it shows. */
+.tool-capture:has(.tool-toast.on) .tool-actions {
+  opacity: 0;
+}
+
+.focus-body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.focus-ring {
+  flex: 0 0 auto;
+  transform: rotate(-90deg);
+}
+
+.focus-track {
+  stroke: rgba(255, 255, 255, 0.08);
+}
+
+.focus-arc {
+  stroke: var(--pink);
+  transition: stroke 0.2s ease;
+}
+
+.tool-focus.phase-break .focus-arc {
+  stroke: var(--green-2);
+}
+
+.tool-focus.phase-off .focus-arc {
+  stroke: rgba(255, 255, 255, 0.14);
+}
+
+.focus-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.focus-phase {
+  font: 600 13.5px var(--font);
+}
+
+.tool-focus.phase-focus .focus-phase {
+  color: #f9a8d4;
+}
+
+.tool-focus.phase-break .focus-phase {
+  color: var(--green-2);
+}
+
+.clip-list,
+.server-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.clip-list::-webkit-scrollbar,
+.server-list::-webkit-scrollbar {
+  display: none;
+}
+
+.tool-empty {
+  margin: auto 0;
+  text-align: center;
+  font: 400 11.5px var(--font);
+  color: var(--dim-3);
+  animation: tab-fade 0.2s ease both;
+}
+
+.clip-row {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  animation: tab-rise 0.2s var(--tab-ease) both;
+}
+
+.clip-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.clip-label {
+  font: 700 9.5px var(--font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+
+.clip-out {
+  max-height: 84px;
+  margin: 0;
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: var(--card-flat);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  font: 400 11px/1.45 var(--mono);
+  color: #e8e9ec;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow: auto;
+  user-select: text;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.server-row {
+  flex: 0 0 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 0 10px;
+  border-radius: 9px;
+  background: var(--card-flat);
+  animation: tab-rise 0.2s var(--tab-ease) both;
+}
+
+.server-port {
+  font: 600 12px var(--mono);
+  color: var(--green-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.server-proc {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 400 11.5px var(--font);
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Right to left (Arabic) ─────────────────────────────────────────────── */
+
+html[data-dir="rtl"] .tab-view {
+  direction: rtl;
+}
+
+html[data-dir="rtl"] .rem-seg.right .rem-seg-thumb {
+  transform: translateX(-100%);
+}
+
+html[data-dir="rtl"] .rem-seg-thumb {
+  left: auto;
+  right: 3px;
+}
+
+html[data-dir="rtl"] .shelf-del {
+  right: auto;
+  left: 2px;
+}
+
+/* ── Reduced motion: fades stay, movement goes ──────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-view *,
+  .tab-view *::before,
+  .tab-view *::after {
+    animation-name: tab-fade !important;
+  }
+  .rem-form.nudge {
+    animation: none !important;
+  }
+  .shelf-tile,
+  .shelf-tile:active,
+  .shelf-tile.leaving,
+  .shelf-img,
+  .shelf-del,
+  .tool-toast,
+  .rem-row.leaving,
+  .mini-btn:active,
+  .tab-link:active,
+  .note-chip:active,
+  .tool-refresh:active {
+    transform: none !important;
+  }
+  .rem-seg-thumb {
+    transition: none;
+  }
+}
+
+/* Add files: next to Open folder, and under the empty shelf's hint. */
+.tab-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tab-add {
+  margin-top: 2px;
+  height: 28px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--tab-fill);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  transition: transform 0.12s var(--tab-ease), background-color 0.15s ease-out;
+}
+
+.tab-add svg {
+  fill: currentColor;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tab-add:hover {
+    background: var(--tab-fill-hover);
+  }
+}
+
+.tab-add:active {
+  transform: scale(0.96);
+}
+
+/* Notes: Delete sits beside New note while a saved note is open. */
+.tab-link[hidden] {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .note-delete:hover,
+  .note-delete:hover svg {
+    color: var(--red-text);
+  }
+}

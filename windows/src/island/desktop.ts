@@ -7,9 +7,8 @@ import { Bridge, emitToWindow, onEvent, type DesktopMode } from "../core/bridge"
 import type { BotEmoteName } from "../core/layout";
 import { Sound } from "../core/sound";
 import { State } from "../core/state";
-import { desktopDances } from "../core/spotify";
 import {
-  DESKTOP_EVENTS, DesktopMochiController, alertActive, type DesktopSnapshot,
+  DESKTOP_EVENTS, DesktopMochiController, type DesktopSnapshot,
 } from "../mochi/desktop-logic";
 import { SeasonCache, parseOutfit } from "../mochi/wardrobe";
 
@@ -51,7 +50,8 @@ export class DesktopLink {
       emote: (emote: BotEmoteName, duration = 1.8) =>
         void emitToWindow(WINDOW, DESKTOP_EVENTS.emote, { emote, duration }),
       play: (sound) => Sound.play(sound),
-      alertActive: () => alertActive(State),
+      // Nothing waits for an answer any more: no alert calls him home.
+      alertActive: () => false,
       revealIsland: () => {
         if (State.mode === "hidden") this.host.reveal();
       },
@@ -159,7 +159,6 @@ export class DesktopLink {
   // ── State → desktop window ──────────────────────────────────────────────────
 
   private sync() {
-    this.controller.updateAlert(alertActive(State));
     this.controller.updateState(State.effectiveState);
     this.push();
   }
@@ -171,7 +170,7 @@ export class DesktopLink {
       soundEnabled: State.settings.soundEnabled,
       soundVolume: State.settings.soundVolume,
       paused: State.paused,
-      dancing: desktopDances(State.spotifyPlaying, State.effectiveState),
+      dancing: false,
     };
     const key = JSON.stringify(snapshot);
     if (key === this.pushed) return;

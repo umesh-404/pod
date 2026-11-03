@@ -1,0 +1,10 @@
+/* PP Mori, Pod's main typeface, when it is installed locally in
+   public/fonts/local/ (licensed by Pangram Pangram, so it is not in the
+   repository: see CONTRIBUTING.md). Without the files the stacks fall back to
+   the system UI font. Weights: 200, 400, 600, each with its italic. */
+@font-face { font-family: "PP Mori"; src: url("/fonts/local/PPMori-Extralight.otf") format("opentype"); font-weight: 100 300; font-style: normal; font-display: block; }
+@font-face { font-family: "PP Mori"; src: url("/fonts/local/PPMori-ExtralightItalic.otf") format("opentype"); font-weight: 100 300; font-style: italic; font-display: block; }
+@font-face { font-family: "PP Mori"; src: url("/fonts/local/PPMori-Regular.otf") format("opentype"); font-weight: 301 500; font-style: normal; font-display: block; }
+@font-face { font-family: "PP Mori"; src: url("/fonts/local/PPMori-RegularItalic.otf") format("opentype"); font-weight: 301 500; font-style: italic; font-display: block; }
+@font-face { font-family: "PP Mori"; src: url("/fonts/local/PPMori-SemiBold.otf") format("opentype"); font-weight: 501 900; font-style: normal; font-display: block; }
+@font-face { font-family: "PP Mori"; src: url("/fonts/local/PPMori-SemiBoldItalic.otf") format("opentype"); font-weight: 501 900; font-style: italic; font-display: block; }

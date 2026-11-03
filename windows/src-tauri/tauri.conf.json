@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Coucou",
-  "version": "0.5.8",
-  "identifier": "fr.louisraille.coucou",
+  "productName": "Pod",
+  "version": "0.1.0",
+  "identifier": "io.github.umesh404.pod",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -18,7 +18,7 @@
     "windows": [
       {
         "label": "island",
-        "title": "Coucou",
+        "title": "Pod",
         "url": "index.html",
         "width": 240,
         "height": 6,
@@ -48,11 +48,10 @@
       "icons/128x128@2x.png",
       "icons/icon.ico"
     ],
-    "resources": { "../target/release/coucou-hook.exe": "coucou-hook.exe" },
-    "copyright": "© Louis Raille",
-    "category": "DeveloperTool",
-    "shortDescription": "Mochi lives at the top of your screen",
-    "longDescription": "Coucou puts Mochi at the top of your screen: it shows your Claude Code sessions and a few integrations, and lets you approve, answer, chat and drop files without leaving what you are doing.",
+    "copyright": "© umesh-404 and the Pod contributors",
+    "category": "Productivity",
+    "shortDescription": "A temporary workspace at the top of your screen",
+    "longDescription": "Pod puts Mochi at the top of your screen: drop a file on the island to convert, zip, resize or keep it in a temporary workspace, all on your computer.",
     "windows": {
       "nsis": {
         "installMode": "currentUser",

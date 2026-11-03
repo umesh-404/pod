@@ -38,39 +38,26 @@ test("SettingsSearch - match against box, title, and labels (Mac contract parity
   assert.equal(m(""), null);
 });
 
-test("SettingsSearch - searchSettings searches entries across Flow, Notch and Mail", () => {
-  const pageTitles = {
-    dictation: "Dictation",
-    flowsettings: "Settings",
-    general: "General",
-    agents: "Agents",
-    mailOverview: "Overview",
-    mailRules: "Rules",
-    mailBanned: "Banned words",
-    mailVIP: "VIP",
-  };
+test("SettingsSearch - searchSettings searches the island's settings", () => {
+  const pageTitles = { general: "General", notch: "Notch", features: "Features", shortcuts: "Shortcuts" };
   const getPageTitle = (p) => pageTitles[p] ?? p;
 
   // Search by box name
-  const resKeys = searchSettings("keys", getPageTitle);
-  assert.ok(resKeys.length > 0);
-  assert.ok(resKeys.some((h) => h.entry.id === "flow.keys"));
-
-  // Search by term inside box
-  const resHandsfree = searchSettings("handsfree", getPageTitle);
-  assert.ok(resHandsfree.length > 0);
-  assert.ok(resHandsfree.some((h) => h.entry.id === "flow.keys"));
-
-  // Search by sound in general
   const resSound = searchSettings("sound", getPageTitle);
   assert.ok(resSound.some((h) => h.entry.id === "general.sound"));
 
-  // Search Mail entries
-  const resMail = searchSettings("rules", getPageTitle);
-  assert.ok(resMail.some((h) => h.entry.id === "mail.rules"));
+  // Search by term inside box
+  const resVolume = searchSettings("volume", getPageTitle);
+  assert.ok(resVolume.some((h) => h.entry.id === "general.sound"));
 
-  const resBanned = searchSettings("banned", getPageTitle);
-  assert.ok(resBanned.some((h) => h.entry.id === "mail.banned"));
+  // Search by page title
+  const resShortcuts = searchSettings("shortcuts", getPageTitle);
+  assert.ok(resShortcuts.some((h) => h.entry.page === "shortcuts"));
+
+  // The pages that are gone are not searched any more.
+  for (const gone of ["handsfree", "banned", "Ollama", "Stripe"]) {
+    assert.deepEqual(searchSettings(gone, getPageTitle), [], gone);
+  }
 
   // Empty query returns empty array
   assert.deepEqual(searchSettings("", getPageTitle), []);
@@ -81,14 +68,40 @@ test("SettingsSearch - searchSettings searches entries across Flow, Notch and Ma
 });
 
 test("SettingsSearch - SETTINGS_ENTRIES integrity and completeness", () => {
-  assert.ok(SETTINGS_ENTRIES.length >= 30, "must include complete set of hub settings");
+  assert.ok(SETTINGS_ENTRIES.length >= 10, "must include complete set of hub settings");
   const ids = new Set();
   for (const entry of SETTINGS_ENTRIES) {
     assert.ok(entry.id, "every entry must have an id");
     assert.ok(!ids.has(entry.id), `duplicate entry id: ${entry.id}`);
     ids.add(entry.id);
-    assert.ok(entry.page, `entry ${entry.id} must define a page`);
+    assert.ok(["general", "notch", "features", "shortcuts"].includes(entry.page), `entry ${entry.id} must be on a page that exists`);
     assert.ok(entry.title, `entry ${entry.id} must define a title`);
     assert.ok(Array.isArray(entry.terms), `entry ${entry.id} must define terms array`);
   }
+});
+
+test("SettingsSearch - finds the Features and Notch rows", () => {
+  const pageTitles = { general: "General", notch: "Notch", features: "Features", shortcuts: "Shortcuts" };
+  const getPageTitle = (p) => pageTitles[p] ?? p;
+  const ids = (q) => searchSettings(q, getPageTitle).map((h) => h.entry.id);
+
+  assert.ok(ids("zip").includes("features.drop"));
+  assert.ok(ids("pdf").includes("features.drop"));
+  assert.ok(ids("reminders").includes("features.tabs"));
+  assert.ok(ids("clipboard").includes("features.tools"));
+  assert.ok(ids("features").includes("features.drop"), "by the page's title");
+  assert.ok(ids("calendar").includes("notch.calendar"));
+  assert.ok(ids("now playing").includes("notch.right"));
+  assert.ok(ids("seconds").includes("notch.right"));
+  assert.ok(ids("break").includes("notch.focus"));
+  // A label inside a box is reported with it.
+  const hit = searchSettings("glance", getPageTitle).find((h) => h.entry.id === "notch.right");
+  assert.equal(hit?.label, "System glance");
+});
+
+test("SettingsSearch - every box of the Features and Notch pages is searchable", async () => {
+  const { FEATURE_GROUPS } = await import("../src/settings/catalog.ts");
+  const ids = new Set(SETTINGS_ENTRIES.map((e) => e.id));
+  for (const g of FEATURE_GROUPS) assert.ok(ids.has(g.anchor), g.anchor);
+  for (const id of ["notch.right", "notch.calendar", "notch.focus"]) assert.ok(ids.has(id), id);
 });

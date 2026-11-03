@@ -22,22 +22,22 @@ const PACKAGES = {
     {
       dir: "nsis",
       suffix: "-setup.exe",
-      names: [`Coucou-Windows-${version}-setup.exe`, "Coucou-Windows-setup.exe"],
+      names: [`Pod-Windows-${version}-setup.exe`, "Pod-Windows-setup.exe"],
     },
     {
       dir: "msi",
       suffix: ".msi",
-      names: [`Coucou-Windows-${version}.msi`, "Coucou-Windows.msi"],
+      names: [`Pod-Windows-${version}.msi`, "Pod-Windows.msi"],
     },
   ],
   linux: [
     {
       dir: "appimage",
       suffix: ".AppImage",
-      names: [`Coucou-Linux-${version}-${arch}.AppImage`, `Coucou-Linux-${arch}.AppImage`],
+      names: [`Pod-Linux-${version}-${arch}.AppImage`, `Pod-Linux-${arch}.AppImage`],
     },
-    { dir: "deb", suffix: ".deb", names: [`Coucou-Linux-${version}-${debArch}.deb`] },
-    { dir: "rpm", suffix: ".rpm", names: [`Coucou-Linux-${version}-${arch}.rpm`] },
+    { dir: "deb", suffix: ".deb", names: [`Pod-Linux-${version}-${debArch}.deb`] },
+    { dir: "rpm", suffix: ".rpm", names: [`Pod-Linux-${version}-${arch}.rpm`] },
   ],
 };
 

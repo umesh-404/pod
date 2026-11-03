@@ -6,7 +6,7 @@
 // (the recorder in Settings), spots duplicates, and maps the keys pressed
 // inside the open island to what they do.
 //
-// Why Ctrl+Alt+Space / A / T / S / G / ← → rather than the Mac's letters: see
+// Why Ctrl+Alt+N / S / D / G rather than the Mac's letters: see
 // the top of src-tauri/src/shortcuts.rs. In short, Windows reads Ctrl+Alt as
 // AltGr, and AltGr+E, Q, M, W, C, the digits and most punctuation type a
 // character on at least one of the French, German, Spanish, Italian,
@@ -20,23 +20,15 @@ import { N_ } from "../i18n/i18n";
 
 export const SHORTCUT_TEXT = {
   toggleIsland: N_("Open or close the island"),
-  openChat: N_("Open the chat"),
-  goToAlert: N_("Go to the waiting permission or question"),
-  jumpToTerminal: N_("Open the terminal"),
-  attachFrontWindow: N_("Attach the front window to the chat"),
-  nextPill: N_("Next pill"),
-  prevPill: N_("Previous pill"),
   muteToggle: N_("Mute or unmute Mochi"),
   desktopToggle: N_("Send Mochi to the desktop"),
   wardrobeToggle: N_("Open the wardrobe"),
+  openShelf: N_("Open the shelf"),
+  newReminder: N_("New reminder"),
+  quickNote: N_("Quick note"),
+  screenshot: N_("Screenshot to the shelf"),
+  smartClipboard: N_("Smart clipboard"),
   island: {
-    nextPrev: N_("Next or previous pill"),
-    byNumber: N_("Go to pill 1 to 9"),
-    navItems: N_("Navigate list items"),
-    open: N_("Open selected item"),
-    diff: N_("Open / close current diff"),
-    send: N_("Send the message"),
-    newChat: N_("Start a new chat"),
     settings: N_("Open Settings"),
     pin: N_("Keep the island open"),
     close: N_("Close the island"),
@@ -48,15 +40,15 @@ export const SHORTCUT_TEXT = {
 /** Mac `ShortcutAction` raw values. Stored in settings.json: never rename one. */
 export type ShortcutId =
   | "toggleIsland"
-  | "openChat"
-  | "goToAlert"
-  | "jumpToTerminal"
-  | "attachFrontWindow"
-  | "nextPill"
-  | "prevPill"
   | "muteToggle"
   | "desktopToggle"
-  | "wardrobeToggle";
+  | "wardrobeToggle"
+  // The workspace's own (Windows and Linux only).
+  | "openShelf"
+  | "newReminder"
+  | "quickNote"
+  | "screenshot"
+  | "smartClipboard";
 
 export interface ShortcutDef {
   id: ShortcutId;
@@ -72,15 +64,15 @@ const def = (id: ShortcutId, defaultKeys: string, enabledByDefault: boolean, por
 /** Same order and defaults as ACTIONS in src-tauri/src/shortcuts.rs. */
 export const SHORTCUTS: readonly ShortcutDef[] = [
   def("toggleIsland", "Ctrl+Alt+N", false, true),
-  def("openChat", "Ctrl+Alt+Space", true, true),
-  def("goToAlert", "Ctrl+Alt+A", true, true),
-  def("jumpToTerminal", "Ctrl+Alt+T", true, true),
-  def("attachFrontWindow", "Ctrl+Alt+F", true, false),
-  def("nextPill", "Ctrl+Alt+Right", true, true),
-  def("prevPill", "Ctrl+Alt+Left", true, true),
   def("muteToggle", "Ctrl+Alt+S", true, true),
   def("desktopToggle", "Ctrl+Alt+D", true, true),
   def("wardrobeToggle", "Ctrl+Alt+G", true, true),
+  // The workspace's: only the shelf has a key; the others wait for one in Settings.
+  def("openShelf", "Ctrl+Alt+Space", true, true),
+  def("newReminder", "", false, true),
+  def("quickNote", "", false, true),
+  def("screenshot", "", false, true),
+  def("smartClipboard", "", false, true),
 ];
 
 export interface Binding {
@@ -296,7 +288,7 @@ export function duplicates(entries: Iterable<[string, string]>): Set<string> {
   return dups;
 }
 
-/** The (id, keys) pairs Coucou would register with `stored`. */
+/** The (id, keys) pairs Pod would register with `stored`. */
 export function activeKeys(stored: Bindings | undefined): [string, string][] {
   return SHORTCUTS.filter((d) => d.ported)
     .map((d) => [d.id, effective(d, stored)] as const)
@@ -333,78 +325,25 @@ export function altGrClashes(keys: string): string[] {
 
 // ── Inside the open island ────────────────────────────────────────────────────
 
-/** Same as ShortcutLogic.navigate: next card-list selection, clamped. */
-export function navigate(selection: number | null, delta: number, itemCount: number): number | null {
-  if (itemCount <= 0) return null;
-  if (selection != null) return Math.max(0, Math.min(itemCount - 1, selection + delta));
-  return delta > 0 ? 0 : itemCount - 1;
-}
-
-/** The pill `delta` steps from `current`, wrapping around (cyclePill). */
-export function cyclePill(ids: readonly string[], current: string | null, delta: number): string | null {
-  if (ids.length === 0) return null;
-  const at = Math.max(0, current == null ? 0 : ids.indexOf(current));
-  return ids[(((at + delta) % ids.length) + ids.length) % ids.length];
-}
-
-/** Pill number `n`, counting from 1 (switchToPill). */
-export function pillByNumber(ids: readonly string[], n: number): string | null {
-  return n >= 1 && n <= ids.length ? ids[n - 1] : null;
-}
-
 /** Shown read-only in Settings, like ShortcutLogic.islandShortcuts, in its order. */
 export const ISLAND_SHORTCUTS: readonly { keys: string; description: string }[] = [
-  { keys: "Ctrl+→ / Ctrl+←", description: SHORTCUT_TEXT.island.nextPrev },
-  { keys: "Ctrl+1 – Ctrl+9", description: SHORTCUT_TEXT.island.byNumber },
-  { keys: "Ctrl+↓ / Ctrl+↑", description: SHORTCUT_TEXT.island.navItems },
-  { keys: "Ctrl+O", description: SHORTCUT_TEXT.island.open },
-  { keys: "Ctrl+E", description: SHORTCUT_TEXT.island.diff },
-  { keys: "Ctrl+Enter", description: SHORTCUT_TEXT.island.send },
-  { keys: "Ctrl+K", description: SHORTCUT_TEXT.island.newChat },
   { keys: "Ctrl+,", description: SHORTCUT_TEXT.island.settings },
   { keys: "Ctrl+P", description: SHORTCUT_TEXT.island.pin },
   { keys: "Esc", description: SHORTCUT_TEXT.island.close },
 ];
 
 export type IslandKeyAction =
-  | { kind: "cycle"; delta: 1 | -1 }
-  | { kind: "pill"; number: number }
-  /** Ctrl+↓ / Ctrl+↑: the highlight through the card's list (⌘↓ ⌘↑). */
-  | { kind: "list"; delta: 1 | -1 }
-  /** Ctrl+O: opens the highlighted item (⌘O). */
-  | { kind: "openSelection" }
-  /** Ctrl+E: the latest edit's diff, or closes the one open (⌘E). */
-  | { kind: "diff" }
-  | { kind: "newChat" }
   | { kind: "settings" }
   | { kind: "pin" };
 
 /**
  * A key pressed while the island has the keyboard → what it does, or null to
- * leave it alone. Ctrl stands in for ⌘. In a text field Ctrl+← and Ctrl+→
- * keep moving by word, and Ctrl+↑ and Ctrl+↓ by paragraph.
+ * leave it alone. Ctrl stands in for ⌘.
  */
-export function islandKeyAction(
-  e: KeyPress,
-  ctx: { view: string; inTextField: boolean },
-): IslandKeyAction | null {
+export function islandKeyAction(e: KeyPress): IslandKeyAction | null {
   if (!e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return null;
-  if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
-    if (ctx.inTextField) return null;
-    return { kind: "cycle", delta: e.key === "ArrowRight" ? 1 : -1 };
-  }
-  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-    if (ctx.inTextField) return null;
-    return { kind: "list", delta: e.key === "ArrowDown" ? 1 : -1 };
-  }
-  const digit = /^Digit([1-9])$/.exec(e.code);
-  if (digit) return { kind: "pill", number: Number(digit[1]) };
   const letter = /^[a-z]$/i.test(e.key) ? e.key.toLowerCase() : /^Key([A-Z])$/.exec(e.code)?.[1].toLowerCase();
-  if (letter === "k") return ctx.view === "prompt" ? { kind: "newChat" } : null;
   if (letter === "p") return { kind: "pin" };
-  if (letter === "o") return { kind: "openSelection" };
-  // The diff lives in the overview's left card: ⌘E means something only there.
-  if (letter === "e") return ctx.view === "overview" ? { kind: "diff" } : null;
   if (e.key === "," || e.code === "Comma") return { kind: "settings" };
   return null;
 }

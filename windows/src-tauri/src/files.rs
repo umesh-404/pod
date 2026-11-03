@@ -1,4 +1,4 @@
-// Dropped files are copied into %LOCALAPPDATA%\Coucou\inbox so the original is
+// Dropped files are copied into %LOCALAPPDATA%\Pod\inbox so the original is
 // never touched and the copy survives the drag source going away.
 // The inbox is swept of anything older than a week, as on macOS.
 
@@ -17,6 +17,31 @@ pub struct DroppedFile {
     pub name: String,
     pub path: String,
     pub size: u64,
+}
+
+/// Jobs working on the user's files right now (a conversion, a zip, a resize,
+/// PDF tools): an automatic update waits until there are none (update.rs).
+static ACTIVE_JOBS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Held for as long as a job works on files.
+pub(crate) struct JobGuard(());
+
+impl JobGuard {
+    pub(crate) fn new() -> Self {
+        ACTIVE_JOBS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        JobGuard(())
+    }
+}
+
+impl Drop for JobGuard {
+    fn drop(&mut self) {
+        ACTIVE_JOBS.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// Some job is working on files.
+pub(crate) fn busy() -> bool {
+    ACTIVE_JOBS.load(std::sync::atomic::Ordering::SeqCst) > 0
 }
 
 pub fn inbox_dir() -> PathBuf {
@@ -49,7 +74,7 @@ pub fn allow_dropped<I: IntoIterator<Item = String>>(paths: I) {
 }
 
 /// True (once) when `path` was delivered by a drop in the last couple of minutes.
-fn take_dropped(path: &str) -> bool {
+pub(crate) fn take_dropped(path: &str) -> bool {
     let mut list = DROPPED.lock().unwrap_or_else(|e| e.into_inner());
     let now = std::time::Instant::now();
     list.retain(|(_, at)| now.duration_since(*at) < DROP_VALID_FOR);
@@ -82,18 +107,7 @@ pub fn ingest(source: &str) -> Result<DroppedFile, String> {
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "file".into());
 
-    let mut dest = dir.join(&name);
-    if dest.exists() {
-        let stem = src.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
-        let ext = src.extension().map(|s| format!(".{}", s.to_string_lossy())).unwrap_or_default();
-        for i in 2..1000 {
-            let candidate = dir.join(format!("{stem} ({i}){ext}"));
-            if !candidate.exists() {
-                dest = candidate;
-                break;
-            }
-        }
-    }
+    let dest = unique_path(&dir, &name);
 
     std::fs::copy(src, &dest).map_err(|e| crate::i18n::tf("Cannot copy: {error}", &[("error", &e.to_string())]))?;
     // CopyFileEx carries the source's timestamps across, so a file last edited
@@ -109,6 +123,26 @@ pub fn ingest(source: &str) -> Result<DroppedFile, String> {
         path: dest.to_string_lossy().to_string(),
         size: meta.len(),
     })
+}
+
+/// `dir/name`, or `dir/stem (2).ext`, `(3)`… when that is taken: nothing is
+/// ever overwritten. A folder's name keeps its dots ("v1.2" → "v1.2 (2)").
+pub fn unique_path(dir: &Path, name: &str) -> PathBuf {
+    let first = dir.join(name);
+    if !first.exists() {
+        return first;
+    }
+    let as_path = Path::new(name);
+    let (stem, ext) = match (as_path.file_stem(), as_path.extension()) {
+        (Some(stem), Some(ext)) if !first.is_dir() => {
+            (stem.to_string_lossy().to_string(), format!(".{}", ext.to_string_lossy()))
+        }
+        _ => (name.to_string(), String::new()),
+    };
+    (2..10_000)
+        .map(|i| dir.join(format!("{stem} ({i}){ext}")))
+        .find(|candidate| !candidate.exists())
+        .unwrap_or(first)
 }
 
 /// Drops anything copied here more than a week ago. `ingest` stamps every copy
@@ -132,7 +166,7 @@ mod tests {
 
     #[test]
     fn ingest_copies_and_never_overwrites() {
-        let tmp = std::env::temp_dir().join(format!("coucou-test-{}", std::process::id()));
+        let tmp = std::env::temp_dir().join(format!("pod-test-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
         let source = tmp.join("note.txt");
         std::fs::write(&source, b"hello").unwrap();
@@ -186,7 +220,7 @@ mod drop_tests {
     // One test: the list is process-wide and tests run in parallel.
     #[test]
     fn only_a_dropped_path_is_ingested_once_and_the_list_stays_bounded() {
-        let p = "/tmp/coucou-test-not-dropped.txt".to_string();
+        let p = "/tmp/pod-test-not-dropped.txt".to_string();
         assert!(ingest(&p).is_err(), "never dropped");
         allow_dropped([p.clone()]);
         assert!(take_dropped(&p));

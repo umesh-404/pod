@@ -45,7 +45,7 @@ export const WHATS_NEW_ICONS: Record<IconName, string> = {
   bug: "M8.5 8.5h7a2.5 2.5 0 0 1 2.5 2.5v3a6 6 0 0 1-12 0v-3a2.5 2.5 0 0 1 2.5-2.5zM9.5 8.5a2.5 2.5 0 0 1 5 0M12 8.5V20M4 12h2M18 12h2M4.5 17.5 6.5 16M19.5 17.5 17.5 16",
 };
 
-/** Small icons on the "Your Coucou so far" chips. */
+/** Small icons on the "Your Pod so far" chips. */
 export const STAT_ICONS = {
   agentSessions: WHATS_NEW_ICONS.terminal,
   agentTime: WHATS_NEW_ICONS.clock,

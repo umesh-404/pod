@@ -16,7 +16,6 @@ const {
   onLanguageChange, resolveLanguage, setLanguage, t, tl, tn, weekdayShort,
 } = await import("../src/i18n/i18n.ts");
 const { h, relabel, liveTextCount } = await import("../src/views/dom.ts");
-const { generate, convertFormat, LANGUAGES: GENERATED_LANGUAGES } = await import("../scripts/gen-strings.mjs");
 
 const here = dirname(fileURLToPath(import.meta.url));
 const WINDOWS = join(here, "..");
@@ -41,7 +40,7 @@ test("English is the key itself, other languages come from either table", () => 
   assert.equal(t("Allow"), "Allow");
   inLanguage("fr", () => {
     assert.equal(t("Allow"), "Autoriser"); // the Mac's catalog
-    assert.equal(t("Open the chat"), "Ouvrir le chat"); // extra.json
+    assert.equal(t("Copy to workspace"), "Copier dans l’espace de travail"); // extra.json
   });
   inLanguage("zh-Hans", () => assert.equal(t("Cancel"), "取消"));
 });
@@ -63,21 +62,21 @@ test("placeholders are filled in every language, unknown ones are left as they a
 });
 
 test("plurals follow each language's rules", () => {
-  const files = (n) => tn("{count} repo", "{count} repos", n);
-  assert.equal(files(1), "1 repo");
-  assert.equal(files(3), "3 repos");
+  const files = (n) => tn("{count} event found", "{count} events found", n);
+  assert.equal(files(1), "1 event found");
+  assert.equal(files(3), "3 events found");
   inLanguage("fr", () => {
-    assert.equal(files(1), "1 dépôt");
-    assert.equal(files(0), "0 dépôt"); // French: 0 and 1 are singular
-    assert.equal(files(5), "5 dépôts");
+    assert.equal(files(1), "1 événement trouvé");
+    assert.equal(files(0), "0 événement trouvé"); // French: 0 and 1 are singular
+    assert.equal(files(5), "5 événements trouvés");
   });
   inLanguage("ru", () => {
-    assert.equal(files(1), "1 репозиторий");
-    assert.equal(files(3), "3 репозитория");
-    assert.equal(files(5), "5 репозиториев");
-    assert.equal(files(21), "21 репозиторий");
+    assert.equal(files(1), "Найдено 1 событие");
+    assert.equal(files(3), "Найдено 3 события");
+    assert.equal(files(5), "Найдено 5 событий");
+    assert.equal(files(21), "Найдено 21 событие");
   });
-  inLanguage("zh-Hans", () => assert.equal(files(7), "7 个仓库"));
+  inLanguage("zh-Hans", () => assert.equal(files(7), "找到 7 个事件"));
   // The Mac's plural entry: Spanish one/other.
   inLanguage("es", () => {
     assert.equal(tn("✓ Connected · {count} model", "✓ Connected · {count} models", 1), "✓ Conectado · 1 modelo");
@@ -101,7 +100,7 @@ test("labels() tables and dates read in the current language", () => {
 
 // ── Choosing the language ─────────────────────────────────────────────────────
 
-test("System follows the system's language when Coucou has it, else English", () => {
+test("System follows the system's language when Pod has it, else English", () => {
   assert.equal(resolveLanguage("", ["fr-FR", "en-US"]), "fr");
   assert.equal(resolveLanguage("", ["it-IT", "es-MX"]), "es");
   assert.equal(resolveLanguage("", ["pt-PT"]), "pt-BR");
@@ -126,9 +125,8 @@ test("German translates both tables, fills placeholders and falls back to Englis
   inLanguage("de", () => {
     assert.equal(t("Allow"), "Zulassen");
     assert.equal(t("Deny"), "Ablehnen");
-    assert.equal(t("Open the chat"), "Chat öffnen");
+    assert.equal(t("Copy to workspace"), "In den Arbeitsbereich kopieren");
     assert.equal(t("Uploading {name}", { name: "Grüße.pdf" }), "Grüße.pdf wird hochgeladen");
-    assert.equal(t("API error {code}", { code: 401 }), "API-Fehler 401");
     assert.equal(t("A string nobody translated"), "A string nobody translated");
     assert.match(monthShort(9), /^Okt/);
     assert.match(weekdayShort(1), /^Mo/);
@@ -139,10 +137,8 @@ test("German translates both tables, fills placeholders and falls back to Englis
 test("German selects singular only for one in both plural catalogs", () => {
   inLanguage("de", () => {
     for (const count of [0, 1, 2, 21]) {
-      assert.equal(tn("{count} repo", "{count} repos", count),
-        `${count} ${count === 1 ? "Repository" : "Repositorys"}`);
-      assert.equal(tn("{count} contribution", "{count} contributions", count),
-        `${count} ${count === 1 ? "Beitrag" : "Beiträge"}`);
+      assert.equal(tn("{count} event found", "{count} events found", count),
+        `${count} ${count === 1 ? "Termin" : "Termine"} gefunden`);
       assert.equal(tn("✓ Connected · {count} model", "✓ Connected · {count} models", count),
         `✓ Verbunden · ${count} ${count === 1 ? "Modell" : "Modelle"}`);
     }
@@ -171,41 +167,13 @@ test("German regional locales select Deutsch and apply left-to-right document me
   }
 });
 
-// The Mac catalog's translations in a language Windows and Linux ship: each one translated, with
-// the English placeholders and plural forms. Strings newer than a translation are missing from it
-// and show in English; most of the catalog must be there.
-function checkAppleTranslations(lang) {
-  const catalog = JSON.parse(readFileSync(join(WINDOWS, "../NotchBuddy/Resources/Localizable.xcstrings"), "utf8"));
-  let translated = 0;
-  let localized = 0;
-  for (const [key, entry] of Object.entries(catalog.strings)) {
-    const localizations = entry.localizations ?? {};
-    const source = localizations.en ?? { stringUnit: { value: key } };
-    // Xcode also extracts untranslated brand names and formatting literals.
-    if (!["fr", "es", "zh-Hans"].some((l) => l in localizations)) continue;
-    localized++;
-    const target = localizations[lang];
-    if (!target) continue;
-    translated++;
-    const forms = target.variations?.plural ?? { other: target };
-    for (const [category, form] of Object.entries(forms)) {
-      const english = source.variations?.plural?.[category] ?? source.variations?.plural?.other ?? source;
-      assert.equal(form.stringUnit.state, "translated", `${lang} ${key}`);
-      assert.ok(form.stringUnit.value.length, `${lang} ${key}`);
-      assert.deepEqual(placeholders(convertFormat(form.stringUnit.value)),
-        placeholders(convertFormat(english.stringUnit.value)), `${lang} ${key}`);
-    }
-  }
-  assert.ok(translated >= localized * 0.85, `${lang}: only ${translated} of ${localized} Mac strings translated`);
-}
 
-test("German Apple translations keep their placeholders and plural forms", () => checkAppleTranslations("de"));
 
 test("Turkish translates both tables, interpolates and falls back to English", () => {
   inLanguage("tr", () => {
     assert.equal(t("Allow"), "İzin ver");
     assert.equal(t("Deny"), "Reddet");
-    assert.equal(t("Open the chat"), "Sohbeti aç");
+    assert.equal(t("Copy to workspace"), "Çalışma alanına kopyala");
     assert.equal(t("Uploading {name}", { name: "öğrenci.pdf" }), "öğrenci.pdf yükleniyor");
     assert.equal(t("Some brand new sentence."), "Some brand new sentence.");
     assert.equal(t("Hello {name}", { name: "Mochi" }), "Hello Mochi");
@@ -217,7 +185,7 @@ test("Turkish translates both tables, interpolates and falls back to English", (
 test("Turkish keeps nouns singular after counts in both tables", () => {
   inLanguage("tr", () => {
     for (const count of [0, 1, 2, 21]) {
-      assert.equal(tn("{count} repo", "{count} repos", count), `${count} depo`);
+      assert.equal(tn("{count} event found", "{count} events found", count), `${count} etkinlik bulundu`);
       assert.equal(tn("✓ Connected · {count} model", "✓ Connected · {count} models", count),
         `✓ Bağlı · ${count} model`);
     }
@@ -232,15 +200,13 @@ test("Turkish can be selected or resolved from regional system languages", () =>
   }
 });
 
-test("Turkish Apple translations keep their placeholders and plural forms", () => checkAppleTranslations("tr"));
 
 test("Korean translates both tables, interpolates and falls back to English", () => {
   inLanguage("ko", () => {
     assert.equal(t("Allow"), "허용");
     assert.equal(t("Deny"), "거부");
-    assert.equal(t("Open the chat"), "채팅 열기");
+    assert.equal(t("Copy to workspace"), "작업 공간에 복사");
     assert.equal(t("Uploading {name}", { name: "보고서.pdf" }), "보고서.pdf 업로드 중");
-    assert.equal(t("API error {code}", { code: 401 }), "API 오류 401");
     assert.equal(t("Some brand new sentence."), "Some brand new sentence.");
     assert.equal(isRtl(), false);
   });
@@ -249,7 +215,7 @@ test("Korean translates both tables, interpolates and falls back to English", ()
 test("Korean has one form after any count in both tables", () => {
   inLanguage("ko", () => {
     for (const count of [0, 1, 2, 21]) {
-      assert.equal(tn("{count} repo", "{count} repos", count), `저장소 ${count}개`);
+      assert.equal(tn("{count} event found", "{count} events found", count), `일정 ${count}개를 찾았습니다`);
       assert.equal(tn("✓ Connected · {count} model", "✓ Connected · {count} models", count),
         `✓ 연결됨 · 모델 ${count}개`);
     }
@@ -264,14 +230,12 @@ test("Korean can be selected or resolved from regional system languages", () => 
   }
 });
 
-test("Korean Apple translations keep their placeholders and plural forms", () => checkAppleTranslations("ko"));
 
 test("Japanese translates both tables, interpolates and falls back to English", () => {
   inLanguage("ja", () => {
     assert.equal(t("Allow"), "許可");
     assert.equal(t("Deny"), "拒否");
-    assert.equal(t("Open the chat"), "チャットを開く");
-    assert.equal(t("API error {code}", { code: 401 }), "API エラー 401");
+    assert.equal(t("Copy to workspace"), "ワークスペースにコピー");
     assert.equal(t("Some brand new sentence."), "Some brand new sentence.");
     assert.equal(isRtl(), false);
   });
@@ -280,7 +244,7 @@ test("Japanese translates both tables, interpolates and falls back to English", 
 test("Japanese has one form after any count in both tables", () => {
   inLanguage("ja", () => {
     for (const count of [0, 1, 2, 21]) {
-      assert.equal(tn("{count} repo", "{count} repos", count), `リポジトリ ${count} 個`);
+      assert.equal(tn("{count} event found", "{count} events found", count), `${count} 件の予定が見つかりました`);
       assert.equal(tn("✓ Connected · {count} model", "✓ Connected · {count} models", count),
         `✓ 接続済み · モデル ${count} 個`);
     }
@@ -294,7 +258,6 @@ test("Japanese can be selected or resolved from regional system languages", () =
   }
 });
 
-test("Japanese Apple translations keep their placeholders and plural forms", () => checkAppleTranslations("ja"));
 
 test("a language change relabels what was built, in place, and says so once", () => {
   let told = 0;
@@ -323,18 +286,6 @@ test("a language change relabels what was built, in place, and says so once", ()
 
 // ── The tables ────────────────────────────────────────────────────────────────
 
-test("strings.json is what the generator makes of the Mac's catalog", () => {
-  const catalog = JSON.parse(readFileSync(join(WINDOWS, "../NotchBuddy/Resources/Localizable.xcstrings"), "utf8"));
-  assert.deepEqual(generate(catalog), MAC);
-});
-
-test("the generator turns format specifiers into placeholders", () => {
-  assert.equal(convertFormat("Chat with %@", ["name"]), "Chat with {name}");
-  assert.equal(convertFormat("in %lld h %lld", ["h", "m"]), "in {h} h {m}");
-  assert.equal(convertFormat("%2$@ then %1$@"), "{1} then {0}");
-  assert.equal(convertFormat("100%% sure"), "100% sure");
-});
-
 const placeholders = (s) => [...new Set(s.match(/\{\w+\}/g) ?? [])].sort();
 
 for (const [name, table] of [["strings.json", MAC.strings], ["extra.json", EXTRA.strings]]) {
@@ -361,31 +312,13 @@ test("extra.json never shadows a string of the Mac's", () => {
   for (const key of Object.keys(EXTRA.strings)) assert.ok(!(key in MAC.strings), key);
 });
 
-test("generated, Rust and Apple language registrations agree with the picker", () => {
-  assert.deepEqual(GENERATED_LANGUAGES, [...LANGUAGE_CODES]);
+test("strings.json and Rust language registrations agree with the picker", () => {
   assert.deepEqual(MAC.languages, [...LANGUAGE_CODES]);
   const rust = readFileSync(join(WINDOWS, "src-tauri/src/i18n.rs"), "utf8");
   const registered = rust.match(/pub const LANGUAGES: \[&str; (\d+)\] = (\[[^;]+\]);/);
   assert.ok(registered);
   assert.equal(Number(registered[1]), LANGUAGE_CODES.length);
   assert.deepEqual(JSON.parse(registered[2]), [...LANGUAGE_CODES]);
-  // The Mac may have languages Windows and Linux don't have yet, never the other way round.
-  // Both Mac targets (Info.plist files and project.yml) declare the same ones.
-  const apple = [];
-  for (const file of ["Info.plist", "InfoAppStore.plist"]) {
-    const plist = readFileSync(join(WINDOWS, "../NotchBuddy/Resources", file), "utf8");
-    const array = plist.match(/<key>CFBundleLocalizations<\/key>\s*<array>([\s\S]*?)<\/array>/);
-    assert.ok(array, file);
-    apple.push([...array[1].matchAll(/<string>([^<]+)<\/string>/g)].map((m) => m[1]).sort());
-  }
-  const project = readFileSync(join(WINDOWS, "../NotchBuddy/project.yml"), "utf8");
-  const arrays = [...project.matchAll(/CFBundleLocalizations:\r?\n((?:[ \t]+- [^\r\n]+\r?\n)+)/g)];
-  assert.equal(arrays.length, 2);
-  for (const array of arrays) apple.push([...array[1].matchAll(/- ([^\r\n]+)/g)].map((m) => m[1]).sort());
-  for (const list of apple) assert.deepEqual(list, apple[0]);
-  for (const code of LANGUAGE_CODES) assert.ok(apple[0].includes(code), `${code} is not a Mac language`);
-  const swift = readFileSync(join(WINDOWS, "../NotchBuddy/Sources/App/SettingsView.swift"), "utf8");
-  for (const { code, name } of LANGUAGES) assert.ok(swift.includes(`Text("${name}").tag("${code}")`), code);
 });
 
 // ── Every key the code uses is translated ─────────────────────────────────────
@@ -431,7 +364,7 @@ function usedKeys() {
 
 test("every string the code shows is translated in every language", () => {
   const keys = usedKeys();
-  assert.ok(keys.size > 300, `only ${keys.size} keys found — has the scan broken?`);
+  assert.ok(keys.size > 60, `only ${keys.size} keys found — has the scan broken?`);
   const missing = [...keys].filter(([key]) => !isComplete(key)).map(([key, path]) => `${path}: ${JSON.stringify(key)}`);
   assert.deepEqual(missing, []);
   // And the hand-written table carries nothing the code no longer uses.
@@ -442,7 +375,7 @@ test("every string the code shows is translated in every language", () => {
 test("lookup() answers from the merged tables", () => {
   assert.equal(lookup("Allow", "en"), undefined);
   assert.equal(lookup("Allow", "pt-BR"), "Permitir");
-  assert.equal(typeof lookup("{count} repos", "ru"), "object");
+  assert.equal(typeof lookup("{count} events found", "ru"), "object");
 });
 
 // ── No English left outside t() ───────────────────────────────────────────────
@@ -451,7 +384,7 @@ test("lookup() answers from the merged tables", () => {
 // upload canvas or the recap that is exactly a translated string, and is not
 // the argument of t() / tl() / tn() / N_(), is English that would stay English.
 
-const CHECKED = ["src/views", "src/settings", "src/island", "src/upload", "src/recap", "src/mochi/wardrobe.ts", "src/main.ts"];
+const CHECKED = ["src/views", "src/settings", "src/island", "src/recap", "src/mochi/wardrobe.ts", "src/main.ts"];
 /** Literals that are a translated word but are values in the code, not text on screen. */
 const NOT_TEXT = new Set([
   "file", // the kind of a chat context: { kind: "file" }

@@ -1,50 +1,25 @@
 // Windows: Win32 for the island window and the cursor, %APPDATA% for files.
 
-use std::collections::HashMap;
-use std::os::windows::io::RawHandle;
 use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
 use std::process::Command;
 
 use tauri::{AppHandle, Manager, WebviewWindow};
 
-use ::windows::core::{w, BOOL, PWSTR};
-use ::windows::Win32::Foundation::{
-    CloseHandle, HANDLE, HLOCAL, HWND, LPARAM, LocalFree, POINT, RPC_E_CHANGED_MODE,
-};
-use ::windows::Win32::Security::Authorization::ConvertSidToStringSidW;
-use ::windows::Win32::Security::{GetTokenInformation, TokenUser, TOKEN_QUERY, TOKEN_USER};
-use ::windows::Win32::System::Com::{
-    CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
-};
-use ::windows::Win32::System::Diagnostics::ToolHelp::{
-    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
-};
+use ::windows::core::BOOL;
+use ::windows::Win32::Foundation::{HWND, LPARAM, POINT};
 use ::windows::Win32::System::Ole::RevokeDragDrop;
-use ::windows::Win32::System::Pipes::GetNamedPipeClientProcessId;
 use ::windows::Win32::System::SystemInformation::GetLocalTime;
-use ::windows::Win32::System::Threading::{
-    AttachThreadInput, GetCurrentProcess, GetCurrentThreadId, OpenProcessToken,
-};
 use ::windows::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, GetKeyboardLayoutList, MapVirtualKeyExW, ToUnicodeEx, HKL, MAPVK_VK_TO_VSC,
     VK_CONTROL, VK_LBUTTON, VK_MENU, VK_SHIFT,
 };
-use ::windows::Win32::UI::Shell::{
-    ShellExecuteExW, SHELLEXECUTEINFOW, SEE_MASK_FLAG_NO_UI, SEE_MASK_NOASYNC,
-};
 use ::windows::Win32::UI::WindowsAndMessaging::{
-    BringWindowToTop, EnumChildWindows, EnumWindows, GetClassNameW, GetCursorPos,
-    GetForegroundWindow, GetWindow, GetWindowLongPtrW, GetWindowTextW, GetWindowThreadProcessId,
-    IsIconic, IsWindow, IsWindowVisible, SetForegroundWindow, SetWindowLongPtrW, ShowWindow,
-    GWL_EXSTYLE, GW_OWNER, SW_RESTORE, SW_SHOW, SW_SHOWNORMAL, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+    EnumChildWindows, GetClassNameW, GetCursorPos, GetWindowLongPtrW, SetWindowLongPtrW,
+    GWL_EXSTYLE, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
 };
 
 use super::LocalTime;
-use crate::session_window::{self, Proc};
-
-/// File name of the Claude Code relay.
-pub const HOOK_EXE: &str = "coucou-hook.exe";
 
 /// Environment variable holding the home directory.
 pub const HOME_VAR: &str = "USERPROFILE";
@@ -54,40 +29,20 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 // ── Files ─────────────────────────────────────────────────────────────────────
 
-/// %APPDATA%\Coucou — preferences.
+/// %APPDATA%\Pod — preferences.
 pub fn config_dir() -> PathBuf {
     let base = std::env::var_os("APPDATA")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."));
-    base.join("Coucou")
+    base.join("Pod")
 }
 
-/// %LOCALAPPDATA%\Coucou — where coucou-hook.exe, the inbox and the log live.
+/// %LOCALAPPDATA%\Pod — where the inbox and the log live.
 pub fn local_dir() -> PathBuf {
     let base = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."));
-    base.join("Coucou")
-}
-
-/// Where a saved image goes, best first: Pictures (also where OneDrive moves
-/// it), then Downloads and the profile folder. The caller takes the first one
-/// that exists. Read from the environment rather than the Known Folders API: a
-/// relocated Pictures folder falls back to Downloads, which is fine for a PNG.
-pub fn picture_dirs() -> Vec<PathBuf> {
-    let mut dirs = Vec::new();
-    let home = std::env::var_os("USERPROFILE").map(PathBuf::from);
-    if let Some(home) = &home {
-        dirs.push(home.join("Pictures"));
-    }
-    if let Some(onedrive) = std::env::var_os("OneDrive").map(PathBuf::from) {
-        dirs.push(onedrive.join("Pictures"));
-    }
-    if let Some(home) = home {
-        dirs.push(home.join("Downloads"));
-        dirs.push(home);
-    }
-    dirs
+    base.join("Pod")
 }
 
 /// %APPDATA% and %LOCALAPPDATA% are already private to the user.
@@ -141,131 +96,6 @@ pub fn find_on_path(stem: &str) -> Option<PathBuf> {
         }
     }
     None
-}
-
-/// Where a CLI such as `codex` or `claude` may be, best first: %PATH% (the
-/// .exe or npm's .cmd), then npm's global folder, the Volta / Bun / pnpm ones
-/// and the native installers' %USERPROFILE%\.local\bin. Rust quotes arguments
-/// safely for a `.cmd` (see find_on_path).
-pub fn cli_candidates(name: &str) -> Vec<PathBuf> {
-    let mut out: Vec<PathBuf> = find_on_path(name).into_iter().collect();
-    let var = |k: &str| std::env::var_os(k).map(PathBuf::from).filter(|p| p.is_absolute());
-    if let Some(appdata) = var("APPDATA") {
-        out.push(appdata.join("npm").join(format!("{name}.cmd")));
-    }
-    if let Some(local) = var("LOCALAPPDATA") {
-        out.push(local.join("Volta").join("bin").join(format!("{name}.exe")));
-        out.push(local.join("pnpm").join(format!("{name}.cmd")));
-    }
-    if let Some(home) = var("USERPROFILE") {
-        out.push(home.join(".bun").join("bin").join(format!("{name}.exe")));
-        out.push(home.join(".local").join("bin").join(format!("{name}.exe")));
-    }
-    out.retain(|p| p.is_file());
-    out
-}
-
-// ── Who we are ────────────────────────────────────────────────────────────────
-//
-// Named pipes share one machine-wide namespace, so the SID in the name is what
-// keeps two accounts on the same machine from ever meeting on `coucou-*`.
-// coucou-hook computes the same string (hook/src/win.rs) and additionally checks
-// that the process serving the pipe really is us.
-
-/// The SID of the account this process runs as, as `S-1-5-21-…`.
-pub fn current_user_sid() -> Option<String> {
-    unsafe {
-        let mut token = HANDLE::default();
-        OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token).ok()?;
-
-        // First call sizes the buffer, second fills it.
-        let mut needed = 0u32;
-        let _ = GetTokenInformation(token, TokenUser, None, 0, &mut needed);
-        if needed == 0 {
-            let _ = CloseHandle(token);
-            return None;
-        }
-        let mut buf = vec![0u8; needed as usize];
-        let ok = GetTokenInformation(
-            token,
-            TokenUser,
-            Some(buf.as_mut_ptr().cast()),
-            needed,
-            &mut needed,
-        )
-        .is_ok();
-        let _ = CloseHandle(token);
-        if !ok {
-            return None;
-        }
-
-        let user = &*(buf.as_ptr() as *const TOKEN_USER);
-        let mut text = PWSTR::null();
-        ConvertSidToStringSidW(user.User.Sid, &mut text).ok()?;
-        let sid = text.to_string().ok();
-        let _ = LocalFree(Some(HLOCAL(text.0 as *mut _)));
-        sid
-    }
-}
-
-// The display name only feeds Mochi's greeting (identity.rs). The calls are
-// declared here by hand, with their documented C signatures, so they need no
-// extra `windows` crate features.
-#[link(name = "secur32")]
-extern "system" {
-    fn GetUserNameExW(name_format: i32, name_buffer: *mut u16, size: *mut u32) -> u8;
-}
-
-#[link(name = "netapi32")]
-extern "system" {
-    fn NetUserGetInfo(server: *const u16, user: *const u16, level: u32, buffer: *mut *mut u8) -> u32;
-    fn NetApiBufferFree(buffer: *mut core::ffi::c_void) -> u32;
-}
-
-/// EXTENDED_NAME_FORMAT::NameDisplay.
-const NAME_DISPLAY: i32 = 3;
-
-/// The account's display name ("Louis Raille"): the directory's for a domain
-/// or Entra account, else the local account's "Full name", else nothing.
-pub fn user_full_name() -> Option<String> {
-    directory_display_name().or_else(local_full_name).filter(|n| !n.trim().is_empty())
-}
-
-fn directory_display_name() -> Option<String> {
-    let mut buf = [0u16; 256];
-    let mut size = buf.len() as u32;
-    // On success `size` is the length copied, without the terminating null.
-    let ok = unsafe { GetUserNameExW(NAME_DISPLAY, buf.as_mut_ptr(), &mut size) } != 0;
-    if !ok || size as usize > buf.len() {
-        return None;
-    }
-    String::from_utf16(&buf[..size as usize]).ok()
-}
-
-fn local_full_name() -> Option<String> {
-    let user = std::env::var("USERNAME").ok().filter(|u| !u.is_empty())?;
-    let wide: Vec<u16> = user.encode_utf16().chain(std::iter::once(0)).collect();
-    let mut info: *mut u8 = std::ptr::null_mut();
-    // Level 10 is USER_INFO_10 { name, comment, usr_comment, full_name }, four
-    // wide-string pointers; any user may read it about themselves.
-    let status = unsafe { NetUserGetInfo(std::ptr::null(), wide.as_ptr(), 10, &mut info) };
-    if status != 0 || info.is_null() {
-        return None;
-    }
-    unsafe {
-        let full = *(info as *const *const u16).add(3);
-        let text = if full.is_null() {
-            None
-        } else {
-            let mut len = 0usize;
-            while len < 256 && *full.add(len) != 0 {
-                len += 1;
-            }
-            String::from_utf16(std::slice::from_raw_parts(full, len)).ok()
-        };
-        NetApiBufferFree(info.cast());
-        text
-    }
 }
 
 // ── Cursor ────────────────────────────────────────────────────────────────────
@@ -361,257 +191,6 @@ pub fn set_pointer_watch(_active: bool) {}
 /// `set_position` already places a Win32 window on the right display.
 pub fn pin_to_monitor(_win: &WebviewWindow, _x: i32, _y: i32) {}
 
-// ── Session windows ("Open terminal") ─────────────────────────────────────────
-//
-// See session_window.rs: the relay's ancestors lead to the terminal or editor
-// window a Claude Code session runs in.
-
-/// The process on the other end of a relay connection.
-pub fn pipe_client_pid(handle: RawHandle) -> Option<u32> {
-    let mut pid = 0u32;
-    unsafe { GetNamedPipeClientProcessId(HANDLE(handle), &mut pid).ok()? };
-    (pid != 0).then_some(pid)
-}
-
-/// Whether a program runs (by its executable's name, any case): the Mail pill asks for
-/// OUTLOOK.EXE before it starts PowerShell, so a closed Outlook costs nothing.
-pub fn process_running(exe: &str) -> bool {
-    process_table().values().any(|p| p.exe.eq_ignore_ascii_case(exe))
-}
-
-/// Every process, by ID: its parent and its executable's name.
-fn process_table() -> HashMap<u32, Proc> {
-    let mut out = HashMap::new();
-    unsafe {
-        let Ok(snapshot) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else { return out };
-        let mut entry = PROCESSENTRY32W {
-            dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
-            ..Default::default()
-        };
-        let mut more = Process32FirstW(snapshot, &mut entry).is_ok();
-        while more {
-            let len = entry.szExeFile.iter().position(|c| *c == 0).unwrap_or(entry.szExeFile.len());
-            out.insert(
-                entry.th32ProcessID,
-                Proc {
-                    parent: entry.th32ParentProcessID,
-                    exe: String::from_utf16_lossy(&entry.szExeFile[..len]),
-                },
-            );
-            more = Process32NextW(snapshot, &mut entry).is_ok();
-        }
-        let _ = CloseHandle(snapshot);
-    }
-    out
-}
-
-/// The ancestors of a process, nearest first, below the desktop shell.
-pub fn process_ancestors(pid: u32) -> Vec<u32> {
-    session_window::ancestors(&process_table(), pid)
-}
-
-/// Visible top-level windows that are nobody's dialog and have a title:
-/// (handle, process ID, title).
-fn top_windows() -> Vec<(isize, u32, String)> {
-    unsafe extern "system" fn collect(hwnd: HWND, lparam: LPARAM) -> BOOL {
-        let list = unsafe { &mut *(lparam.0 as *mut Vec<(isize, u32, String)>) };
-        unsafe {
-            if !IsWindowVisible(hwnd).as_bool() || GetWindow(hwnd, GW_OWNER).is_ok() {
-                return true.into();
-            }
-            let mut pid = 0u32;
-            GetWindowThreadProcessId(hwnd, Some(&mut pid as *mut u32));
-            let mut text = [0u16; 512];
-            let len = GetWindowTextW(hwnd, &mut text);
-            if len > 0 {
-                list.push((hwnd.0 as isize, pid, String::from_utf16_lossy(&text[..len as usize])));
-            }
-        }
-        true.into()
-    }
-    let mut list: Vec<(isize, u32, String)> = Vec::new();
-    unsafe {
-        let _ = EnumWindows(Some(collect), LPARAM(&mut list as *mut _ as isize));
-    }
-    list
-}
-
-/// The first of `pids` that owns a window.
-pub fn first_with_window(pids: &[u32]) -> Option<u32> {
-    let windows = top_windows();
-    pids.iter().copied().find(|pid| windows.iter().any(|(_, owner, _)| owner == pid))
-}
-
-/// What a session remembers: the ancestor that owns a window, or nothing.
-pub fn window_owners(ancestors: &[u32]) -> Vec<u32> {
-    first_with_window(ancestors).into_iter().collect()
-}
-
-fn bring_forward(raw: isize) -> bool {
-    let hwnd = HWND(raw as *mut _);
-    unsafe {
-        if !IsWindow(Some(hwnd)).as_bool() {
-            return false;
-        }
-        if IsIconic(hwnd).as_bool() {
-            let _ = ShowWindow(hwnd, SW_RESTORE);
-        } else {
-            let _ = ShowWindow(hwnd, SW_SHOW);
-        }
-
-        // The island window has WS_EX_NOACTIVATE, so clicks on it do not make Coucou
-        // the active foreground window. Windows blocks SetForegroundWindow unless the
-        // calling thread is attached to the foreground thread or owns foreground rights.
-        let fg_hwnd = GetForegroundWindow();
-        if fg_hwnd == hwnd {
-            return true;
-        }
-
-        let cur_thread = GetCurrentThreadId();
-        let fg_thread = if fg_hwnd.0.is_null() {
-            0
-        } else {
-            GetWindowThreadProcessId(fg_hwnd, None)
-        };
-        let target_thread = GetWindowThreadProcessId(hwnd, None);
-
-        let attached_fg = if fg_thread != 0 && fg_thread != cur_thread {
-            AttachThreadInput(cur_thread, fg_thread, true).as_bool()
-        } else {
-            false
-        };
-
-        let attached_target = if target_thread != 0 && target_thread != cur_thread && target_thread != fg_thread {
-            AttachThreadInput(cur_thread, target_thread, true).as_bool()
-        } else {
-            false
-        };
-
-        let _ = BringWindowToTop(hwnd);
-        let ok = SetForegroundWindow(hwnd).as_bool();
-
-        if attached_target {
-            let _ = AttachThreadInput(cur_thread, target_thread, false);
-        }
-        if attached_fg {
-            let _ = AttachThreadInput(cur_thread, fg_thread, false);
-        }
-
-        ok || GetForegroundWindow() == hwnd
-    }
-}
-
-/// Brings `pid`'s window forward — the one titled after `folder` if there are several.
-pub fn focus_process_window(pid: u32, folder: &str) -> bool {
-    let candidates: Vec<(isize, String)> = top_windows()
-        .into_iter()
-        .filter(|(_, owner, _)| *owner == pid)
-        .map(|(hwnd, _, title)| (hwnd, title))
-        .collect();
-    session_window::pick_window(&candidates, folder).is_some_and(|hwnd| bring_forward(*hwnd))
-}
-
-/// Brings forward the window a session remembered (`window_owners`).
-pub fn focus_session_window(owners: &[u32], folder: &str) -> bool {
-    owners.first().is_some_and(|pid| focus_process_window(*pid, folder))
-}
-
-/// Brings forward the window of a running app, by executable name.
-fn focus_app(exe: &str) -> bool {
-    let pids: Vec<u32> = process_table()
-        .into_iter()
-        .filter(|(_, p)| p.exe.eq_ignore_ascii_case(exe))
-        .map(|(pid, _)| pid)
-        .collect();
-    top_windows()
-        .into_iter()
-        .find(|(_, owner, _)| pids.contains(owner))
-        .is_some_and(|(hwnd, _, _)| bring_forward(hwnd))
-}
-
-/// The Claude desktop app: brought forward when it runs (Claude Code's own
-/// `claude.exe` has no window of its own, so it is never the one picked),
-/// started from the Squirrel path or its registered MSIX protocol otherwise.
-pub fn open_claude_desktop() -> bool {
-    open_claude_with(
-        || focus_app("claude.exe"),
-        || {
-            std::env::var_os("LOCALAPPDATA").is_some_and(|base| {
-                let exe = PathBuf::from(base).join("AnthropicClaude").join("claude.exe");
-                exe.is_file() && Command::new(exe).spawn().is_ok()
-            })
-        },
-        activate_claude_protocol,
-    )
-}
-
-fn open_claude_with(
-    focus: impl FnOnce() -> bool,
-    squirrel: impl FnOnce() -> bool,
-    protocol: impl FnOnce() -> bool,
-) -> bool {
-    focus() || squirrel() || protocol()
-}
-
-/// The MSIX manifest registers `claude`; let Windows resolve its current install.
-fn activate_claude_protocol() -> bool {
-    unsafe {
-        let initialized = CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
-        // A Tauri thread may already use MTA. Keep that apartment: the Shell can
-        // delegate activation, and we must not uninitialize someone else's COM.
-        if initialized.is_err() && initialized != RPC_E_CHANGED_MODE {
-            return false;
-        }
-        let mut info = SHELLEXECUTEINFOW {
-            cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
-            fMask: SEE_MASK_FLAG_NO_UI | SEE_MASK_NOASYNC,
-            lpVerb: w!("open"),
-            lpFile: w!("claude://"),
-            nShow: SW_SHOWNORMAL.0,
-            ..Default::default()
-        };
-        let opened = ShellExecuteExW(&mut info).is_ok();
-        if initialized.is_ok() {
-            CoUninitialize();
-        }
-        opened
-    }
-}
-
-#[cfg(test)]
-mod claude_launch_tests {
-    use super::open_claude_with;
-    use std::cell::RefCell;
-
-    #[test]
-    fn tries_launchers_in_order_and_stops_after_success() {
-        for (focus, squirrel, protocol, expected, calls) in [
-            (true, true, true, true, vec!["focus"]),
-            (false, true, true, true, vec!["focus", "squirrel"]),
-            (false, false, true, true, vec!["focus", "squirrel", "protocol"]),
-            (false, false, false, false, vec!["focus", "squirrel", "protocol"]),
-        ] {
-            let seen = RefCell::new(Vec::new());
-            let result = open_claude_with(
-                || {
-                    seen.borrow_mut().push("focus");
-                    focus
-                },
-                || {
-                    seen.borrow_mut().push("squirrel");
-                    squirrel
-                },
-                || {
-                    seen.borrow_mut().push("protocol");
-                    protocol
-                },
-            );
-            assert_eq!(result, expected);
-            assert_eq!(seen.into_inner(), calls);
-        }
-    }
-}
-
 // ── Global shortcuts ──────────────────────────────────────────────────────────
 
 /// RegisterHotKey works in every Windows session.
@@ -681,16 +260,60 @@ pub fn layer_display(_island: &WebviewWindow, _mochi: &WebviewWindow) -> Option<
     None
 }
 
-// ── Flow dictation's pill ─────────────────────────────────────────────────────
-// On Windows the pill is placed with set_position and a cursor poll decides
-// click-through (flow/pill.rs), like the island.
+// ── Background work ───────────────────────────────────────────────────────────
 
-pub fn prepare_pill_window(win: &WebviewWindow, _mode: super::DesktopMode) -> bool {
-    make_non_activating(win);
-    let _ = win.set_ignore_cursor_events(true);
-    true
+/// Starts a heavy helper (ffmpeg) so it never makes the rest of the PC sluggish:
+/// below-normal priority, no console, and EcoQoS ("efficiency mode"), which lets
+/// Windows run it on efficient cores at an efficient clock. Older Windows
+/// versions that don't know EcoQoS just keep the lower priority.
+pub fn spawn_background(cmd: &mut Command) -> std::io::Result<std::process::Child> {
+    use ::windows::Win32::Foundation::HANDLE;
+    use ::windows::Win32::System::Threading::{
+        ProcessPowerThrottling, SetProcessInformation, BELOW_NORMAL_PRIORITY_CLASS,
+        PROCESS_POWER_THROTTLING_CURRENT_VERSION, PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
+        PROCESS_POWER_THROTTLING_STATE,
+    };
+    use std::os::windows::io::AsRawHandle;
+
+    cmd.creation_flags(CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY_CLASS.0);
+    let child = cmd.spawn()?;
+    let state = PROCESS_POWER_THROTTLING_STATE {
+        Version: PROCESS_POWER_THROTTLING_CURRENT_VERSION,
+        ControlMask: PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
+        StateMask: PROCESS_POWER_THROTTLING_EXECUTION_SPEED,
+    };
+    let handle = HANDLE(child.as_raw_handle());
+    unsafe {
+        let _ = SetProcessInformation(
+            handle,
+            ProcessPowerThrottling,
+            &state as *const _ as *const core::ffi::c_void,
+            std::mem::size_of::<PROCESS_POWER_THROTTLING_STATE>() as u32,
+        );
+    }
+    Ok(child)
 }
 
-pub fn set_pill_edge(_win: &WebviewWindow, _edge: &str) {}
+// ── Island webview memory ─────────────────────────────────────────────────────
 
-pub fn set_pill_input(_win: &WebviewWindow, _rects: Vec<(f64, f64, f64, f64)>) {}
+/// Asks WebView2 to trim its memory while the island is hidden or compact
+/// (`low`), and to keep it normal while it is open. WebView2 older than the
+/// 1.0.1774 runtime has no such setting: then nothing happens.
+pub fn set_webview_memory_low(win: &WebviewWindow, low: bool) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
+        COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
+    };
+    use wv2_core::Interface;
+
+    let _ = win.with_webview(move |webview| unsafe {
+        let Ok(core) = webview.controller().CoreWebView2() else { return };
+        let Ok(core) = core.cast::<ICoreWebView2_19>() else { return };
+        let level = if low {
+            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW
+        } else {
+            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
+        };
+        let _ = core.SetMemoryUsageTargetLevel(level);
+    });
+}

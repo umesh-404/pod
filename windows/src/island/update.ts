@@ -17,7 +17,7 @@ import { updateWaiting, type Later } from "../whats-new/whats-new";
  * whether Mochi stays blue and a click opens on the update. A per-install
  * convenience, so the webview's storage is enough: lost, Mochi is blue again.
  */
-const LATER_KEY = "coucou.update.later";
+const LATER_KEY = "pod.update.later";
 
 function readLater(): Later | null {
   try {
@@ -86,7 +86,6 @@ class UpdateController {
     if (!host) return;
     const now = {
       paused: State.paused,
-      pending: State.pendingApproval != null,
       mode: State.mode,
       view: State.view,
     };
@@ -108,7 +107,7 @@ class UpdateController {
     }
   }
 
-  /** Tray → "Update Coucou to X…", Settings → Install X. */
+  /** Tray → "Update Pod to X…", Settings → Install X. */
   show() {
     this.offer("show");
   }

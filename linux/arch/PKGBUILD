@@ -1,15 +1,15 @@
-# Maintainer: FabioLukas123
-# Coucou for Arch Linux — built from the Tauri app in windows/, which runs on
+# Maintainer: umesh-404
+# Pod for Arch Linux — built from the Tauri app in windows/, which runs on
 # Windows and Linux alike.
 
-pkgname=coucou-git
-_pkgname=coucou
-pkgver=0.5.8
+pkgname=pod-git
+_pkgname=pod
+pkgver=0.1.0
 pkgrel=1
-pkgdesc="Mochi lives at the top of your screen and keeps an eye on your Claude Code sessions"
+pkgdesc="A temporary workspace at the top of your screen: drop files to convert, zip, resize or keep them"
 arch=('x86_64' 'aarch64')
-url="https://github.com/Louis-CFM/coucou"
-license=("MIT" "LicenseRef-coucou-assets")
+url="https://github.com/umesh-404/pod"
+license=("MIT" "LicenseRef-pod-assets")
 depends=(
   'webkit2gtk-4.1'
   'gtk3'
@@ -18,22 +18,18 @@ depends=(
   'gst-plugins-base'
   'gst-plugins-good'
   'dbus'
-  'alsa-lib'
   'xdg-utils'
   'hicolor-icon-theme'
 )
 optdepends=(
-  'gnome-keyring: store API keys (or any other Secret Service provider)'
-  'kwallet: store API keys (or any other Secret Service provider)'
-  'speech-dispatcher: « OK Coucou » answers out loud where the webview has no voice'
-  'espeak-ng: « OK Coucou » answers out loud where the webview has no voice'
+  'ffmpeg: convert video, audio and image formats'
 )
 makedepends=('git' 'cargo' 'nodejs' 'npm')
 provides=("$_pkgname")
 conflicts=("$_pkgname")
 # makepkg's default LTO and debug flags make the Rust build very slow.
 options=('!lto' '!debug')
-source=("$_pkgname::git+https://github.com/Louis-CFM/coucou.git")
+source=("$_pkgname::git+https://github.com/umesh-404/pod.git")
 sha256sums=('SKIP')
 
 pkgver() {
@@ -54,19 +50,19 @@ build() {
   cd "$_pkgname/windows"
   export RUSTUP_TOOLCHAIN=stable
   export CARGO_TARGET_DIR="$PWD/target"
-  # beforeBuildCommand builds the front end and the coucou-hook relay.
+  # beforeBuildCommand builds the front end and the pod-hook relay.
   npx tauri build --no-bundle
 }
 
 package() {
   cd "$_pkgname"
-  install -Dm755 windows/target/release/coucou "$pkgdir/usr/bin/coucou"
-  # Found next to the app, then copied into ~/.local/share/coucou/bin at launch.
-  install -Dm755 windows/target/release/coucou-hook "$pkgdir/usr/bin/coucou-hook"
-  install -Dm644 linux/arch/coucou.desktop "$pkgdir/usr/share/applications/fr.louisraille.coucou.desktop"
-  install -Dm644 windows/src-tauri/icons/32x32.png "$pkgdir/usr/share/icons/hicolor/32x32/apps/coucou.png"
-  install -Dm644 windows/src-tauri/icons/128x128.png "$pkgdir/usr/share/icons/hicolor/128x128/apps/coucou.png"
-  install -Dm644 windows/src-tauri/icons/128x128@2x.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/coucou.png"
+  install -Dm755 windows/target/release/pod "$pkgdir/usr/bin/pod"
+  # Found next to the app, then copied into ~/.local/share/pod/bin at launch.
+  install -Dm755 windows/target/release/pod-hook "$pkgdir/usr/bin/pod-hook"
+  install -Dm644 linux/arch/pod.desktop "$pkgdir/usr/share/applications/io.github.umesh404.pod.desktop"
+  install -Dm644 windows/src-tauri/icons/32x32.png "$pkgdir/usr/share/icons/hicolor/32x32/apps/pod.png"
+  install -Dm644 windows/src-tauri/icons/128x128.png "$pkgdir/usr/share/icons/hicolor/128x128/apps/pod.png"
+  install -Dm644 windows/src-tauri/icons/128x128@2x.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/pod.png"
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 LICENSE-ASSETS.md "$pkgdir/usr/share/licenses/$pkgname/LICENSE-ASSETS.md"
 }

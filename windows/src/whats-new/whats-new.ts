@@ -77,7 +77,7 @@ export interface LaunchFacts {
   /** The last version this install saw (null: none stored yet). */
   lastSeen: string | null;
   /**
-   * Signs that Coucou ran here before, for installs from before this card
+   * Signs that Pod ran here before, for installs from before this card
    * (0.5.1 stored no version): the update question answered, agent sessions
    * or decisions in the recap, dictations, notes.
    */
@@ -105,7 +105,7 @@ export function decideOnLaunch(f: LaunchFacts): LaunchDecision {
   return { show: cmp > 0 && f.hasEntry, record: true };
 }
 
-// ── "Your Coucou so far" ──────────────────────────────────────────────────────
+// ── "Your Pod so far" ──────────────────────────────────────────────────────
 
 export type StatKind = "agentSessions" | "agentTime" | "linesAdded" | "approvals" | "words" | "saved" | "calls";
 
@@ -142,7 +142,7 @@ export function soFar(input: StatsInput): Stat[] {
   return all.filter((s) => s.value > 0);
 }
 
-/** Whether anything shows Coucou ran here before (see LaunchFacts.usedBefore). */
+/** Whether anything shows Pod ran here before (see LaunchFacts.usedBefore). */
 export function usedBefore(facts: {
   consent: boolean | null;
   history: RecapHistory | null | undefined;
@@ -168,7 +168,7 @@ export interface Later {
 }
 
 /**
- * A newer version is out, the user let Coucou look for it, it is not being
+ * A newer version is out, the user let Pod look for it, it is not being
  * installed, and "Later" was not pressed for it in the last day.
  */
 export function updateWaiting(status: UpdateStatus, later: Later | null, nowMs: number): boolean {
@@ -186,10 +186,10 @@ export function showsUpdateHint(waiting: boolean, state: BotStateName, pending: 
 
 /** The release page of this version, for "All changes". */
 export function releasePage(platform: "windows" | "linux", version: string): string {
-  return `https://github.com/Louis-CFM/coucou/releases/tag/${platform}-v${encodeURIComponent(version)}`;
+  return `https://github.com/umesh-404/pod/releases/tag/${platform}-v${encodeURIComponent(version)}`;
 }
 
-/** Buy Mochi a coffee: the same Stripe link as the Coucou page (docs/index.html). */
+/** Buy Mochi a coffee: the same Stripe link as the Pod page (docs/index.html). */
 export const COFFEE_URL = "https://buy.stripe.com/dRm6oGbfa7Kqcqs0hxes003";
 
 /** The blue of an update, and of the arrow badge. */
