@@ -16,7 +16,7 @@ import { t, tn } from "../i18n/i18n";
 import { anchor, toggle } from "../hub/ui";
 import {
   BREAK_RANGE, FOCUS_RANGE, ROTATE_RANGE, SIDE_ICONS, SIDE_ITEMS, calendarLink, clampNumber, placeRow, sideRows,
-  sideSettingsOf, type RightRow, type Side,
+  sideSettingsKeeping, type RightRow, type Side,
 } from "./catalog";
 import { NotchPreview } from "./notch-preview";
 import type { SettingsAccess } from "./access";
@@ -107,7 +107,7 @@ function sidesSections(access: SettingsAccess): HTMLElement[] {
   const sideName = (side: Side) => (side === "left" ? t("Left side") : t("Right side"));
 
   function persist() {
-    access.set(sideSettingsOf(rows));
+    access.set(sideSettingsKeeping(access.get(), rows));
     preview.update(access.get());
   }
 
@@ -234,7 +234,6 @@ function sidesSections(access: SettingsAccess): HTMLElement[] {
     if (!d || e.pointerId !== d.pointer) return;
     const dx = e.clientX - d.startX;
     const dy = e.clientY - d.startY;
-    els.get(d.id)!.row.style.transform = `translate(${dx}px, ${dy}px) scale(1.02)`;
     const side = sideAt(e.clientX, e.clientY, d);
     const mid = d.mid + dy;
     const index = d.others[side].filter((o) => o.mid < mid).length;
@@ -252,6 +251,13 @@ function sidesSections(access: SettingsAccess): HTMLElement[] {
     for (const s of ["left", "right"] as Side[]) {
       lists[s].style.paddingBottom = s === side && s !== d.from ? `${d.step}px` : "";
     }
+    // In a narrow window the lists are stacked: the one above growing pushes
+    // the dragged row's own list down, so the row follows the pointer from
+    // where its list is now, not from where it was.
+    const from = lists[d.from].getBoundingClientRect();
+    const sx = from.left - d.lists[d.from].left;
+    const sy = from.top - d.lists[d.from].top;
+    els.get(d.id)!.row.style.transform = `translate(${dx - sx}px, ${dy - sy}px) scale(1.02)`;
   }
 
   function endDrag(e: PointerEvent, drop: boolean) {
@@ -314,7 +320,11 @@ function sidesSections(access: SettingsAccess): HTMLElement[] {
     row.append(sw);
     move.addEventListener("click", () => {
       const to = other(sideOf(item.id));
+      const focused = document.activeElement === move;
       place(item.id, to, undefined, true);
+      // Moving the row to the other list takes it out of the page for a moment,
+      // which drops the focus: a keyboard user stays on the button.
+      if (focused) move.focus();
     });
     grip.addEventListener("pointerdown", (e) => {
       if (e.button !== 0 || drag) return;

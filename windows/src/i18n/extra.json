@@ -7109,6 +7109,21 @@
       "tr": "Bırakılan dosya okunamadı.",
       "ko": "놓은 파일을 읽을 수 없습니다.",
       "ja": "ドロップしたファイルを読み込めませんでした。"
+    },
+    "Pod is still working on your files. Update once that's done.": {
+      "zh-Hans": "Pod 仍在处理你的文件。请等处理完成后再更新。",
+      "hi": "Pod अभी भी आपकी फ़ाइलों पर काम कर रहा है। यह पूरा होने के बाद अपडेट करें।",
+      "es": "Pod todavía está trabajando con tus archivos. Actualiza cuando termine.",
+      "ar": "لا يزال Pod يعمل على ملفاتك. حدّثه بعد انتهاء ذلك.",
+      "fr": "Pod travaille encore sur vos fichiers. Mettez à jour une fois que c'est terminé.",
+      "bn": "Pod এখনও আপনার ফাইলগুলো নিয়ে কাজ করছে। সেটা শেষ হলে আপডেট করুন।",
+      "pt-BR": "O Pod ainda está trabalhando nos seus arquivos. Atualize quando terminar.",
+      "ru": "Pod ещё работает с вашими файлами. Обновите, когда он закончит.",
+      "id": "Pod masih memproses file Anda. Perbarui setelah selesai.",
+      "de": "Pod arbeitet noch an deinen Dateien. Aktualisiere, sobald das erledigt ist.",
+      "tr": "Pod hâlâ dosyalarınız üzerinde çalışıyor. Bu iş bitince güncelleyin.",
+      "ko": "Pod가 아직 파일을 처리하고 있어요. 끝난 뒤에 업데이트해 주세요.",
+      "ja": "Pod はまだファイルを処理しています。完了してから更新してください。"
     }
   }
 }

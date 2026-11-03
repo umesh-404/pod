@@ -78,7 +78,9 @@ fn gone() -> String {
 // ── Commands ────────────────────────────────────────────────────────────────
 
 /// Dropped on "Rename": takes the paths (they must all come from a real drop).
-#[tauri::command]
+/// The rename commands run off the UI thread: a thousand files on a network
+/// share would otherwise freeze every window while they are looked at.
+#[tauri::command(async)]
 pub fn rename_prepare(paths: Vec<String>) -> Result<RenameJob, String> {
     if paths.is_empty() {
         return Err(t("Drop the files to rename."));
@@ -113,7 +115,7 @@ pub fn rename_prepare(paths: Vec<String>) -> Result<RenameJob, String> {
 }
 
 /// The new names `pattern` gives, without renaming anything.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn rename_preview(id: u64, pattern: String) -> Result<Vec<RenameRow>, String> {
     let paths = with_jobs(|jobs| jobs.get(&id).map(|j| j.paths.clone())).ok_or_else(gone)?;
     let planned = plan(&paths, &pattern, &DiskInfo)?;
@@ -121,7 +123,7 @@ pub fn rename_preview(id: u64, pattern: String) -> Result<Vec<RenameRow>, String
 }
 
 /// Renames the files as the preview showed (worked out again, in case a name was taken meanwhile).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn rename_apply(id: u64, pattern: String) -> Result<RenameReport, String> {
     let paths = with_jobs(|jobs| match jobs.get(&id) {
         Some(job) if job.done.is_some() => Err(t("These files were already renamed.")),
@@ -161,7 +163,7 @@ pub fn rename_apply(id: u64, pattern: String) -> Result<RenameReport, String> {
 
 /// Undo: every file this job renamed gets its old name back, unless that
 /// name was taken since (then it keeps the new one). Undo works once.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn rename_undo(id: u64) -> Result<RenameReport, String> {
     let done = with_jobs(|jobs| jobs.remove(&id).and_then(|j| j.done)).ok_or_else(gone)?;
     let _busy = crate::files::JobGuard::new();

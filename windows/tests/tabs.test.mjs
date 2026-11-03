@@ -365,3 +365,70 @@ test("tools: nothing special on the clipboard; focus card starts the timer", asy
   assert.ok(focus.classList.contains("phase-off"));
   tab.hide();
 });
+
+test("tools: closing the Tools tab leaves the notch's dev-server watcher running", async () => {
+  reset();
+  const { Bridge } = await import("../src/core/bridge.ts");
+  // The notch's dev-server item is on (NotchSides turns its watcher on).
+  await Bridge.devserversWatch(true);
+  const host = makeHost();
+  const tab = toolsTab(host);
+  tab.show();
+  await settle();
+  tab.hide();
+  await settle();
+  // One "on" from the notch; the tab's on and off change nothing in Rust.
+  assert.deepEqual(sent("devservers_watch"), [{ on: true }]);
+  await Bridge.devserversWatch(false);
+  assert.deepEqual(sent("devservers_watch").at(-1), { on: false });
+});
+
+test("notes: a save that fails keeps the text when another note or a new one is asked for", async () => {
+  reset();
+  answers.set("shelf_list", [item("Old note.md")]);
+  answers.set("note_save", () => {
+    throw new Error("disk full");
+  });
+  answers.set("note_read", "# Old\n");
+  const host = makeHost();
+  const tab = notesTab(host);
+  tab.show();
+  await settle();
+  const area = tab.el.querySelector(".note-area");
+  area.value = "unsaved thoughts";
+  fire(area, "input");
+  fire(area, "blur");
+  await settle();
+  assert.equal(tab.el.querySelector(".note-status-text").textContent, "Couldn't save");
+
+  fire(tab.el.find(".note-chip")[0], "click");
+  await settle();
+  assert.equal(area.value, "unsaved thoughts");
+  assert.deepEqual(sent("note_read"), []);
+
+  fire(tab.el.find(".tab-link").find((b) => !b.className.includes("note-delete")), "click"); // New note
+  await settle();
+  assert.equal(area.value, "unsaved thoughts");
+  assert.ok(host.log.includes("sound:error"));
+  tab.hide();
+  await settle();
+});
+
+test("reminders: Enter pressed twice while the time is read adds the reminder once", async () => {
+  reset();
+  const due = Date.now() + 3_600_000;
+  answers.set("reminders_list", []);
+  answers.set("reminder_parse", ({ input }) => ({ text: input, due }));
+  answers.set("reminder_add", ({ text, due, deadline }) => ({ id: 21, text, due, deadline, fired: false }));
+  const tab = remindersTab(makeHost());
+  tab.show();
+  await settle();
+  const input = tab.el.querySelector(".rem-input");
+  input.value = "call Sam at 4pm";
+  fire(input, "input");
+  fire(input, "keydown", { key: "Enter" });
+  fire(input, "keydown", { key: "Enter" });
+  await settle(10);
+  assert.equal(sent("reminder_add").length, 1);
+  tab.hide();
+});

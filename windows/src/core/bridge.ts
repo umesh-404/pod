@@ -21,6 +21,9 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T |
   }
 }
 
+/** Who wants Rust's dev-server watcher on (Bridge.devserversWatch). */
+const devserverWatchers = new Set<string>();
+
 export interface BootInfo {
   settings: Settings;
   /** Logical screen rect of the monitor the island lives on. */
@@ -141,8 +144,19 @@ export const Bridge = {
   noteRead: (name: string) => callOrThrow<string>("note_read", { name }),
   clipboardText: () => call<string | null>("clipboard_text"),
   clipboardSetText: (text: string) => callOrThrow<void>("clipboard_set_text", { text }),
-  /** While on, `dev-servers` events (DevServer[]) when the list changes. */
-  devserversWatch: (on: boolean) => call<void>("devservers_watch", { on }),
+  /**
+   * While on, `dev-servers` events (DevServer[]) when the list changes. Rust
+   * keeps one switch, but the notch's item and the Tools tab both want it:
+   * each says who it is, and the watcher runs while either wants it (the Tools
+   * tab closing used to stop the notch's item from updating).
+   */
+  devserversWatch: (on: boolean, who: "notch" | "tools" = "notch") => {
+    const before = devserverWatchers.size > 0;
+    if (on) devserverWatchers.add(who);
+    else devserverWatchers.delete(who);
+    const now = devserverWatchers.size > 0;
+    return now === before ? Promise.resolve(null) : call<void>("devservers_watch", { on: now });
+  },
   devserversNow: () => call<DevServer[]>("devservers_now"),
   devserverOpen: (port: number) => callOrThrow<void>("devserver_open", { port }),
 

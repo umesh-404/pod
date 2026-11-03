@@ -266,7 +266,9 @@ fn ffmpeg_args_with(input: &Path, output: &Path, target: &str, gpu: Option<&str>
         // png, bmp, tiff
         _ => &["-frames:v", "1"],
     };
-    let mut args: Vec<String> = ["-hide_banner", "-nostdin", "-n", "-i"].iter().map(|s| s.to_string()).collect();
+    // -y: `run_job` has already claimed `output` (an empty file of its own), so
+    // ffmpeg writes into that; with -n it would refuse its own claim.
+    let mut args: Vec<String> = ["-hide_banner", "-nostdin", "-y", "-i"].iter().map(|s| s.to_string()).collect();
     args.push(input.to_string_lossy().to_string());
     args.extend(codec.iter().map(|s| s.to_string()));
     args.extend(["-progress", "pipe:1", "-nostats"].iter().map(|s| s.to_string()));
@@ -553,6 +555,8 @@ fn is_ffmpeg(path: &Path, timeout: Duration) -> bool {
 struct RunState {
     cancelled: AtomicBool,
     child: Mutex<Option<Child>>,
+    /// The file ffmpeg is writing right now (claimed by `run_job`), for `shutdown`.
+    output: Mutex<Option<PathBuf>>,
 }
 
 impl RunState {
@@ -607,7 +611,8 @@ enum RunError {
 }
 
 /// Converts `input` to `output` with `ffmpeg`, reporting this file's fraction
-/// (0…1) as it goes. A partial output is deleted on failure or cancel.
+/// (0…1) as it goes. `output` must be a file the caller claimed (`claim_output`):
+/// ffmpeg writes over it, and it is deleted on failure or cancel.
 fn run_one(
     ffmpeg: &Path,
     input: &Path,
@@ -738,7 +743,14 @@ fn run_job(app: AppHandle, id: u64, ffmpeg: PathBuf, paths: Vec<PathBuf>, out: P
     let mut already_small = 0usize;
 
     for (index, input) in paths.iter().enumerate() {
-        let output = crate::files::unique_path(&out, &output_name(input, &target));
+        let name = output_name(input, &target);
+        let mut output = match claim_output(&out, &name, &state) {
+            Ok(path) => path,
+            Err(message) => {
+                error = Some(message);
+                break;
+            }
+        };
         let mut report = |file_fraction: f64, force: bool| {
             let overall = ((index as f64 + file_fraction) / count as f64).clamp(0.0, 1.0);
             if force || overall - last_sent >= 0.01 || (overall > last_sent && last_at.elapsed() >= Duration::from_millis(100)) {
@@ -760,9 +772,18 @@ fn run_job(app: AppHandle, id: u64, ffmpeg: PathBuf, paths: Vec<PathBuf>, out: P
             if !progressed && !state.cancelled.load(Ordering::SeqCst) {
                 crate::log::line(format!("convert: {encoder} failed to start, using the processor"));
                 mark_gpu_broken(encoder);
-                result = run_one(&ffmpeg, input, &output, &target, None, &state, |f| report(f, false));
+                // The failed run removed its file: the name is claimed again.
+                result = match claim_output(&out, &name, &state) {
+                    Ok(path) => {
+                        output = path;
+                        run_one(&ffmpeg, input, &output, &target, None, &state, |f| report(f, false))
+                    }
+                    Err(message) => Err(RunError::Failed(message)),
+                };
             }
         }
+        // Finished (or already removed by run_one): no longer `shutdown`'s to remove.
+        *lock(&state.output) = None;
         match result {
             // "Compress video" that came out no smaller: the original is
             // already as small as it gets, so no bigger copy is kept.
@@ -790,6 +811,33 @@ fn run_job(app: AppHandle, id: u64, ffmpeg: PathBuf, paths: Vec<PathBuf>, out: P
     }
     with_jobs(|jobs| jobs.remove(&id));
     let _ = app.emit("convert-done", ConvertDone { id, outputs, error, cancelled });
+}
+
+/// Takes a free name for `name` in `out` by creating it, empty: a file that
+/// appeared since `unique_path` looked (another conversion of the same file) is
+/// never written over by ffmpeg, nor removed when this conversion fails.
+fn claim_output(out: &Path, name: &str, state: &RunState) -> Result<PathBuf, String> {
+    let (path, file) = crate::archive::create_unique(out, name).map_err(|e| crate::archive::cannot_write(name, &e))?;
+    drop(file);
+    *lock(&state.output) = Some(path.clone());
+    Ok(path)
+}
+
+/// Pod is quitting: every running ffmpeg is stopped and its unfinished file
+/// removed, so no conversion goes on (and leaves half a file) without Pod.
+pub fn shutdown() {
+    let runs: Vec<Arc<RunState>> = with_jobs(|jobs| jobs.values().filter_map(|j| j.run.clone()).collect());
+    for state in runs {
+        state.cancelled.store(true, Ordering::SeqCst);
+        if let Some(child) = lock(&state.child).as_mut() {
+            let _ = child.kill();
+            // Gone for real, so its file can be removed (Windows keeps an open file).
+            let _ = child.wait();
+        }
+        if let Some(output) = lock(&state.output).take() {
+            let _ = std::fs::remove_file(output);
+        }
+    }
 }
 
 /// The output is smaller than the input (both readable).
@@ -1255,10 +1303,41 @@ mod tests {
     }
 
     #[test]
+    fn each_conversion_claims_its_own_output_and_shutdown_removes_it() {
+        let dir = std::env::temp_dir().join(format!("pod-convert-claim-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        // Two conversions of clip.mov to MP4 started together: before ffmpeg
+        // creates anything, each already holds a name of its own.
+        let (a, b) = (RunState::default(), RunState::default());
+        let first = claim_output(&dir, "clip.mp4", &a).unwrap();
+        let second = claim_output(&dir, "clip.mp4", &b).unwrap();
+        assert_ne!(first, second);
+        assert_eq!(second, dir.join("clip (2).mp4"));
+        std::fs::write(&first, b"finished").unwrap();
+        *lock(&a.output) = None;
+
+        // Quitting removes only the unfinished one.
+        with_jobs(|jobs| {
+            for (id, state) in [(u64::MAX - 1, a), (u64::MAX, b)] {
+                jobs.insert(id, Job { paths: Vec::new(), formats: Vec::new(), created: Instant::now(), run: Some(Arc::new(state)) });
+            }
+        });
+        shutdown();
+        with_jobs(|jobs| {
+            jobs.remove(&(u64::MAX - 1));
+            jobs.remove(&u64::MAX);
+        });
+        assert_eq!(std::fs::read(&first).unwrap(), b"finished");
+        assert!(!second.exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn ffmpeg_arguments_per_target() {
         let (i, o) = (Path::new("C:\\in dir\\a.mov"), Path::new("C:\\in dir\\a.mp4"));
         let args = ffmpeg_args(i, o, "mp4");
-        assert_eq!(&args[..5], &["-hide_banner", "-nostdin", "-n", "-i", "C:\\in dir\\a.mov"]);
+        assert_eq!(&args[..5], &["-hide_banner", "-nostdin", "-y", "-i", "C:\\in dir\\a.mov"]);
         assert_eq!(&args[args.len() - 4..], &["-progress", "pipe:1", "-nostats", "C:\\in dir\\a.mp4"]);
         assert!(args.windows(2).any(|w| w == ["-c:v", "libx264"]));
         assert!(args.windows(2).any(|w| w == ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2"]));
@@ -1386,7 +1465,7 @@ mod tests {
     fn compress_for_sharing_arguments() {
         let (i, o) = (Path::new("C:\\v\\clip.mov"), Path::new("C:\\ws\\clip (small).mp4"));
         let args = ffmpeg_args(i, o, "share");
-        assert_eq!(&args[..5], &["-hide_banner", "-nostdin", "-n", "-i", "C:\\v\\clip.mov"]);
+        assert_eq!(&args[..5], &["-hide_banner", "-nostdin", "-y", "-i", "C:\\v\\clip.mov"]);
         assert_eq!(args.last().unwrap(), "C:\\ws\\clip (small).mp4");
         assert!(args.windows(2).any(|w| w == ["-c:v", "libx264"]));
         assert!(args.windows(2).any(|w| w == ["-crf", "23"]));
@@ -1437,7 +1516,8 @@ mod tests {
 
         let state = RunState::default();
         for target in ["gif", "mp3", "webm", "mkv", "mp4", "share"] {
-            let out = crate::files::unique_path(&dir, &output_name(&clip, target));
+            // Claimed first, as run_job does: ffmpeg (-y) writes into the empty file.
+            let out = claim_output(&dir, &output_name(&clip, target), &state).unwrap();
             let mut last = 0.0;
             let result = run_one(&ffmpeg, &clip, &out, target, None, &state, |f| last = f);
             assert!(result.is_ok(), "{target}: {}", match result { Err(RunError::Failed(e)) => e, _ => "cancelled".into() });

@@ -127,6 +127,11 @@ export function notesTab(host: TabHost): Tab {
     switching = true;
     try {
       await flush();
+      // The save failed: what is in the editor stays, rather than being wiped.
+      if (dirty) {
+        host.sound("error");
+        return;
+      }
       current = null;
       area.value = "";
       setStatus("idle");
@@ -142,6 +147,11 @@ export function notesTab(host: TabHost): Tab {
     switching = true;
     try {
       await flush();
+      // The save failed: opening another note would throw the unsaved text away.
+      if (dirty) {
+        host.sound("error");
+        return;
+      }
       const text = await Bridge.noteRead(name);
       current = name;
       area.value = text ?? "";

@@ -658,14 +658,17 @@ async fn run(app: AppHandle) {
             continue;
         }
         let due = with_state(|s| s.fetched_at.is_none_or(|t| t.elapsed() >= REFRESH));
-        if due {
+        // Tray → Pause: nothing goes out to the network meanwhile.
+        let paused = crate::update::PAUSED.load(std::sync::atomic::Ordering::Relaxed);
+        if due && !paused {
             let _ = refresh_all(&urls).await;
         }
         let (meeting, boundary) = current();
         send(&app, meeting, boundary_due);
 
         let since = with_state(|s| s.fetched_at.map(|t| t.elapsed()).unwrap_or_default());
-        let until_refresh = REFRESH.saturating_sub(since);
+        // Paused, the refresh stays due: look again in a while, not at once.
+        let until_refresh = if paused { REFRESH } else { REFRESH.saturating_sub(since) };
         let until_boundary = Duration::from_millis((boundary - now_ms() + SLACK_MS).max(0) as u64);
         boundary_due = until_boundary < until_refresh;
         tokio::select! {

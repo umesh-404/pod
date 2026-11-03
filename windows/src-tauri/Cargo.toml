@@ -1,7 +1,8 @@
 [package]
 name = "pod"
-description = "Pod for Windows and Linux — Mochi lives at the top of your screen"
-authors = ["Louis Raille"]
+description = "Pod for Windows and Linux — a temporary workspace at the top of your screen"
+# The .deb's Maintainer field. Pod is a fork of Coucou by Louis Raillé (see LICENSE).
+authors = ["umesh-404"]
 version.workspace = true
 edition.workspace = true
 license.workspace = true

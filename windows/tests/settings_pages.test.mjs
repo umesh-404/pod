@@ -10,7 +10,7 @@ installFakeDom();
 
 const {
   FEATURE_GROUPS, FEATURE_IDS, RIGHT_IDS, SIDE_IDS, calendarLink, clampNumber, featureOn, moveRow, placeRow, rightRows,
-  rightWidgetsOf, sideRows, sideSettingsOf, withFeature, ROTATE_RANGE, FOCUS_RANGE, BREAK_RANGE,
+  rightWidgetsOf, sideRows, sideSettingsKeeping, sideSettingsOf, withFeature, ROTATE_RANGE, FOCUS_RANGE, BREAK_RANGE,
 } = await import("../src/settings/catalog.ts");
 const { featuresSections } = await import("../src/settings/features.ts");
 const { notchSections } = await import("../src/settings/notch.ts");
@@ -217,6 +217,16 @@ test("notch sides: rows from the settings, and the settings from rows", () => {
   assert.deepEqual(placeRow(placed, "shelf", "left", 1).left.map((r) => r.id), ["timer", "shelf", "media"]);
   assert.deepEqual(placeRow(placed, "media", "left", 0).left.map((r) => r.id), ["media", "timer"]);
   assert.deepEqual(placeRow(placed, "nope", "left", 0), placed);
+});
+
+test("notch sides: a change keeps the ids a newer Pod wrote, not retired ones", () => {
+  const saved = { leftWidgets: ["clock", "reminder"], rightWidgets: ["privacy", "media"], rightOff: ["weather"] };
+  const rows = placeRow(sideRows(saved), "media", "left", 0);
+  const out = sideSettingsKeeping(saved, rows);
+  assert.deepEqual(out.leftWidgets, ["media", "reminder", "clock"]);
+  assert.deepEqual(out.rightWidgets, []);
+  assert.ok(out.rightOff.includes("weather"));
+  assert.ok(!out.rightOff.includes("privacy") && !out.rightWidgets.includes("privacy"));
 });
 
 test("Notch page: adding a calendar link saves it and tests it", async () => {

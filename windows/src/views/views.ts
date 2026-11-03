@@ -133,8 +133,14 @@ export function buildHeader(actions: ViewActions): ViewHost {
       if (at >= 0) indicator.style.transform = `translateX(${at * TAB_STEP}px)`;
       tabHome.classList.toggle("on", v === "overview" && shown.length === 0);
       gearBtn.classList.toggle("on", v === "settings");
-      clear(soundBtn);
-      soundBtn.append(svg(State.settings.soundEnabled ? ICONS.speakerOn : ICONS.speakerOff, 14));
+      // Redrawn only when the sound is switched: a new icon under the pointer
+      // between its press and release on every notify is needless churn.
+      if (soundBtn.getAttribute("aria-pressed") !== String(!State.settings.soundEnabled)) {
+        clear(soundBtn);
+        soundBtn.append(svg(State.settings.soundEnabled ? ICONS.speakerOn : ICONS.speakerOff, 14));
+        // "Mute" is a toggle: pressed while the sound is off.
+        soundBtn.setAttribute("aria-pressed", String(!State.settings.soundEnabled));
+      }
       // The drop tiles take the whole island: the header fades out (it keeps its
       // room, so nothing moves) and the tiles' view covers it.
       const noHeader = hidesHeader(v);
@@ -189,9 +195,10 @@ function buildConfused(): ViewHost {
 // ── In-island settings ────────────────────────────────────────────────────────
 
 function buildSettings(actions: ViewActions): ViewHost {
-  const soundSwitch = h("button", { class: "switch", onclick: () => actions.toggleSound() });
+  // A switch with no text of its own: screen readers hear its row's name and state.
+  const soundSwitch = h("button", { class: "switch", "aria-label": tl("Sound"), onclick: () => actions.toggleSound() });
   const volume = h("input", {
-    type: "range", min: "0", max: "0.2", step: "0.005",
+    type: "range", min: "0", max: "0.2", step: "0.005", "aria-label": tl("Volume"),
     oninput: (e: Event) => actions.setVolume(Number((e.target as HTMLInputElement).value)),
   }) as HTMLInputElement;
   const autoLabel = h("span", {});
@@ -231,6 +238,7 @@ function buildSettings(actions: ViewActions): ViewHost {
     sync() {
       const s = State.settings;
       soundSwitch.classList.toggle("on", s.soundEnabled);
+      soundSwitch.setAttribute("aria-pressed", String(s.soundEnabled));
       volume.value = String(s.soundVolume);
       volume.style.opacity = s.soundEnabled ? "1" : "0.4";
       autoLabel.textContent = t("Auto-close · {seconds}s", { seconds: Math.round(s.autoCloseInterval) });

@@ -556,5 +556,10 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building Pod")
-        .run(|_app, _event| {});
+        .run(|_app, event| {
+            // Quitting (the tray, an update): no ffmpeg goes on without Pod.
+            if let tauri::RunEvent::Exit = event {
+                convert::shutdown();
+            }
+        });
 }

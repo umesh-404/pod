@@ -50,15 +50,13 @@ build() {
   cd "$_pkgname/windows"
   export RUSTUP_TOOLCHAIN=stable
   export CARGO_TARGET_DIR="$PWD/target"
-  # beforeBuildCommand builds the front end and the pod-hook relay.
+  # beforeBuildCommand builds the front end.
   npx tauri build --no-bundle
 }
 
 package() {
   cd "$_pkgname"
   install -Dm755 windows/target/release/pod "$pkgdir/usr/bin/pod"
-  # Found next to the app, then copied into ~/.local/share/pod/bin at launch.
-  install -Dm755 windows/target/release/pod-hook "$pkgdir/usr/bin/pod-hook"
   install -Dm644 linux/arch/pod.desktop "$pkgdir/usr/share/applications/io.github.umesh404.pod.desktop"
   install -Dm644 windows/src-tauri/icons/32x32.png "$pkgdir/usr/share/icons/hicolor/32x32/apps/pod.png"
   install -Dm644 windows/src-tauri/icons/128x128.png "$pkgdir/usr/share/icons/hicolor/128x128/apps/pod.png"

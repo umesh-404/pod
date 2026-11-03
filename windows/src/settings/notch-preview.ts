@@ -105,6 +105,8 @@ export class NotchPreview {
   private placed = false;
   private mochiAsked = false;
   private disposed = false;
+  /** It has been in the page: once it is out again, it is gone for good. */
+  private wasConnected = false;
   private cleanup: (() => void)[] = [];
 
   constructor(settings: Settings) {
@@ -143,9 +145,10 @@ export class NotchPreview {
         // Gone from the page (another page is shown): stop for good. Before
         // it is first put in the page there is nothing to do yet.
         if (!this.el.isConnected) {
-          if (this.placed) this.dispose();
+          if (this.wasConnected || this.placed) this.dispose();
           return;
         }
+        this.wasConnected = true;
         this.inView = entry.isIntersecting;
         this.wake();
       });
@@ -183,6 +186,10 @@ export class NotchPreview {
   }
 
   private wake() {
+    // Removed while scrolled out of view, the observer says nothing: the next
+    // event that wakes it (window shown or hidden, tab visibility) lets it go.
+    if (this.el.isConnected) this.wasConnected = true;
+    else if (this.wasConnected && !this.disposed) this.dispose();
     if (!this.active()) {
       this.stopTimer();
       return;

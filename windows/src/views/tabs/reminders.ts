@@ -158,18 +158,20 @@ export function remindersTab(host: TabHost): Tab {
 
   async function add() {
     if (adding) return;
+    // Taken before the parse: a second Enter while it runs must not add the
+    // same reminder twice.
+    adding = true;
     if (parseTimer != null) {
       clearTimeout(parseTimer);
       parseTimer = null;
     }
-    // Always parse what is in the field now, not what the debounce last saw.
-    const result = await parseNow();
-    if (!result || result.due == null) {
-      nudge();
-      return;
-    }
-    adding = true;
     try {
+      // Always parse what is in the field now, not what the debounce last saw.
+      const result = await parseNow();
+      if (!result || result.due == null) {
+        nudge();
+        return;
+      }
       const made = await Bridge.reminderAdd(result.text.trim() || input.value.trim(), result.due, deadline);
       input.value = "";
       parsed = null;

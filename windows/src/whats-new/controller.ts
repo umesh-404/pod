@@ -137,10 +137,6 @@ class WhatsNewController {
     void Bridge.openUrl(url);
   }
 
-  openCoffee(url: string) {
-    void Bridge.openUrl(url);
-  }
-
   done() {
     this.host?.collapse();
   }

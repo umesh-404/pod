@@ -293,6 +293,10 @@ struct Prefs {
     snoozed_version: Option<String>,
     snoozed_at: Option<i64>,
     asked_at: Option<i64>,
+    /// The version an automatic install was last started for. Still running
+    /// an older one means that install failed (Pod quit, nothing came back):
+    /// that version is then offered on the card, never installed silently again.
+    auto_tried: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -357,6 +361,8 @@ struct Inner {
 struct Ready {
     version: String,
     path: PathBuf,
+    /// Its SHA-256 as GitHub published it, checked again right before it runs.
+    sha256: String,
 }
 
 /// Checks on by default: only an explicit "off" stops them.
@@ -368,6 +374,17 @@ fn checks_on(prefs: &Prefs) -> bool {
 /// which updates without admin rights (the per-machine MSI would ask for them).
 fn auto_on(prefs: &Prefs) -> bool {
     checks_on(prefs) && prefs.auto_install != Some(false) && this_install() == InstallKind::Setup
+}
+
+/// Whether `version` may install by itself: automatic installs are on, and an
+/// automatic install of that very version hasn't already failed here.
+fn auto_for(prefs: &Prefs, version: &str) -> bool {
+    auto_on(prefs) && !auto_failed(prefs, version)
+}
+
+/// An automatic install of `version` was started, and Pod still isn't `version`.
+fn auto_failed(prefs: &Prefs, version: &str) -> bool {
+    prefs.auto_tried.as_deref() == Some(version) && is_newer(version, current_version())
 }
 
 impl Inner {
@@ -526,9 +543,9 @@ fn announce_if_due(app: &AppHandle) {
         let s = state();
         // Installing by itself, Pod doesn't interrupt with a card.
         !s.busy()
-            && !auto_on(&s.prefs)
             && s.latest.as_ref().is_some_and(|r| {
-                should_announce(&r.version, current_version(), s.prefs.snoozed_version.as_deref(), s.prefs.snoozed_at, now())
+                !auto_for(&s.prefs, &r.version)
+                    && should_announce(&r.version, current_version(), s.prefs.snoozed_version.as_deref(), s.prefs.snoozed_at, now())
             })
     };
     if due {
@@ -658,7 +675,7 @@ fn prepare_in_background(app: &AppHandle) {
         if s.ready.as_ref().is_some_and(|r| r.version == release.version && r.path.is_file()) {
             return;
         }
-        if pick_asset(&release, InstallKind::Setup).is_none() {
+        if pick_asset(&release, InstallKind::Setup).is_none() || !auto_for(&s.prefs, &release.version) {
             return;
         }
         s.preparing = true;
@@ -671,9 +688,9 @@ fn prepare_in_background(app: &AppHandle) {
             let mut s = state();
             s.preparing = false;
             match result {
-                Ok(path) => {
+                Ok((path, sha256)) => {
                     crate::log::line(format!("update: {} downloaded and verified, installs when you're away", release.version));
-                    s.ready = Some(Ready { version: release.version.clone(), path });
+                    s.ready = Some(Ready { version: release.version.clone(), path, sha256 });
                 }
                 Err(err) => crate::log::line(format!("update: background download failed: {err}")),
             }
@@ -696,7 +713,8 @@ fn prepare_in_background(app: &AppHandle) {
 fn install_when_away(app: &AppHandle) -> bool {
     let ready = {
         let mut s = state();
-        if s.busy() || !auto_on(&s.prefs) {
+        // Switched off, or this version already failed to install by itself.
+        if s.busy() || s.ready.as_ref().is_some_and(|r| !auto_for(&s.prefs, &r.version)) {
             return false;
         }
         match s.ready.clone() {
@@ -713,6 +731,22 @@ fn install_when_away(app: &AppHandle) -> bool {
         || idle_for() < AWAY
     {
         return false;
+    }
+    // The file waited in the temp folder, maybe for hours: checked again now,
+    // so what runs is exactly what GitHub published.
+    if !still_verified(&ready.path, &ready.sha256) {
+        crate::log::line(format!("update: the downloaded {} changed since it was checked, not running it", ready.version));
+        if let Some(dir) = ready.path.parent() {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+        state().ready = None;
+        return false;
+    }
+    {
+        // Remembered before Pod quits: if nothing comes back, it isn't tried again.
+        let mut s = state();
+        s.prefs.auto_tried = Some(ready.version.clone());
+        save_prefs(&s.prefs);
     }
     let started = std::process::Command::new(&ready.path).args(["/S", "/UPDATE", "/R"]).spawn();
     if let Err(err) = started {
@@ -797,7 +831,11 @@ pub fn install(app: &AppHandle) {
 }
 
 async fn run(app: &AppHandle, release: &Release, kind: InstallKind) -> Result<(), String> {
-    let path = fetch_verified(Some(app), release, kind).await?;
+    let (path, _) = fetch_verified(Some(app), release, kind).await?;
+    // The installer closes Pod: a conversion, zip or resize under way would be cut off.
+    if crate::files::busy() {
+        return Err(t("Pod is still working on your files. Update once that's done."));
+    }
     let system_root = std::env::var("SystemRoot").ok();
     let (program, args) = installer_command(kind, &path, system_root.as_deref())
         .ok_or_else(|| t("The download failed. Try again, or get the new version on GitHub."))?;
@@ -810,12 +848,17 @@ async fn run(app: &AppHandle, release: &Release, kind: InstallKind) -> Result<()
 
 /// Downloads the installer for `kind` into a fresh temp folder and checks it
 /// against GitHub's SHA-256. `app`: show progress on the card (None: in the
-/// background). Returns the verified file.
-async fn fetch_verified(app: Option<&AppHandle>, release: &Release, kind: InstallKind) -> Result<PathBuf, String> {
-    // The background download already left this version here, verified.
+/// background). Returns the verified file and its SHA-256.
+async fn fetch_verified(app: Option<&AppHandle>, release: &Release, kind: InstallKind) -> Result<(PathBuf, String), String> {
+    // The background download already left this version here, verified (and
+    // checked again: it may have waited in the temp folder for hours).
     if kind == InstallKind::Setup {
         if let Some(ready) = state().ready.clone().filter(|r| r.version == release.version && r.path.is_file()) {
-            return Ok(ready.path);
+            if still_verified(&ready.path, &ready.sha256) {
+                return Ok((ready.path, ready.sha256));
+            }
+            crate::log::line("update: the waiting download changed since it was checked, downloading again");
+            state().ready = None;
         }
     }
     let asset = pick_asset(release, kind).ok_or_else(|| t("The download failed. Try again, or get the new version on GitHub."))?;
@@ -842,7 +885,28 @@ async fn fetch_verified(app: Option<&AppHandle>, release: &Release, kind: Instal
         let _ = std::fs::remove_dir_all(&dir);
         return Err(t("The download isn't the file GitHub published for this version, so nothing was installed."));
     }
-    Ok(path)
+    Ok((path, expected))
+}
+
+/// SHA-256 of the file at `path`, as lowercase hex.
+fn sha256_file(path: &Path) -> std::io::Result<String> {
+    use std::io::Read;
+    let mut file = std::fs::File::open(path)?;
+    let mut hash = ring::digest::Context::new(&ring::digest::SHA256);
+    let mut buf = vec![0u8; 256 * 1024];
+    loop {
+        let n = file.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        hash.update(&buf[..n]);
+    }
+    Ok(hash.finish().as_ref().iter().map(|b| format!("{b:02x}")).collect())
+}
+
+/// The file at `path` still is the one checked against `sha256`.
+fn still_verified(path: &Path, sha256: &str) -> bool {
+    sha256_file(path).is_ok_and(|got| got.eq_ignore_ascii_case(sha256))
 }
 
 /// Streams the asset to `path` from GitHub only, hashing as it comes, with the
@@ -1217,9 +1281,44 @@ mod tests {
         assert_eq!(p, Prefs::default());
         let round: Prefs = serde_json::from_str(&serde_json::to_string(&Prefs {
             consent: Some(false), auto_install: Some(false), last_check: Some(5), snoozed_version: Some("0.6.0".into()), snoozed_at: Some(6), asked_at: Some(7),
+            auto_tried: Some("9.0.0".into()),
         }).unwrap()).unwrap();
         assert_eq!(round.snoozed_version.as_deref(), Some("0.6.0"));
         assert_eq!(round.asked_at, Some(7));
         assert_eq!(round.auto_install, Some(false));
+        assert_eq!(round.auto_tried.as_deref(), Some("9.0.0"));
+    }
+
+    #[test]
+    fn a_failed_automatic_install_is_not_tried_again_for_that_version() {
+        // Pod quit for the silent install of 999.0.0 and is still the old version:
+        // that install failed. Trying again would quit Pod every time the user
+        // steps away; the card offers it instead.
+        let tried = Prefs { auto_tried: Some("999.0.0".into()), ..Prefs::default() };
+        assert!(auto_failed(&tried, "999.0.0"));
+        assert!(!auto_for(&tried, "999.0.0"));
+        // A newer release is a new chance; and once installed, nothing is blocked.
+        assert!(!auto_failed(&tried, "999.0.1"));
+        assert!(!auto_failed(&Prefs { auto_tried: Some(current_version().into()), ..Prefs::default() }, current_version()));
+        assert!(!auto_failed(&Prefs::default(), "999.0.0"));
+    }
+
+    #[test]
+    fn a_waiting_installer_runs_only_while_it_still_matches_its_checksum() {
+        let dir = std::env::temp_dir().join(format!("pod-update-verify-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("Pod-Windows-9.9.9-setup.exe");
+        std::fs::write(&file, b"abc").unwrap();
+        // SHA-256 of "abc".
+        let abc = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+        assert_eq!(sha256_file(&file).unwrap(), abc);
+        assert!(still_verified(&file, abc));
+        assert!(still_verified(&file, &abc.to_ascii_uppercase()));
+        // Changed (or truncated, or removed) while it waited: never run.
+        std::fs::write(&file, b"abd").unwrap();
+        assert!(!still_verified(&file, abc));
+        std::fs::remove_file(&file).unwrap();
+        assert!(!still_verified(&file, abc));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

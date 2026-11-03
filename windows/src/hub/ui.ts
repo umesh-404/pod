@@ -96,7 +96,9 @@ export function button(text: string, onclick: () => void, kind: "" | "primary" |
 
 /** The settings window's switch, so both windows look alike. */
 export function toggle(on: boolean, onChange: (v: boolean) => void): HTMLElement {
-  const el = h("button", { class: on ? "switch on" : "switch", "aria-pressed": on });
+  // "true" / "false" spelled out: h() writes `true` as an empty attribute and
+  // leaves `false` out, and a screen reader then hears no switch at all.
+  const el = h("button", { class: on ? "switch on" : "switch", "aria-pressed": String(on) });
   el.addEventListener("click", () => {
     const next = !el.classList.contains("on");
     el.classList.toggle("on", next);

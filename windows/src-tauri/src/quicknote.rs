@@ -26,14 +26,25 @@ pub fn note_save(app: AppHandle, name: Option<String>, text: String) -> Result<S
         return Err(t("Notes are limited to 1 MB."));
     }
     let ws = crate::workspace::dir(&app);
+    let is_new = name.is_none();
     let path = match name {
         Some(name) => existing_note(&ws, &name)?,
         None => {
             std::fs::create_dir_all(&ws).map_err(|e| save_error(&e))?;
-            crate::files::unique_path(&ws, &note_name(&crate::platform::local_time()))
+            // Claimed (an empty file) so the rename below can't replace a file
+            // that took the name since `unique_path` looked.
+            let name = note_name(&crate::platform::local_time());
+            let (path, _) = crate::archive::create_unique(&ws, &name).map_err(|e| save_error(&e))?;
+            path
         }
     };
-    write_atomic(&path, text.as_bytes()).map_err(|e| save_error(&e))?;
+    if let Err(e) = write_atomic(&path, text.as_bytes()) {
+        if is_new {
+            // Only the empty file claimed above: no empty note is left on the shelf.
+            let _ = std::fs::remove_file(&path);
+        }
+        return Err(save_error(&e));
+    }
     Ok(file_name(&path))
 }
 

@@ -9,7 +9,7 @@ import { NO_UPDATE } from "../src/core/update.ts";
 import { BotEngine } from "../src/mochi/engine.ts";
 import { WHATS_NEW_ICONS } from "../src/whats-new/icons.ts";
 import {
-  COFFEE_URL, ICON_NAMES, LATER_MS, compareVersions, decideOnLaunch, iconName, localized, releaseFor,
+  ICON_NAMES, LATER_MS, compareVersions, decideOnLaunch, iconName, localized, releaseFor,
   releasePage, showsUpdateHint, soFar, updateWaiting, usedBefore,
 } from "../src/whats-new/whats-new.ts";
 

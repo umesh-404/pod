@@ -189,8 +189,6 @@ export function releasePage(platform: "windows" | "linux", version: string): str
   return `https://github.com/umesh-404/pod/releases/tag/${platform}-v${encodeURIComponent(version)}`;
 }
 
-/** Buy Mochi a coffee: the same Stripe link as the Pod page (docs/index.html). */
-export const COFFEE_URL = "https://buy.stripe.com/dRm6oGbfa7Kqcqs0hxes003";
 
 /** The blue of an update, and of the arrow badge. */
 export const UPDATE_BLUE = "#3B82F6";

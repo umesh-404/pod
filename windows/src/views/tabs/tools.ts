@@ -371,7 +371,7 @@ export function toolsTab(host: TabHost): Tab {
       if (visible.includes("clipboard")) void readClipboard();
       if (visible.includes("devservers")) {
         serversOff = listenWhile<DevServer[]>("dev-servers", (list) => paintServers(list));
-        void Bridge.devserversWatch(true);
+        void Bridge.devserversWatch(true, "tools");
         void Bridge.devserversNow().then((list) => {
           if (shown) paintServers(list);
         });
@@ -389,7 +389,7 @@ export function toolsTab(host: TabHost): Tab {
       if (serversOff) {
         serversOff();
         serversOff = null;
-        void Bridge.devserversWatch(false);
+        void Bridge.devserversWatch(false, "tools");
       }
     },
     height: () => toolsHeight(visibleTools()),

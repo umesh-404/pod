@@ -4,9 +4,9 @@
 
 Pod puts a small island at the top of your screen, with Mochi in the middle.
 It is a temporary workspace: drag files over it and drop them on an action
-(convert, zip, resize, PDF tools, move to your workspace folder), keep files on
+(convert, zip, resize, PDF tools, copy to your workspace folder), keep files on
 a shelf and drag copies back out, set reminders and deadlines that count down
-on the left of the notch, and see live items take turns on the right. Everything
+in the notch, and see live items take turns beside Mochi. Everything
 runs locally: no API keys, no accounts, and 0 % CPU while the island is hidden.
 
 Version 0.1.0 · Windows 10/11 · Linux (partial) · [Tauri 2](https://tauri.app) + Rust
@@ -18,10 +18,13 @@ Version 0.1.0 · Windows 10/11 · Linux (partial) · [Tauri 2](https://tauri.app
   - **Zip / Unzip**.
   - **Resize image**.
   - **PDF tools**: merge, split, rotate, compress, photos → PDF.
-  - **Move to workspace**.
+  - **Text from image** (Windows), **Remove EXIF**, **Video to GIF**,
+    **Compress video**, **SHA-256 checksum**, **Batch rename**.
+  - **Copy to workspace**.
 
-  Originals are never overwritten, and only files you actually dropped can be
-  touched.
+  What an action makes is saved in the workspace folder. Originals are never
+  overwritten (Batch rename renames in place, with Undo), and only files you
+  actually dropped can be touched.
 - **Shelf.** The files in your workspace folder, with thumbnails. Drag one out
   to drop a copy wherever you are working.
 - **Reminders and deadlines.** Type "call Sam at 4pm" or "essay in 3 days". The

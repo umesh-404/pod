@@ -358,8 +358,9 @@ select option {
 }
 
 /* Arabic: the window reads right to left (main.ts sets <html dir="rtl">);
-   diffs, paths, keys and addresses stay left to right. */
-html[dir="rtl"] :is(.diff, .path, .keycap, input[type="password"], input[type="text"]) {
+   diffs, paths, keys and addresses stay left to right. The settings search
+   is typed in the window's language, so it reads right to left. */
+html[dir="rtl"] :is(.diff, .path, .keycap, input[type="password"], input[type="text"]:not(.hub-search-input)) {
   direction: ltr;
 }
 

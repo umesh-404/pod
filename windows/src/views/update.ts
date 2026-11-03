@@ -79,7 +79,8 @@ export function buildUpdate(): ViewHost {
       switch (phase.kind) {
         case "downloading": {
           bar.style.display = "";
-          fill.style.width = `${percent(phase.fraction)}%`;
+          // Scaled, not resized: only the transform moves (style.css .update-bar .fill).
+          fill.style.transform = `scaleX(${percent(phase.fraction) / 100})`;
           line.textContent = t("Downloading from GitHub… {percent} %", { percent: percent(phase.fraction) });
           buttons("busy", () => []);
           return;

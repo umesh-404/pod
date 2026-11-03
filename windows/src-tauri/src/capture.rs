@@ -47,9 +47,19 @@ pub(crate) fn screenshot_name(now: &LocalTime) -> String {
     )
 }
 
-/// Where the new screenshot goes: a free name in the workspace, which is
-/// created when it isn't there yet.
+/// Where the new screenshot goes: a free name in the workspace (created when
+/// it isn't there yet), claimed with an empty file so nothing that appears
+/// there meanwhile is written over. Whoever fails to fill it removes it.
 fn destination(ws: &Path) -> Result<PathBuf, String> {
+    std::fs::create_dir_all(ws).map_err(|e| save_error(&e.to_string()))?;
+    let name = screenshot_name(&crate::platform::local_time());
+    crate::archive::create_unique(ws, &name).map(|(path, _)| path).map_err(|e| save_error(&e.to_string()))
+}
+
+/// A free name in the workspace, not claimed: for a screenshot tool that
+/// writes the file itself and may refuse or rename an existing one.
+#[cfg(target_os = "linux")]
+fn free_destination(ws: &Path) -> Result<PathBuf, String> {
     std::fs::create_dir_all(ws).map_err(|e| save_error(&e.to_string()))?;
     Ok(crate::files::unique_path(ws, &screenshot_name(&crate::platform::local_time())))
 }
@@ -102,6 +112,7 @@ fn save_png(dest: &Path, width: usize, height: usize, mut rgba: Vec<u8>) -> Resu
     opaque_if_blank_alpha(&mut rgba);
     let (w, h) = (u32::try_from(width).unwrap_or(0), u32::try_from(height).unwrap_or(0));
     let Some(img) = image::RgbaImage::from_raw(w, h, rgba) else {
+        let _ = std::fs::remove_file(dest);
         return Err(save_error("bad image data"));
     };
     img.save_with_format(dest, image::ImageFormat::Png).map_err(|e| {
@@ -149,7 +160,7 @@ fn with_tool(ws: &Path) -> Result<PathBuf, String> {
     use std::process::{Command, Stdio};
     use std::time::{Duration, Instant};
 
-    let dest = destination(ws)?;
+    let dest = free_destination(ws)?;
     let target = dest.to_string_lossy().to_string();
     let (program, args): (&str, Vec<String>) = if which("gnome-screenshot") {
         ("gnome-screenshot", vec!["-a".into(), "-f".into(), target])

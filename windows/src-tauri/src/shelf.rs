@@ -137,8 +137,7 @@ pub fn shelf_add(app: AppHandle) -> Result<Vec<String>, String> {
             continue;
         }
         let Some(name) = src.file_name().map(|n| n.to_string_lossy().into_owned()) else { continue };
-        let dest = crate::files::unique_path(&ws, &name);
-        std::fs::copy(&src, &dest).map_err(|e| tf("Cannot copy: {error}", &[("error", &e.to_string())]))?;
+        let dest = crate::files::copy_new(&src, &ws, &name).map_err(|e| tf("Cannot copy: {error}", &[("error", &e.to_string())]))?;
         if let Some(n) = dest.file_name() {
             added.push(n.to_string_lossy().into_owned());
         }

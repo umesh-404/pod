@@ -13,7 +13,7 @@ import type { UpdateStatus } from "../core/update";
 import { SOUND_NAMES } from "../core/sound";
 import { h, clear } from "../views/dom";
 import { startHub, type PageId } from "../hub/shell";
-import { anchor } from "../hub/ui";
+import { anchor, toggle } from "../hub/ui";
 import { updateRows, updatesListener } from "./updates";
 import { workspaceListener, workspaceSection, type FfmpegDownloadEvent } from "./workspace";
 import { featuresSections } from "./features";
@@ -44,16 +44,14 @@ const access: SettingsAccess = {
   },
 };
 
-// ── Reusable bits ─────────────────────────────────────────────────────────────
+/** The General page on screen, told when the settings change elsewhere (the
+ *  island mutes the sound, sets the volume or the auto-close delay). */
+let generalListener: { sync(): void } | null = null;
 
-function toggle(on: boolean, onChange: (v: boolean) => void): HTMLElement {
-  const el = h("button", { class: on ? "switch on" : "switch", "aria-pressed": on });
-  el.addEventListener("click", () => {
-    const next = !el.classList.contains("on");
-    el.classList.toggle("on", next);
-    onChange(next);
-  });
-  return el;
+/** A switch shows `on` (it changed elsewhere), unless it is the one being used. */
+function setSwitch(el: HTMLElement, on: boolean) {
+  el.classList.toggle("on", on);
+  el.setAttribute("aria-pressed", String(on));
 }
 
 // ── General ───────────────────────────────────────────────────────────────────
@@ -119,25 +117,45 @@ function generalSection(): HTMLElement {
     void save();
   });
 
+  const sound = toggle(settings.soundEnabled, (v) => { settings.soundEnabled = v; void save(); });
+  const hover = toggle(settings.openOnHover, (v) => { settings.openOnHover = v; void save(); });
+  const clock = toggle(settings.showClock, (v) => { settings.showClock = v; void save(); });
+  const startup = toggle(settings.autostart, (v) => { settings.autostart = v; void save(); });
+  generalListener = {
+    sync() {
+      if (!volume.isConnected) return; // another page is on screen
+      setSwitch(sound, settings.soundEnabled);
+      setSwitch(hover, settings.openOnHover);
+      setSwitch(clock, settings.showClock);
+      setSwitch(startup, settings.autostart);
+      // A field being typed in or dragged keeps what the user is doing.
+      if (document.activeElement !== volume) volume.value = String(settings.soundVolume);
+      if (document.activeElement !== autoClose) autoClose.value = String(Math.round(settings.autoCloseInterval));
+      if (document.activeElement !== screen && [...screen.options].some((o) => o.value === settings.screen)) {
+        screen.value = settings.screen;
+      }
+    },
+  };
+
   return h(
     "section",
     {},
     h("h2", {}, h("span", { text: t("General") })),
     h("div", { class: "row", "data-anchor": "general.sound" },
       h("label", { text: t("Sound") }),
-      toggle(settings.soundEnabled, (v) => { settings.soundEnabled = v; void save(); }),
+      sound,
       volume,
     ),
     h("div", { class: "row" }, soundsFolder, reloadSounds, customCount),
     h("div", { class: "hint", text: t("Drop a file named like one of Mochi's sounds (finish.wav, approval.mp3, greet.m4a…) in the sounds folder to replace it, then Reload.") }),
     h("div", { class: "row", "data-anchor": "general.hover" },
       h("label", { text: t("Open on hover") }),
-      toggle(settings.openOnHover, (v) => { settings.openOnHover = v; void save(); }),
+      hover,
     ),
     h("div", { class: "hint", text: t("Hovering the island opens it; it folds again shortly after the pointer leaves. Click inside to keep it open.") }),
     h("div", { class: "row", "data-anchor": "general.clock" },
       h("label", { text: t("Show clock in the island") }),
-      toggle(settings.showClock, (v) => { settings.showClock = v; void save(); }),
+      clock,
     ),
     h("div", { class: "hint", text: t("The date and the time in the middle of the island when it is compact.") }),
     h("div", { class: "row", "data-anchor": "general.autoclose" },
@@ -151,7 +169,7 @@ function generalSection(): HTMLElement {
     ),
     h("div", { class: "row", "data-anchor": "general.startup" },
       h("label", { text: t("Launch at startup") }),
-      toggle(settings.autostart, (v) => { settings.autostart = v; void save(); }),
+      startup,
     ),
     ...updateRows(toggle, version).map((row, i) => (i === 0 ? anchor("general.update", row) : row)),
     languageRow(),
@@ -438,6 +456,7 @@ async function main() {
   void onEvent<Settings>("settings-changed", (s) => {
     settings = { ...settings, ...s };
     shortcutsListener?.settingsChanged();
+    generalListener?.sync();
     workspaceListener?.refresh();
     applyLanguage();
   });
@@ -450,6 +469,7 @@ let notchPage: PageId = "general";
 async function render() {
   const shortcutReport = notchPage === "shortcuts" ? await Bridge.shortcutsStatus() : null;
   shortcutsListener = null;
+  generalListener = null;
   clear(root);
   const sections: Record<PageId, () => HTMLElement[]> = {
     general: () => [anchor("general.workspace", workspaceSection()), generalSection()],

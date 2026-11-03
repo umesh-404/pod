@@ -36,6 +36,12 @@ export class IslandStateMachine {
    * General → Open on hover, off by default), as IslandStateMachine.openOnHover.
    */
   openOnHover = false;
+  /**
+   * Tray → Pause: the hidden island stays hidden. A hover over the wake strip
+   * or a reveal (a reminder, music, the window uncovering it) must not bring
+   * it back; only an explicit open (forceHome / forcePetit) or resuming does.
+   */
+  paused = false;
   /** Grace period after the pointer leaves a hover-opened island, seconds. */
   hoverCloseDelay = 0.6;
   /** Open because of a hover, until the user clicks inside it. */
@@ -66,6 +72,7 @@ export class IslandStateMachine {
   }
 
   mouseEntered() {
+    if (this.paused && this.state === "hidden") return;
     this.entered = true;
     if (this.openOnHover && (this.state === "hidden" || this.state === "petit") && !this.pinned) {
       this.cancelTimers();
@@ -125,7 +132,7 @@ export class IslandStateMachine {
 
   /** Non-alert work event: show compact from hidden. */
   reveal() {
-    if (this.state !== "hidden") return;
+    if (this.state !== "hidden" || this.paused) return;
     this.cancelTimers();
     this.transition("petit");
     // Something to see (a reminder, music): long enough to read, even tucked.

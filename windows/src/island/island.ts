@@ -25,6 +25,7 @@ import { NotchSides } from "./notch";
 import { IslandTabs, TAB_INTENT_EVENT } from "./tabs";
 import type { TabId } from "../views/tabs/tab";
 import { UPDATE_BLUE, showsUpdateHint } from "../whats-new/whats-new";
+import { language } from "../i18n/i18n";
 
 const BOT_OVERHANG = 40;
 const UPDATE_BLUE_RGB = hexToRGB(UPDATE_BLUE);
@@ -189,7 +190,8 @@ export class Island {
       setView: (v) => this.setView(v),
       setTab: (id) => this.openTab(id),
       collapse: () => this.collapse(),
-      openWorkspace: () => void Bridge.workspaceOpen(),
+      // A folder that can't be opened says so instead of an unhandled rejection.
+      openWorkspace: () => void Bridge.workspaceOpen().catch(() => Sound.play("error")),
       toggleSound: () => {
         State.settings.soundEnabled = !State.settings.soundEnabled;
         Sound.setEnabled(State.settings.soundEnabled);
@@ -502,6 +504,11 @@ export class Island {
    * ("Pod X is out", Update now); otherwise the usual view.
    */
   private openingView(): IslandViewName {
+    // A card folded away while it waits for an answer (Escape on "Choose a
+    // format", the text read from a picture…) still holds the island: it opens
+    // on that card again, or it could never be answered and its hold would keep
+    // the island from ever folding or tucking on its own.
+    if (State.fileAction && this.holds.has("file")) return "fileAction";
     return this.updateHintOn() ? "update" : State.defaultView();
   }
 
@@ -811,7 +818,7 @@ export class Island {
     // The wake strip is the only thing the OS can hit while the island is hidden.
     this.wakeStrip.addEventListener("mouseenter", () => {
       Sound.resume();
-      if (State.mode !== "hidden") return;
+      if (State.mode !== "hidden" || State.paused) return;
       // The pointer is on the tucked pill: the island it opens into must see it
       // there, or it folds straight back (the cursor poll takes over from here).
       this.wasInIsland = true;
@@ -1228,15 +1235,15 @@ export class Island {
     // The state machine's own deadline, so the bar follows an auto-close delay
     // edited while the countdown runs.
     const dueAt = this.fsm.homeCollapseDueAt;
-    if (State.mode !== "expanded" || State.isPinned || dueAt == null) {
-      this.countdown.style.width = "0px";
-      return;
+    let fraction = 0;
+    if (State.mode === "expanded" && !State.isPinned && dueAt != null) {
+      const windowS = Math.min(10, this.fsm.homeToPetitDelay * 0.6);
+      const remaining = (dueAt - nowMs) / 1000;
+      if (remaining < windowS) fraction = clamp(remaining / windowS, 0, 1);
     }
-    const autoClose = this.fsm.homeToPetitDelay;
-    const windowS = Math.min(10, autoClose * 0.6);
-    const remaining = (dueAt - nowMs) / 1000;
-    this.countdown.style.width =
-      remaining < windowS ? `${Math.max(0, clamp(remaining / windowS, 0, 1) * 160)}px` : "0px";
+    // The bar is 160 px wide and scaled (style.css): only its transform moves.
+    const transform = `translateX(-50%) scaleX(${fraction.toFixed(4)})`;
+    if (this.countdown.style.transform !== transform) this.countdown.style.transform = transform;
   }
 
   // ── DOM sync ────────────────────────────────────────────────────────────────
@@ -1281,12 +1288,24 @@ export class Island {
   private updateClock() {
     const on = State.mode === "compact" && State.settings.showClock;
     this.clockEl.style.opacity = on ? "1" : "0";
-    if (!on) return;
+    // One timer, for the next minute, and only while the clock shows: nothing
+    // wakes up for it while the island is open, tucked or hidden.
+    if (!on) {
+      if (this.clockTimer != null) window.clearTimeout(this.clockTimer);
+      this.clockTimer = undefined;
+      return;
+    }
     const now = new Date();
-    const date = now.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
-    const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    // In the language Pod speaks, like the rest of the island.
+    const lang = language();
+    const date = now.toLocaleDateString(lang, { weekday: "short", day: "numeric", month: "short" });
+    const time = now.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" });
     const text = `${date}  ${time}`;
     if (this.clockEl.textContent !== text) this.clockEl.textContent = text;
+    this.clockTimer ??= window.setTimeout(() => {
+      this.clockTimer = undefined;
+      this.updateClock();
+    }, 60_000 - (now.getTime() % 60_000) + 50);
   }
 
   /** Applies settings coming from Rust at boot. */
@@ -1301,8 +1320,6 @@ export class Island {
     // A tab switched off while it shows: the island takes the next one's size.
     if (`${State.tabs.join(",")}|${State.tab}` !== tabsBefore && State.mode === "expanded") this.animateGeometry(false);
     State.notify();
-    // ponytail: one timer for the life of the window; a minute is the clock's finest tick.
-    this.clockTimer ??= window.setInterval(() => this.updateClock(), 10_000);
   }
 
   /** After boot: the notch's sides read what is already there (reminders, shelf). */

@@ -10,8 +10,8 @@ labels: bug
 
 **How to reproduce**
 
-**macOS version**
+**Windows or Linux version** (for Linux: the distribution and the desktop, e.g. Ubuntu 24.04, GNOME)
 
-**Mac model**
+**Pod version** (Settings → General, under Updates)
 
-**Pod version**
+**How Pod was installed** (setup.exe, .msi, AppImage, .deb, .rpm, Arch package, built from source)

@@ -55,7 +55,8 @@ export async function startHub(root: HTMLElement, opts: HubOptions) {
     }
   }
 
-  async function show(page: PageId, targetAnchor?: string) {
+  /** `keepScroll`: the same page drawn again (a new language), where it was scrolled to. */
+  async function show(page: PageId, targetAnchor?: string, keepScroll = false) {
     const def = ALL.find((p) => p.id === page) ?? ALL[0];
     current = def.id;
     activeAnchor = targetAnchor ?? null;
@@ -68,8 +69,13 @@ export async function startHub(root: HTMLElement, opts: HubOptions) {
     page_.append(container);
     await opts.renderPage(def.id, container);
     if (token !== rendering) return;
+    const top = scroll.scrollTop;
     clear(scroll);
     scroll.append(page_);
+    if (keepScroll) {
+      scroll.scrollTop = top;
+      return;
+    }
     if (targetAnchor) {
       const el = page_.querySelector(`[data-anchor="${targetAnchor}"]`) as HTMLElement | null;
       if (el) {
@@ -216,7 +222,7 @@ export async function startHub(root: HTMLElement, opts: HubOptions) {
         if (label) label.textContent = p.title();
       }
       notchGroup.textContent = t("Notch");
-      void show(current);
+      void show(current, undefined, true);
     },
     current: () => current,
   };

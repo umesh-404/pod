@@ -280,24 +280,31 @@ fn move_in(src: &Path, ws: &Path, home: &Path) -> Result<PathBuf, String> {
     if is_protected(home, &src_canon) {
         return Err(t("This is a system folder; Pod won't move it."));
     }
-    let dest = crate::files::unique_path(ws, &name.to_string_lossy());
-    // A copy: the dropped original stays where it was.
-    if let Err(e) = copy_tree(src, &dest) {
-        // `dest` did not exist before, so everything there is our half copy.
-        remove_tree(&dest);
-        return Err(e.to_string());
+    // A copy: the dropped original stays where it was. A name taken since
+    // `unique_path` looked (another drop, another job) is skipped, never used.
+    let name = name.to_string_lossy();
+    for _ in 0..32 {
+        let dest = crate::files::unique_path(ws, &name);
+        match copy_fresh(src, &dest) {
+            Ok(()) => return Ok(dest),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e.to_string()),
+        }
     }
-    Ok(dest)
+    Err(io::Error::from(io::ErrorKind::AlreadyExists).to_string())
 }
 
 /// Renames `src` to `dest`, or copies then removes it when they are on
 /// different drives. `dest` must not exist.
 fn move_entry(src: &Path, dest: &Path) -> Result<(), String> {
+    let taken = || tf("{path} already exists.", &[("path", &display(dest))]);
     if std::fs::symlink_metadata(dest).is_ok() {
-        return Err(tf("{path} already exists.", &[("path", &display(dest))]));
+        return Err(taken());
     }
-    match std::fs::rename(src, dest) {
+    // `std::fs::rename` would replace a file that appeared there meanwhile.
+    match crate::rename::rename_no_replace(src, dest) {
         Ok(()) => Ok(()),
+        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Err(taken()),
         Err(e) if crosses_devices(&e) => copy_then_remove(src, dest),
         Err(e) => Err(e.to_string()),
     }
@@ -311,14 +318,45 @@ fn crosses_devices(e: &io::Error) -> bool {
 
 /// The move across drives: the original goes only once the copy is complete.
 fn copy_then_remove(src: &Path, dest: &Path) -> Result<(), String> {
-    if let Err(e) = copy_tree(src, dest) {
-        // `dest` did not exist before, so everything there is our half copy.
-        remove_tree(dest);
-        return Err(e.to_string());
-    }
+    copy_fresh(src, dest).map_err(|e| e.to_string())?;
     if let Err(e) = remove_original(src) {
         // The copy is whole, so nothing is lost; some of the original stays behind.
         crate::log::line(format!("workspace: copied {} but could not remove it: {e}", src.display()));
+    }
+    Ok(())
+}
+
+/// Copies `src` to `dest`, which must not exist. `dest` is created first and
+/// exclusively (a new file, folder or link): something that appeared there
+/// since `unique_path` looked is never written over, and the copy then fails
+/// with AlreadyExists without removing it. A copy that fails later removes
+/// only what it made itself.
+fn copy_fresh(src: &Path, dest: &Path) -> io::Result<()> {
+    let kind = std::fs::symlink_metadata(src)?.file_type();
+    if kind.is_symlink() {
+        // Making the link is the whole copy, and it never replaces anything.
+        return copy_link(src, dest);
+    }
+    if kind.is_dir() {
+        std::fs::create_dir(dest)?;
+    } else {
+        std::fs::OpenOptions::new().write(true).create_new(true).open(dest)?;
+    }
+    // Everything at `dest` is ours from here on.
+    let filled = if kind.is_dir() { copy_children(src, dest) } else { std::fs::copy(src, dest).map(|_| ()) };
+    if let Err(e) = filled {
+        remove_tree(dest);
+        // Not AlreadyExists any more: that kind means "`dest` was taken".
+        return Err(if e.kind() == io::ErrorKind::AlreadyExists { io::Error::other(e) } else { e });
+    }
+    Ok(())
+}
+
+/// Copies what is in the folder `src` into the folder `dest`, which is ours.
+fn copy_children(src: &Path, dest: &Path) -> io::Result<()> {
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        copy_tree(&entry.path(), &dest.join(entry.file_name()))?;
     }
     Ok(())
 }
@@ -330,11 +368,7 @@ fn copy_tree(src: &Path, dest: &Path) -> io::Result<()> {
         copy_link(src, dest)
     } else if kind.is_dir() {
         std::fs::create_dir(dest)?;
-        for entry in std::fs::read_dir(src)? {
-            let entry = entry?;
-            copy_tree(&entry.path(), &dest.join(entry.file_name()))?;
-        }
-        Ok(())
+        copy_children(src, dest)
     } else {
         std::fs::copy(src, dest).map(|_| ())
     }
@@ -547,6 +581,31 @@ mod tests {
         assert!(copy_then_remove(&src, &dest).is_err());
         assert!(src.join("a.txt").exists());
         assert!(!dest.exists());
+    }
+
+    #[test]
+    fn a_name_taken_meanwhile_is_never_written_over_or_removed() {
+        // `unique_path` found the name free, then something else (another
+        // drop, another job) took it before the copy started.
+        let s = Scratch::new();
+        let theirs = s.0.join("project");
+        write(&theirs.join("keep.txt"), "theirs");
+        let src = s.0.join("out").join("project");
+        write(&src.join("a.txt"), "ours");
+        let err = copy_fresh(&src, &theirs).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
+        assert_eq!(std::fs::read_to_string(theirs.join("keep.txt")).unwrap(), "theirs");
+        assert!(!theirs.join("a.txt").exists());
+        // The cross-drive move refuses it too, and keeps the original.
+        assert!(copy_then_remove(&src, &theirs).is_err());
+        assert!(theirs.join("keep.txt").is_file() && src.join("a.txt").is_file());
+
+        let file = s.0.join("note.txt");
+        write(&file, "theirs");
+        let other = s.0.join("out").join("note.txt");
+        write(&other, "ours");
+        assert_eq!(copy_fresh(&other, &file).unwrap_err().kind(), io::ErrorKind::AlreadyExists);
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "theirs");
     }
 
     #[test]

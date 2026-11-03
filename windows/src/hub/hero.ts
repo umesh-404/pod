@@ -19,6 +19,8 @@ interface Animated {
   /** Pages are built before they are put in the window: dropped only once gone. */
   shown?: boolean;
   born?: number;
+  /** Called once when it is dropped: listeners outside its own canvas go with it. */
+  drop?: () => void;
 }
 
 const live = new Set<Animated>();
@@ -40,7 +42,10 @@ function loop(now: number) {
   for (const a of live) {
     if (!a.el.isConnected) {
       // Built but not shown yet: wait for it (a few seconds at most).
-      if (a.shown || now - (a.born ??= now) > 5000) live.delete(a);
+      if (a.shown || now - (a.born ??= now) > 5000) {
+        live.delete(a);
+        a.drop?.();
+      }
       continue;
     }
     a.shown = true;
@@ -347,12 +352,23 @@ export function liveMochi(canvas: HTMLCanvasElement, color = "#F5F6F8", state: B
   engine.setState(state, true);
   canvas.addEventListener("click", () => engine.slap());
   let mouse: { x: number; y: number } | null = null;
-  window.addEventListener("pointermove", (e) => {
+  // The eyes follow the pointer anywhere in the window. The listener is the
+  // window's, so it is removed with the canvas (the Notch page's preview builds
+  // a new Mochi on every visit), never left behind.
+  let seen = false;
+  const onMove = (e: PointerEvent) => {
+    if (!canvas.isConnected) {
+      if (seen) window.removeEventListener("pointermove", onMove);
+      return;
+    }
+    seen = true;
     const r = canvas.getBoundingClientRect();
     mouse = { x: e.clientX - (r.left + r.width / 2), y: e.clientY - (r.top + r.height / 2) };
-  });
+  };
+  window.addEventListener("pointermove", onMove);
   add({
     el: canvas,
+    drop: () => window.removeEventListener("pointermove", onMove),
     draw(dt) {
       const { w, h, ctx } = fit(canvas);
       if (!ctx || w === 0) return;

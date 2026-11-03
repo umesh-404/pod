@@ -380,3 +380,25 @@ test("open on hover: an island opened by an alert keeps the normal delay until t
   seconds(1);
   assert.equal(fsm.state, "petit");
 });
+
+test("paused, the hidden island stays hidden: no hover, reveal or hover-open brings it back", () => {
+  fsm.stayCompact = true;
+  fsm.openOnHover = true;
+  fsm.paused = true;
+  fsm.mouseEntered();
+  fsm.reveal();
+  fsm.mouseLeft();
+  seconds(120);
+  assert.equal(fsm.state, "hidden");
+  assert.deepEqual(transitions, []);
+  // Resuming (tray, a shortcut) opens it as usual.
+  fsm.paused = false;
+  fsm.reveal();
+  assert.equal(fsm.state, "petit");
+});
+
+test("paused, an explicit open (tray, shortcut) still opens it", () => {
+  fsm.paused = true;
+  fsm.forceHome();
+  assert.equal(fsm.state, "home");
+});

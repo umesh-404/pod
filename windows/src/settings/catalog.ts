@@ -158,6 +158,28 @@ export function sideSettingsOf(rows: Record<Side, readonly RightRow[]>): {
   return { leftWidgets: on("left"), rightWidgets: on("right"), leftOff: off("left"), rightOff: off("right") };
 }
 
+/** Ids an older Pod wrote that mean nothing on a side any more ("privacy" has its own lights). */
+const RETIRED_SIDE_IDS = new Set(["privacy"]);
+
+/**
+ * What the settings store for these rows, keeping the ids this build doesn't
+ * know (a newer Pod's items, after going back to this one) at the end of the
+ * list they were in, as settings.rs keeps them: a change made here never drops
+ * them.
+ */
+export function sideSettingsKeeping(saved: NotchSides, rows: Record<Side, readonly RightRow[]>): {
+  leftWidgets: string[]; rightWidgets: string[]; leftOff: string[]; rightOff: string[];
+} {
+  const out = sideSettingsOf(rows);
+  for (const key of ["leftWidgets", "rightWidgets", "leftOff", "rightOff"] as const) {
+    for (const id of saved[key] ?? []) {
+      if (typeof id !== "string" || SIDE_IDS.includes(id) || RETIRED_SIDE_IDS.has(id) || out[key].includes(id)) continue;
+      out[key].push(id);
+    }
+  }
+  return out;
+}
+
 /**
  * The rows with item `id` moved to `side` at `index` (its end when left out),
  * on the same side or across. Nothing changes for an unknown id.

@@ -57,7 +57,7 @@ jobs:
       - name: Island tests
         run: npm test
 
-      # Every release brings its "What's new" in the 12 languages (src/whats-new/whats-new.json).
+      # Every release brings its "What's new" in the 14 languages (src/whats-new/whats-new.json).
       - name: What's new for this version
         run: python scripts/test-whats-new.py
 

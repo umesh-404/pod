@@ -19,7 +19,7 @@ sounds, which may not be redistributed (see [LICENSE-ASSETS.md](../LICENSE-ASSET
 
 | Where | What |
 |---|---|
-| **Drop actions** | Drag files over the island and tiles appear: **Convert File Format** (video, audio, images, with ffmpeg), **Zip / Unzip**, **Resize image**, **PDF tools** (merge, split, rotate, compress, photos → PDF), **Text from image** (Windows OCR), **Remove EXIF**, **Video to GIF**, **Compress video**, **SHA-256 checksum**, **Batch rename**, **Move to workspace**. What an action makes is saved in the workspace folder |
+| **Drop actions** | Drag files over the island and tiles appear: **Convert File Format** (video, audio, images, with ffmpeg), **Zip / Unzip**, **Resize image**, **PDF tools** (merge, split, rotate, compress, photos → PDF), **Text from image** (Windows OCR), **Remove EXIF**, **Video to GIF**, **Compress video**, **SHA-256 checksum**, **Batch rename**, **Copy to workspace**. What an action makes is saved in the workspace folder |
 | **Shelf** tab | The files in your workspace folder, with thumbnails. Drag one out to drop a copy anywhere; remove one to send it to the Recycle Bin / Trash |
 | **Reminders** tab | Type "call Sam at 4pm" or "essay in 2 days": reminders and deadlines, with a sound when one is due |
 | **Notes** tab | Plain-text notes, saved as `.md` files on the shelf |
@@ -57,9 +57,8 @@ taskbar when there is one.
    move or zip any file the user can read; this way it can't.
 
 The same rules hold everywhere a file is written: outputs go to the
-workspace folder, the original is never touched (except **Move to
-workspace**, which moves it, and **Batch rename**, which renames it in place,
-with Undo), nothing is ever
+workspace folder, the original is never touched (except by **Batch rename**,
+which renames it in place, with Undo), nothing is ever
 overwritten (a taken name gets " (2)", " (3)"…), and a half-written output is
 removed.
 
@@ -73,12 +72,13 @@ removed.
 
 ### The workspace
 
-**Move to workspace** moves files into one folder, `~/Notch Workspace` by
-default, changed in Settings (`workspace.rs`). The shelf shows that folder and
-watches it with `notify` (no polling). Across drives a move is a copy, and the
-original is removed only once the whole copy succeeded. The home folder, a drive
-root and the usual system folders are never moved, emptied or removed. Changing
-the folder moves what is in the old one to the new one, after asking.
+**Copy to workspace** copies dropped files into one folder, `~/Notch Workspace`
+by default, changed in Settings (`workspace.rs`); the originals stay where they
+were. The shelf shows that folder and watches it with `notify` (no polling).
+Changing the folder moves what is in the old one to the new one, after asking:
+across drives a move is a copy, and the original is removed only once the whole
+copy succeeded. The home folder, a drive root and the usual system folders are
+never moved, emptied or removed.
 
 A name coming from the page (shelf, notes) must be a single file name directly
 in the workspace, never a path, so the page can't reach anything else. A drag

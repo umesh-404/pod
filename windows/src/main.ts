@@ -59,6 +59,8 @@ async function main() {
   const setPaused = (on: boolean) => {
     if (State.paused === on) return;
     State.paused = on;
+    // Paused, the hidden island stays hidden: no hover or reveal brings it back.
+    island.fsm.paused = on;
     void Bridge.setPaused(on);
   };
 

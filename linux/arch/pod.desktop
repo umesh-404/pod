@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=Pod
-Comment=Mochi lives at the top of your screen and keeps an eye on your Claude Code sessions
+Comment=A temporary workspace at the top of your screen: drop files to convert, zip, resize or keep them
 Exec=pod
 Icon=pod
 Terminal=false

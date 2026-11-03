@@ -21,20 +21,27 @@ let settings: Record<string, unknown> = {
   ...(list("left") ? { leftWidgets: list("left") } : {}),
   ...(list("right") ? { rightWidgets: list("right") } : {}),
 };
-const listeners = new Map<string, (e: { event: string; id: number; payload: unknown }) => void>();
+type Handler = (e: { event: string; id: number; payload: unknown }) => void;
+/** Every page listens to some events more than once (hub-visible: the shell, main, the preview). */
+const listeners = new Map<string, Handler[]>();
+const emit = (event: string, payload: unknown) => {
+  for (const handler of listeners.get(event) ?? []) handler({ event, id: 0, payload });
+};
 
 (window as unknown as { __TAURI_INTERNALS__: unknown }).__TAURI_INTERNALS__ = {
   transformCallback: (callback: unknown) => callback,
   invoke: async (cmd: string, args: Record<string, unknown> = {}) => {
     switch (cmd) {
       case "plugin:event|listen":
-        listeners.set(args.event as string, args.handler as never);
+        listeners.set(args.event as string, [...(listeners.get(args.event as string) ?? []), args.handler as Handler]);
         return listeners.size;
       case "boot":
         return { settings, version: "dev", screen: { x: 0, y: 0, width: 1920, height: 1080, scale: 1 }, cursorPoll: false };
       case "save_settings":
         settings = args.settings as Record<string, unknown>;
         console.info("[dev] saved", settings);
+        // As save_settings does: every window hears about it, this one included.
+        setTimeout(() => emit("settings-changed", settings), 0);
         return null;
       case "hub_shown":
         return true;
@@ -48,5 +55,5 @@ await import("../src/settings/main");
 // Once the window is up, on the page asked for.
 const page = query.get("page") ?? "notch";
 for (let i = 0; i < 50 && !listeners.has("hub-page"); i++) await new Promise((r) => setTimeout(r, 20));
-listeners.get("hub-page")?.({ event: "hub-page", id: 0, payload: page });
-(window as unknown as { podDev: unknown }).podDev = { settings: () => settings, emit: (event: string, payload: unknown) => listeners.get(event)?.({ event, id: 0, payload }) };
+emit("hub-page", page);
+(window as unknown as { podDev: unknown }).podDev = { settings: () => settings, emit };

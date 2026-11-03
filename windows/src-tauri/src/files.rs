@@ -124,9 +124,8 @@ pub fn ingest(source: &str) -> Result<DroppedFile, String> {
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "file".into());
 
-    let dest = unique_path(&dir, &name);
-
-    std::fs::copy(src, &dest).map_err(|e| crate::i18n::tf("Cannot copy: {error}", &[("error", &e.to_string())]))?;
+    let dest =
+        copy_new(src, &dir, &name).map_err(|e| crate::i18n::tf("Cannot copy: {error}", &[("error", &e.to_string())]))?;
     // CopyFileEx carries the source's timestamps across, so a file last edited
     // three years ago would arrive already older than the sweep window and be
     // deleted on the spot. The inbox ages from when *we* copied it.
@@ -162,6 +161,32 @@ pub fn unique_path(dir: &Path, name: &str) -> PathBuf {
         .unwrap_or(first)
 }
 
+/// Copies `src` into `dir` as `name` (or "name (2)"…). The name is claimed
+/// first (`create_new`), so a file that appeared since `unique_path` looked —
+/// another drop, another job — is never overwritten; a failed copy removes
+/// only its own file.
+pub(crate) fn copy_new(src: &Path, dir: &Path, name: &str) -> std::io::Result<PathBuf> {
+    let (dest, file) = crate::archive::create_unique(dir, name)?;
+    drop(file);
+    if let Err(e) = std::fs::copy(src, &dest) {
+        let _ = std::fs::remove_file(&dest);
+        return Err(e);
+    }
+    Ok(dest)
+}
+
+/// `bytes` as a new file `name` (or "name (2)"…) in `dir`, never over another.
+fn write_new(dir: &Path, name: &str, bytes: &[u8]) -> std::io::Result<PathBuf> {
+    use std::io::Write;
+    let (dest, mut file) = crate::archive::create_unique(dir, name)?;
+    if let Err(e) = file.write_all(bytes).and_then(|()| file.flush()) {
+        drop(file);
+        let _ = std::fs::remove_file(&dest);
+        return Err(e);
+    }
+    Ok(dest)
+}
+
 /// Drops anything copied here more than a week ago. `ingest` stamps every copy
 /// with the time it landed, so this really is the age of the copy and not the
 /// age of whatever the user happened to drag in.
@@ -187,7 +212,8 @@ const MAX_BYTES_DROP: usize = 512 * 1024 * 1024;
 /// page sends those bytes here (raw body, the name in `x-pod-name`,
 /// URI-encoded); they are saved in the inbox under a safe, unique name and
 /// that path counts as dropped, so every drop action can work on it.
-#[tauri::command]
+/// Off the UI thread: a dropped clip can weigh hundreds of MB.
+#[tauri::command(async)]
 pub fn drop_save(request: tauri::ipc::Request<'_>) -> Result<String, String> {
     let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
         return Err(crate::i18n::t("The dropped file couldn't be read."));
@@ -200,8 +226,11 @@ pub fn drop_save(request: tauri::ipc::Request<'_>) -> Result<String, String> {
     let dir = inbox_dir();
     crate::platform::ensure_private_dir(&settings::local_dir()).map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let dest = unique_path(&dir, &name);
-    std::fs::write(&dest, bytes).map_err(|e| crate::i18n::tf("Cannot copy: {error}", &[("error", &e.to_string())]))?;
+    let dest =
+        write_new(&dir, &name, bytes).map_err(|e| crate::i18n::tf("Cannot copy: {error}", &[("error", &e.to_string())]))?;
+    // The inbox is only ever cleaned here now (the island no longer calls
+    // `ingest_file`): without it, every picture dragged out of a browser stayed forever.
+    sweep(&dir);
     let path = dest.to_string_lossy().to_string();
     allow_dropped([path.clone()]);
     crate::log::line(format!("drop: saved a browser file ({} bytes)", bytes.len()));
@@ -239,7 +268,13 @@ fn safe_drop_name(name: &str) -> String {
         .collect();
     let trimmed = cleaned.trim().trim_start_matches('.').trim_end_matches(['.', ' ']);
     let name = if trimmed.is_empty() { "dropped file" } else { trimmed };
-    name.chars().take(120).collect()
+    let name: String = name.chars().take(120).collect();
+    // "CON", "nul.txt", "COM1.png": Windows opens a device instead of a file.
+    if matches!(crate::rename::check_name(&name), Err(crate::rename::PatternError::Reserved(_))) {
+        format!("_{name}")
+    } else {
+        name
+    }
 }
 
 #[cfg(test)]
@@ -255,6 +290,30 @@ mod drop_save_tests {
         assert_eq!(safe_drop_name(""), "dropped file");
         assert_eq!(safe_drop_name("..."), "dropped file");
         assert_eq!(safe_drop_name(&"x".repeat(300)).len(), 120);
+        assert_eq!(safe_drop_name("CON"), "_CON");
+        assert_eq!(safe_drop_name("nul.txt"), "_nul.txt");
+        assert_eq!(safe_drop_name("COM1.png"), "_COM1.png");
+        assert_eq!(safe_drop_name("console.png"), "console.png");
+    }
+
+    #[test]
+    fn a_name_taken_meanwhile_is_never_overwritten() {
+        let dir = std::env::temp_dir().join(format!("pod-files-new-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("photo.jpg"), b"theirs").unwrap();
+        let saved = write_new(&dir, "photo.jpg", b"ours").unwrap();
+        assert_eq!(saved, dir.join("photo (2).jpg"));
+        let src = dir.join("src.bin");
+        std::fs::write(&src, b"copy").unwrap();
+        let copied = copy_new(&src, &dir, "photo.jpg").unwrap();
+        assert_eq!(copied, dir.join("photo (3).jpg"));
+        assert_eq!(std::fs::read(dir.join("photo.jpg")).unwrap(), b"theirs");
+        assert_eq!(std::fs::read(&copied).unwrap(), b"copy");
+        // A copy that fails leaves nothing behind.
+        assert!(copy_new(&dir.join("missing"), &dir, "gone.txt").is_err());
+        assert!(!dir.join("gone.txt").exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

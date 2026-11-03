@@ -2,8 +2,8 @@ name: Linux
 
 # Builds the Linux app (AppImage, .deb, .rpm) from the same Tauri project as
 # Windows. Triggered by tags like `linux-v0.1.0`, by hand, and by pull requests
-# that touch windows/ or this file (build and test only); the macOS and Windows
-# workflows are untouched.
+# that touch windows/ or this file (build and test only). The app's update
+# check reads releases tagged `linux-vX.Y.Z` (src-tauri/src/update.rs).
 #
 # Two jobs on purpose. `build` runs npm, cargo and the AppImage tooling (which
 # downloads its own helpers) with a read-only token that is not even kept on
@@ -47,17 +47,17 @@ jobs:
         with:
           persist-credentials: false
 
-      # webkit2gtk, gtk-layer-shell and appindicator to build against, ALSA for
-      # the microphone (Flow dictation, the Notetaker); patchelf and the
-      # GStreamer plugins for the AppImage, which carries its own GStreamer so
-      # the sounds play (WAV needs wavparse, in -good).
+      # webkit2gtk, gtk-layer-shell and appindicator to build against, libdbus
+      # for the GlobalShortcuts portal; patchelf and the GStreamer plugins for
+      # the AppImage, which carries its own GStreamer so the sounds play (WAV
+      # needs wavparse, in -good).
       - name: Install system libraries
         working-directory: .
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev libgtk-layer-shell-dev libayatana-appindicator3-dev \
-            librsvg2-dev libssl-dev libdbus-1-dev libasound2-dev patchelf \
+            librsvg2-dev libssl-dev libdbus-1-dev patchelf \
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good
 
       - uses: actions/setup-node@v7
@@ -151,7 +151,7 @@ jobs:
           VERSION: ${{ needs.build.outputs.version }}
         run: |
           v="$VERSION"
-          notes="Pod for Linux $v — Mochi at the top of your screen.
+          notes="Pod for Linux $v — a temporary workspace at the top of your screen.
 
           - **AppImage** (any distribution): \`chmod +x Pod-Linux-$v-x86_64.AppImage\` and run it.
           - **Debian / Ubuntu**: \`sudo apt install ./Pod-Linux-$v-amd64.deb\`
@@ -160,9 +160,9 @@ jobs:
           Check a download with \`sha256sum -c SHA256SUMS --ignore-missing\`.
 
           The island sits on the top edge on compositors with layer-shell (COSMIC,
-          KDE Plasma, Hyprland, Sway…). On GNOME it opens as a regular window."
-          # --latest=false: the macOS \`v*\` releases own the Latest slot, which
-          # the site's Download for Mac button points at.
+          KDE Plasma, Hyprland, Sway…). On GNOME it is a dock window, top centre."
+          # --latest=false: the Windows release (windows.yml) is the repository's
+          # Latest; the app reads the linux-v* tags, never Latest.
           gh release create "$GITHUB_REF_NAME" \
             "release/Pod-Linux-$v-x86_64.AppImage" \
             "release/Pod-Linux-$v-amd64.deb" \
@@ -186,6 +186,7 @@ jobs:
             gh release upload linux-latest "release/Pod-Linux-x86_64.AppImage" --clobber
           else
             gh release create linux-latest \
+              --target "$GITHUB_SHA" \
               "release/Pod-Linux-x86_64.AppImage" \
               --title "Pod for Linux (latest)" \
               --notes "Always the newest Linux build — currently $v." \
