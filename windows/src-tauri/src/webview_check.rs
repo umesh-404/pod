@@ -580,3 +580,50 @@ mod tests {
         assert_eq!(parse_repair(""), None);
     }
 }
+
+/// A page whose renderer dies (WebView2 kills one it distrusts, or it crashes)
+/// stays on Edge's "This page is having a problem" until Pod restarts. So each
+/// window reloads itself instead, at most three times a minute: a page that
+/// keeps dying is left alone rather than reloaded in a loop.
+pub fn reload_on_crash(win: &tauri::WebviewWindow) {
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED,
+        COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_UNRESPONSIVE,
+    };
+    use webview2_com::ProcessFailedEventHandler;
+
+    let label = win.label().to_string();
+    let result = win.with_webview(move |webview| unsafe {
+        let Ok(core) = webview.controller().CoreWebView2() else { return };
+        let recent: Mutex<Vec<Instant>> = Mutex::new(Vec::new());
+        let handler = ProcessFailedEventHandler::create(Box::new(move |sender, args| {
+            let (Some(sender), Some(args)) = (sender, args) else { return Ok(()) };
+            let mut kind = Default::default();
+            args.ProcessFailedKind(&mut kind)?;
+            if kind != COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED
+                && kind != COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_UNRESPONSIVE
+            {
+                crate::log::line(format!("webview {label}: a WebView2 process failed ({})", kind.0));
+                return Ok(());
+            }
+            let mut recent = recent.lock().unwrap_or_else(|e| e.into_inner());
+            recent.retain(|t| t.elapsed() < Duration::from_secs(60));
+            if recent.len() >= 3 {
+                crate::log::line(format!("webview {label}: the page keeps failing, not reloading it again"));
+                return Ok(());
+            }
+            recent.push(Instant::now());
+            crate::log::line(format!("webview {label}: the page's renderer stopped ({}), reloading it", kind.0));
+            sender.Reload()
+        }));
+        let mut token = 0i64;
+        if let Err(err) = core.add_ProcessFailed(&handler, &mut token) {
+            crate::log::line(format!("webview: cannot watch for crashes: {err}"));
+        }
+    });
+    if let Err(err) = result {
+        crate::log::line(format!("webview: {err}"));
+    }
+}

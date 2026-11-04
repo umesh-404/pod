@@ -310,7 +310,10 @@ fn create_settings_window(app: &AppHandle) {
     match builder.build() {
         Ok(win) => {
             #[cfg(windows)]
-            webview_drop::install_hub(app);
+            {
+                webview_drop::install_hub(app);
+                webview_check::reload_on_crash(&win);
+            }
             let this = win.clone();
             let handle = app.clone();
             win.on_window_event(move |event| match event {
@@ -569,7 +572,10 @@ pub fn run() {
                 });
                 platform::make_non_activating(&win);
                 #[cfg(windows)]
-                webview_drop::install(&handle);
+                {
+                    webview_drop::install(&handle);
+                    webview_check::reload_on_crash(&win);
+                }
                 island::apply_geometry(&handle, &loaded.screen, false);
                 let _ = win.show();
             }

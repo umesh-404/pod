@@ -334,7 +334,11 @@ fn create_window(app: &AppHandle, _mode: DesktopMode) -> Option<WebviewWindow> {
     }
     let built = builder.build();
     match built {
-        Ok(win) => Some(win),
+        Ok(win) => {
+            #[cfg(windows)]
+            crate::webview_check::reload_on_crash(&win);
+            Some(win)
+        }
         Err(err) => {
             crate::log::line(format!("desktop Stew window failed: {err}"));
             None

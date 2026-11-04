@@ -95,6 +95,55 @@ and it is unpacked only when the SHA-256 matches. On Linux, install ffmpeg with
 your package manager. ffmpeg runs at a lower priority, and the result is saved
 on the shelf.
 
+### The PDF editor
+
+**PDF editor** (`pdfstudio.rs`, `src/studio/`) takes pictures and PDFs dropped
+on its tile, or on the Pod window while it is open, or picked with **Add
+files**. The files go through `files::take_all_dropped` like any drop; a picture
+dragged out of a web page has no path, so the page saves its bytes first
+(`files::drop_save`).
+
+The editor is a full-window view inside the Pod window, not a window of its
+own. Each page is a card: thumbnails are drawn lazily, PDF pages by Windows'
+own PDF renderer (`Windows.Data.Pdf`) on a thread of their own, pictures
+scaled down in Rust. Pages move by drag (with autoscroll) or by keyboard
+(arrows to move focus, Alt + arrows to move a page, R / Shift + R to turn,
+Delete to remove, with Undo); Escape puts a dragged page back.
+
+**Save PDF** sends only the order (file, page, quarter turns). Rust builds the
+PDF with `lopdf`: PDF pages are copied as they are, sharing fonts and images
+across pages of one source, and pictures become pages of their own size. The
+result is saved on the shelf under a name that is never taken, and the window
+closes. At most 2000 pages; password-protected PDFs are refused with a reason.
+
+### Self-repair
+
+**Self-repair** (`heal.rs`, Settings → General → Health) runs at launch, then
+every 6 hours on the update check's hourly tick (no timer of its own), and only
+while you have been away for 5 minutes and no job is working on files.
+**Check now** runs it at once. What is Pod's own is repaired, and logged:
+
+- a missing shelf folder is created again (on a drive that isn't connected, it
+  is only reported);
+- an unusable `settings.json` is kept aside and the settings in use are
+  written again;
+- an ffmpeg Pod downloaded that is no longer a program is removed, so Settings
+  offers the download again;
+- Pod's own leftovers, recognised by their exact names (an interrupted
+  download, temporary save files, old inbox copies), are cleared.
+
+The startup entry and WebView2 belong to Windows and are only reported.
+Nothing you named is ever deleted, and nothing is overwritten.
+
+Before the first window, `webview_check.rs` makes sure the WebView2 runtime the
+registry names is really installed. When it isn't, a native message box offers
+the repair Windows registered for WebView2 (with the usual UAC prompt), or
+Microsoft's download page. Pod installs nothing by itself.
+
+Every Pod window also watches its page: when WebView2's renderer for it dies,
+the page reloads itself (at most three times a minute) instead of staying on
+Edge's "This page is having a problem".
+
 ### Efficiency
 
 Pod aims at 0 % CPU when the island is hidden.
