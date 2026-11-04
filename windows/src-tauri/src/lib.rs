@@ -413,6 +413,7 @@ pub fn run() {
     i18n::set_picked(&loaded.language);
     // Before any webview: a broken WebView2 is offered its repair, never a
     // crash, and Pod quits cleanly if it stays broken (webview_check.rs).
+    #[cfg(windows)]
     if !webview_check::ensure_ready(heal::enabled(&loaded)) {
         return;
     }
@@ -601,7 +602,10 @@ pub fn run() {
         .build(tauri::generate_context!())
         // Creating the island's webview failed anyway: say so, don't panic.
         .unwrap_or_else(|err| {
+            #[cfg(windows)]
             webview_check::startup_failed(&err.to_string());
+            #[cfg(not(windows))]
+            log::line(format!("Pod couldn't start: {err}"));
             std::process::exit(1)
         })
         .run(|_app, event| {

@@ -309,9 +309,8 @@ fn run(app: &AppHandle, deep: bool) {
         (Check::Leftovers, check_leftovers(app, busy)),
         (Check::Autostart, check_autostart(app)),
     ];
-    if cfg!(windows) {
-        results.push((Check::Webview, check_webview()));
-    }
+    #[cfg(windows)]
+    results.push((Check::Webview, check_webview()));
     let at = now();
     {
         let mut s = state();
@@ -579,6 +578,7 @@ fn check_autostart(app: &AppHandle) -> Outcome {
     }
 }
 
+#[cfg(windows)]
 fn check_webview() -> Outcome {
     use crate::webview_check::Health;
     match crate::webview_check::detect() {
