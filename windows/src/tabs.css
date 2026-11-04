@@ -186,15 +186,21 @@
 
 /* ── Shelf ──────────────────────────────────────────────────────────────── */
 
+/* One row: six tiles fill the width, the rest scroll in from the side. */
 .shelf-grid {
+  --shelf-gap: 8px;
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
-  grid-auto-rows: 98px;
-  gap: 8px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 5 * var(--shelf-gap)) / 6);
+  grid-template-rows: 98px;
+  align-content: start;
+  gap: var(--shelf-gap);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 0;
   overscroll-behavior: contain;
   scrollbar-width: none;
   outline: none;
@@ -213,6 +219,7 @@
 .shelf-tile {
   position: relative;
   min-width: 0;
+  scroll-snap-align: start;
   padding: 6px 6px 0;
   border-radius: 14px;
   background: var(--card);
@@ -268,6 +275,7 @@
 }
 
 .shelf-ext {
+  transition: opacity 0.15s ease;
   font: 700 8.5px var(--font);
   letter-spacing: 0.06em;
   color: var(--dim-3);
@@ -372,6 +380,10 @@
   .shelf-tile:hover .shelf-del {
     opacity: 1;
     transform: none;
+  }
+  /* The caption takes the place of a placeholder's type label. */
+  .shelf-tile:hover .shelf-ext {
+    opacity: 0;
   }
   .shelf-del:hover {
     color: var(--red-text);

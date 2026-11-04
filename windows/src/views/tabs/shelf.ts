@@ -123,7 +123,13 @@ export function shelfTab(host: TabHost): Tab {
     h("span", { text: tl("Add files") }),
   );
   const head = h("div", { class: "tab-head" }, count, h("div", { class: "tab-head-actions" }, addBtn, openFolder));
-  const grid = h("div", { class: "shelf-grid", tabindex: "0", role: "listbox", "aria-multiselectable": "true" });
+  const grid = h("div", { class: "shelf-grid", tabindex: "0", role: "listbox", "aria-multiselectable": "true", "aria-orientation": "horizontal" });
+  // The tiles are one row: an up/down wheel scrolls it sideways.
+  grid.addEventListener("wheel", (e) => {
+    if (grid.scrollWidth <= grid.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+    e.preventDefault();
+    grid.scrollBy({ left: e.deltaY });
+  }, { passive: false });
   const empty = h(
     "div",
     { class: "tab-empty" },
