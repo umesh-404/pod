@@ -12,5 +12,5 @@ src-tauri/gen/schemas/
 .env.*
 !.env.example
 
-# PP Mori (Pangram Pangram) is licensed for personal use only: kept locally, never committed.
+# Fonts licensed for personal use only (such as PP Mori, Pod's typeface before Nilo): kept locally, never committed.
 public/fonts/local/

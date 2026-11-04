@@ -10,7 +10,7 @@ npm run tauri dev
 ```
 
 ## Font
-Pod's interface is set in PP Mori by Pangram Pangram. Its licence doesn't allow redistributing the files, so they aren't in the repository. If you have a licence, put the six `PPMori-*.otf` files (Extralight, Regular, SemiBold and their italics) in `windows/public/fonts/local/`; the folder is ignored by git. Without them Pod uses the system font.
+Pod's interface is set in Nilo, Pod's own typeface by umesh-404, under the SIL Open Font License 1.1. The six `Nilo-*.otf` files (Extralight, Regular, SemiBold and their italics) and the licence are in `windows/public/fonts/nilo/`. Without them Pod uses the system font.
 
 ## Before a pull request
 ```
