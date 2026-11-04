@@ -545,7 +545,7 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 }
 
 /** A dropped file the OS has no path for, saved from its bytes (Rust drop_save). */
-async function saveDroppedFile(file: File): Promise<string> {
+export async function saveDroppedFile(file: File): Promise<string> {
   let name = file.name || "";
   // A picture dragged from a page can come without a name or an extension.
   if (!/\.[a-z0-9]{2,5}$/i.test(name)) {
@@ -677,9 +677,16 @@ export async function onDragDrop(handler: (e: DragDropPayload) => void) {
     }
     dropped = [...files];
     note(`drop: ${files.length} file(s) let go, asking for their paths`);
-    webview.postMessageWithAdditionalObjects("pod-file-drop", files);
-    // Rust answers at once; if it doesn't, the bytes are the way in.
+    // Rust answers at once; if it doesn't, the bytes are the way in. Armed
+    // first: handing over a browser's virtual file can throw, and the drop
+    // must end all the same.
     answered = setTimeout(() => void finish([]), DROP_ANSWER_MS);
+    try {
+      webview.postMessageWithAdditionalObjects("pod-file-drop", files);
+    } catch (err) {
+      note(`drop: WebView2 wouldn't hand the files over (${err}), reading their bytes`);
+      void finish([]);
+    }
   };
 
   window.addEventListener("dragenter", onEnter);

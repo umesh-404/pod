@@ -42,6 +42,12 @@ pub fn install_hub(app: &AppHandle) {
     let Some(win) = app.get_webview_window(crate::HUB_LABEL) else { return };
     let handle = app.clone();
     listen(&win, move |paths| {
+        // A picture dragged out of a browser has no path: the page saves its
+        // bytes instead (files::drop_save) and hands it over like an island drop.
+        let virtual_files: Vec<usize> = paths.iter().enumerate().filter(|(_, p)| p.is_empty()).map(|(i, _)| i).collect();
+        if !virtual_files.is_empty() {
+            let _ = handle.emit_to(crate::HUB_LABEL, "pdf-studio-virtual", virtual_files);
+        }
         let paths = paths.into_iter().filter(|p| !p.is_empty()).map(std::path::PathBuf::from).collect();
         crate::pdfstudio::window_drop(&handle, paths);
     });

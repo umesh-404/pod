@@ -6,7 +6,7 @@
 
 import "./studio.css";
 import { invoke } from "@tauri-apps/api/core";
-import { onEvent } from "../core/bridge";
+import { onEvent, saveDroppedFile } from "../core/bridge";
 import { h, clear } from "../views/dom";
 import { icon } from "../hub/ui";
 import { t, tn } from "../i18n/i18n";
@@ -58,6 +58,8 @@ class Studio {
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private discardTimer: ReturnType<typeof setTimeout> | null = null;
   private dragDepth = 0;
+  /** The files of the last drop, for the ones with no path of their own. */
+  private dropped: File[] = [];
 
   constructor() {
     this.observer = new IntersectionObserver((entries) => {
@@ -214,13 +216,15 @@ class Studio {
     const paper = h("div", { class: "studio-paper" }, h("span", { class: "studio-paper-num" }));
     paper.style.setProperty("--ratio", `${page.w} / ${page.h}`);
     paper.style.setProperty("--ratio-n", String(page.w / page.h));
-    const sheet = h("div", { class: "studio-sheet" }, paper);
+    const sheet = h("div", { class: "studio-sheet" }, h("div", { class: "studio-box" }, paper));
     const tools = h("div", { class: "studio-tools" },
       this.tool("rotateLeft", t("Turn left"), () => this.turnPage(page.key, -1)),
       this.tool("rotateRight", t("Turn right"), () => this.turnPage(page.key, 1)),
       this.tool("x", t("Remove page"), () => this.remove(page.key), "danger"),
     );
-    const meta = h("div", { class: "studio-meta" }, h("span", { class: "studio-num" }), h("span", { class: "studio-src" }));
+    // The file name gives way to the page number, which always shows.
+    const meta = h("div", { class: "studio-meta" },
+      h("span", { class: "studio-num" }), h("span", { class: "studio-src" }), h("span", { class: "studio-pg" }));
     const card = h("div", { class: "studio-page", role: "option", tabindex: "-1", "data-key": page.key }, sheet, tools, meta);
     this.applyTurn(card, page, false);
     const url = this.thumbs.get(page.key);
@@ -246,8 +250,10 @@ class Studio {
     card.setAttribute("aria-posinset", String(i + 1));
     card.setAttribute("aria-setsize", String(n));
     (card.querySelector(".studio-num") as HTMLElement).textContent = String(i + 1);
-    (card.querySelector(".studio-src") as HTMLElement).textContent = page.kind === "pdf" ? `${page.name} · ${page.page + 1}` : page.name;
-    (card.querySelector(".studio-paper-num") as HTMLElement).textContent = String(page.page + 1);
+    (card.querySelector(".studio-src") as HTMLElement).textContent = page.name;
+    (card.querySelector(".studio-pg") as HTMLElement).textContent = page.kind === "pdf" ? `· ${page.page + 1}` : "";
+    card.title = page.kind === "pdf" ? `${page.name} · ${page.page + 1}` : page.name;
+    (card.querySelector(".studio-paper-num") as HTMLElement).textContent = page.kind === "pdf" ? String(page.page + 1) : "";
   }
 
   private applyTurn(card: HTMLElement, page: StudioPage, animate: boolean) {
@@ -590,8 +596,34 @@ class Studio {
       // WebView2 hands the files to Rust with their paths (webview_drop.rs);
       // elsewhere Tauri's own drop event has already given them.
       const webview = (window as unknown as { chrome?: { webview?: WebView2Bridge } }).chrome?.webview;
-      webview?.postMessageWithAdditionalObjects("pod-file-drop", files);
+      this.dropped = [...files];
+      try {
+        if (webview) webview.postMessageWithAdditionalObjects("pod-file-drop", files);
+      } catch {
+        // WebView2 wouldn't hand them over: their bytes are the way in.
+        void this.saveDropped(this.dropped.map((_, i) => i));
+      }
     });
+  }
+
+  /** Pictures dragged out of a browser (no path): saved from their bytes, then added. */
+  async saveDropped(indices: number[]) {
+    const files = indices.map((i) => this.dropped[i]).filter((f): f is File => !!f);
+    this.dropped = [];
+    const paths: string[] = [];
+    for (const f of files) {
+      try {
+        paths.push(await saveDroppedFile(f));
+      } catch (err) {
+        this.notify(t("Couldn't add {name}: {error}", { name: f.name, error: String(err).replace(/^Error:\s*/, "") }));
+      }
+    }
+    if (paths.length === 0) return;
+    try {
+      this.apply(await invoke<StudioState>("pdf_studio_open", { paths }));
+    } catch (err) {
+      this.notify(String(err));
+    }
   }
 
   // ── Save, cancel ───────────────────────────────────────────────────────────
@@ -685,6 +717,7 @@ export function installStudio() {
   const get = () => (studio ??= new Studio());
   void onEvent<StudioState>("pdf-studio", (state) => get().apply(state));
   void onEvent<null>("pdf-studio-closed", () => studio?.closed());
+  void onEvent<number[]>("pdf-studio-virtual", (indices) => void studio?.saveDropped(indices));
   // Opened before this page was ready: catch up.
   void invoke<StudioState | null>("pdf_studio_state").then((state) => {
     if (state) get().apply(state);
