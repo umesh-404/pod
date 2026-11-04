@@ -1491,6 +1491,8 @@ mod tests {
         assert_eq!(recipe("gif").unwrap().id, "gif");
         assert_eq!(recipe("share").unwrap().id, "share");
         assert!(recipe("mp4").is_none());
+        assert_eq!(output_name(Path::new("/v/clip.mov"), "share"), "clip (small).mp4");
+        #[cfg(windows)]
         assert_eq!(output_name(Path::new("C:\\v\\clip.mov"), "share"), "clip (small).mp4");
         assert_eq!(output_name(Path::new("/v/clip.v2.mp4"), "gif"), "clip.v2.gif");
         assert_eq!(output_name(Path::new("/v/song.wav"), "mp3"), "song.mp3");

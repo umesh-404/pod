@@ -833,11 +833,14 @@ mod tests {
         for good in ["a.txt", "Report (2).pdf", "folder", "v1.2", "..hidden-ish", "a..b"] {
             assert!(valid_name(good), "{good}");
         }
-        for bad in ["", ".", "..", "a/b", "a\\b", "../x", "/etc", "x\0y", "C:", "C:\\x"] {
+        for bad in ["", ".", "..", "a/b", "a\\b", "../x", "/etc", "x\0y", "C:\\x"] {
             assert!(!valid_name(bad), "{bad:?}");
         }
+        // A colon is an ordinary character on Linux; on Windows it names a drive or a stream.
         #[cfg(windows)]
-        assert!(!valid_name("file.txt:stream"));
+        for bad in ["C:", "file.txt:stream"] {
+            assert!(!valid_name(bad), "{bad:?}");
+        }
     }
 
     #[test]
