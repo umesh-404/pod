@@ -150,6 +150,28 @@ Run the setup file, then find Pod in the tray. Windows may show SmartScreen
 for an unsigned installer: **More info → Run anyway**. Pod needs the Microsoft
 Edge WebView2 Runtime, which Windows 10 and 11 already have.
 
+### Updates
+
+Once you allow it (Pod asks once, or Settings → General → Updates), Pod looks
+for a newer Windows release on GitHub at launch and every 6 hours. When there
+is one, it downloads the same kind of installer you installed, checks it
+against the SHA-256 GitHub publishes, and, with **Install updates
+automatically** on, installs it while you are away and starts Pod again (or
+installs it when you click the card in the island).
+
+An update replaces only the app's files. Your settings, reminders and notes
+(`%APPDATA%\Pod`), the shelf folder and everything in it, and the ffmpeg Pod
+downloaded all stay as they are.
+
+### Publishing a release (maintainers)
+
+1. Raise the version in `windows/package.json`, `windows/src-tauri/tauri.conf.json`
+   and `windows/Cargo.toml`, and add its CHANGELOG section and What's
+   new entry.
+2. Push a tag `windows-vX.Y.Z` on that commit. The Windows workflow checks the
+   versions agree, builds the installers and publishes the GitHub release;
+   copies of Pod already installed pick it up on their next check.
+
 ## Develop
 
 ```bash
