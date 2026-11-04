@@ -1,15 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
-  <!-- The tray icon at 24 px (150 %). -->
-  <defs>
-    <radialGradient id="pea" cx="0.5" cy="0.5" r="0.5" fx="0.33" fy="0.27">
-      <stop offset="0" stop-color="#B5E79A"/>
-      <stop offset="0.35" stop-color="#8FD078"/>
-      <stop offset="0.65" stop-color="#7CC46A"/>
-      <stop offset="1" stop-color="#3F8A3A"/>
-    </radialGradient>
-  </defs>
-  <circle cx="12" cy="12" r="10.4" fill="url(#pea)" stroke="#2F5F2A" stroke-width="1.2"/>
-  <ellipse cx="7.8" cy="7.6" rx="2.2" ry="1.3" transform="rotate(-36 7.8 7.6)" fill="#FFFFFF" fill-opacity="0.85"/>
-  <rect x="8" y="11" width="2" height="4" rx="1" fill="#1F2A1C"/>
-  <rect x="14" y="11" width="2" height="4" rx="1" fill="#1F2A1C"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><defs><radialGradient id="pea" cx=".5" cy=".5" r=".5" fx=".33" fy=".27"><stop offset="0" stop-color="#B5E79A"/><stop offset=".35" stop-color="#8FD078"/><stop offset=".65" stop-color="#7CC46A"/><stop offset="1" stop-color="#3F8A3A"/></radialGradient></defs><circle cx="12" cy="12" r="10.4" fill="url(#pea)" stroke="#2F5F2A" stroke-width="1.2"/><ellipse cx="7.8" cy="7.6" fill="#FFF" fill-opacity=".85" rx="2.2" ry="1.3" transform="rotate(-36 7.8 7.6)"/><rect width="2" height="4" x="8" y="11" fill="#1F2A1C" rx="1"/><rect width="2" height="4" x="14" y="11" fill="#1F2A1C" rx="1"/></svg>

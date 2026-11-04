@@ -1,15 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
-  <!-- The tray icon at 16 px: shaded ball with a dark rim for light taskbars, pixel-aligned eyes. -->
-  <defs>
-    <radialGradient id="pea" cx="0.5" cy="0.5" r="0.5" fx="0.33" fy="0.27">
-      <stop offset="0" stop-color="#B5E79A"/>
-      <stop offset="0.35" stop-color="#8FD078"/>
-      <stop offset="0.65" stop-color="#7CC46A"/>
-      <stop offset="1" stop-color="#3F8A3A"/>
-    </radialGradient>
-  </defs>
-  <circle cx="8" cy="8" r="6.5" fill="url(#pea)" stroke="#2F5F2A" stroke-width="1"/>
-  <rect x="4" y="4" width="2" height="2" rx="1" fill="#FFFFFF" fill-opacity="0.85"/>
-  <rect x="6" y="7" width="1" height="3" fill="#1F2A1C"/>
-  <rect x="9" y="7" width="1" height="3" fill="#1F2A1C"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><defs><radialGradient id="pea" cx=".5" cy=".5" r=".5" fx=".33" fy=".27"><stop offset="0" stop-color="#B5E79A"/><stop offset=".35" stop-color="#8FD078"/><stop offset=".65" stop-color="#7CC46A"/><stop offset="1" stop-color="#3F8A3A"/></radialGradient></defs><circle cx="8" cy="8" r="6.5" fill="url(#pea)" stroke="#2F5F2A" stroke-width="1"/><rect width="2" height="2" x="4" y="4" fill="#FFF" fill-opacity=".85" rx="1"/><rect width="1" height="3" x="6" y="7" fill="#1F2A1C"/><rect width="1" height="3" x="9" y="7" fill="#1F2A1C"/></svg>
