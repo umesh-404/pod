@@ -82,7 +82,7 @@ export function match(
 
 export const SETTINGS_ENTRIES: SettingsSearchEntry[] = [
   // General (the ids are the anchors main.ts puts on the rows)
-  { id: "general.workspace", page: "general", title: "Workspace", terms: ["Folder", "Choose ffmpeg…", "Copy to workspace"] },
+  { id: "general.workspace", page: "general", title: "Shelf folder", terms: ["Folder", "Shelf", "Choose ffmpeg…", "Copy to shelf"] },
   { id: "general.sound", page: "general", title: "Sound", terms: ["Volume", "Open sounds folder", "Reload sounds"] },
   { id: "general.hover", page: "general", title: "Open on hover", terms: [] },
   { id: "general.clock", page: "general", title: "Show clock in the island", terms: [] },
@@ -90,6 +90,7 @@ export const SETTINGS_ENTRIES: SettingsSearchEntry[] = [
   { id: "general.display", page: "general", title: "Island lives on", terms: ["Main display", "Display under the cursor"] },
   { id: "general.startup", page: "general", title: "Launch at startup", terms: [] },
   { id: "general.update", page: "general", title: "Updates", terms: ["Check now"] },
+  { id: "general.health", page: "general", title: "Health", terms: ["Self-repair", "Check now"] },
   { id: "general.language", page: "general", title: "Language", terms: [] },
 
   // Notch
@@ -110,7 +111,7 @@ export const SETTINGS_ENTRIES: SettingsSearchEntry[] = [
     id: "features.drop", page: "features", title: "Drop actions",
     terms: [
       "Convert File Format", "Zip / Unzip", "Resize image", "PDF tools", "Text from image", "Remove EXIF",
-      "Video to GIF", "Compress video", "SHA-256 checksum", "Batch rename", "Copy to workspace",
+      "Video to GIF", "Compress video", "SHA-256 checksum", "Batch rename", "Copy to shelf",
     ],
   },
   { id: "features.tabs", page: "features", title: "Island tabs", terms: ["Shelf", "Reminders", "Notes", "Tools"] },
@@ -119,6 +120,7 @@ export const SETTINGS_ENTRIES: SettingsSearchEntry[] = [
     id: "features.tools", page: "features", title: "Tools",
     terms: ["Screenshot to shelf", "Focus timer", "Smart clipboard", "Dev servers"],
   },
+  { id: "features.upkeep", page: "features", title: "Upkeep", terms: ["Self-repair"] },
 
   // Shortcuts
   { id: "shortcuts.global", page: "shortcuts", title: "From anywhere", terms: ["Reset to defaults"] },

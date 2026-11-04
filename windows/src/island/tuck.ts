@@ -1,5 +1,5 @@
 // What the tucked pill shows when Pod is folded away over a maximized or
-// fullscreen window. A running focus or break timer takes Mochi's place as a
+// fullscreen window. A running focus or break timer takes Stew's place as a
 // live countdown with a thin progress line. Something that wants attention (a
 // fired reminder, a meeting about to start, a fresh download) makes the pill
 // glow, with a shimmer passing across it a few times.

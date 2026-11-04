@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <!-- Stew at 16 px: shaded ball, one highlight, one-pixel eyes. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2C3034"/>
+      <stop offset="1" stop-color="#101113"/>
+    </linearGradient>
+    <radialGradient id="pea" cx="0.5" cy="0.5" r="0.5" fx="0.33" fy="0.27">
+      <stop offset="0" stop-color="#B5E79A"/>
+      <stop offset="0.35" stop-color="#8FD078"/>
+      <stop offset="0.65" stop-color="#7CC46A"/>
+      <stop offset="1" stop-color="#3F8A3A"/>
+    </radialGradient>
+  </defs>
+  <path d="M4 0H12C15 0 16 1 16 4V12C16 15 15 16 12 16H4C1 16 0 15 0 12V4C0 1 1 0 4 0Z" fill="url(#bg)"/>
+  <circle cx="8" cy="8.4" r="6.4" fill="url(#pea)"/>
+  <rect x="4" y="4" width="2" height="2" rx="1" fill="#FFFFFF" fill-opacity="0.85"/>
+  <rect x="6" y="8" width="1" height="2" fill="#1F2A1C"/>
+  <rect x="9" y="8" width="1" height="2" fill="#1F2A1C"/>
+</svg>

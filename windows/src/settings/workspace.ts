@@ -210,11 +210,11 @@ export function workspaceSection(): HTMLElement {
   return h(
     "section",
     {},
-    h("h2", {}, h("span", { text: t("Workspace") })),
+    h("h2", {}, h("span", { text: t("Shelf folder") })),
     h("div", { class: "row" }, h("label", { text: t("Folder") }), path, meta),
     h("div", { class: "row" }, h("label", {}), change, open),
     feedback,
-    h("div", { class: "hint", text: t("Files you drop on “Copy to workspace” are copied here, and the originals stay where they were. Changing the folder moves everything in it to the new one.") }),
+    h("div", { class: "hint", text: t("Files you drop on “Copy to shelf” are copied here and show on the Shelf; the originals stay where they were. Changing the folder moves everything in it to the new one.") }),
     h("div", { class: "row" }, h("label", { text: "ffmpeg" }), ffDot, ffText, ffPath),
     h("div", { class: "row" }, h("label", {}), download, choose),
     ffFeedback,
@@ -234,7 +234,7 @@ function changeReport(r: WorkspaceChange, before: string): HTMLElement[] {
   }
   if (r.note) out.push(h("div", { class: "notice ok", text: r.note }));
   if (r.moved === 0 && !r.note && r.failed.length === 0) {
-    out.push(h("div", { class: "notice ok", text: t("The workspace is now {dir}", { dir }) }));
+    out.push(h("div", { class: "notice ok", text: t("The shelf folder is now {dir}", { dir }) }));
   }
   if (r.failed.length > 0) {
     const n = r.failed.length;

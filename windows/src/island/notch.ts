@@ -1,4 +1,4 @@
-// The compact notch's two sides, around Mochi.
+// The compact notch's two sides, around Stew.
 //
 // Each side shows the items listed for it in Settings → Notch
 // (`settings.leftWidgets`, `settings.rightWidgets`), taking turns every
@@ -61,7 +61,7 @@ export interface NotchHost {
   reveal(): void;
   /** The sides' widths changed: the compact island springs to fit. */
   sidesResized(leftW: number, rightW: number): void;
-  /** The tucked pill's size or Mochi's place in it changed (a timer, an alert's icon). */
+  /** The tucked pill's size or Stew's place in it changed (a timer, an alert's icon). */
   tuckChanged(shape: TuckShape): void;
 }
 
@@ -103,7 +103,7 @@ export class NotchSides {
   private tuckCam: HTMLElement;
   /** What the pill's row last laid out, so it is measured only when that changes. */
   private tuckKey = "";
-  /** The pill's size and Mochi's place in it, as last reported to the island. */
+  /** The pill's size and Stew's place in it, as last reported to the island. */
   tuckShape: TuckShape = { w: TUCK_W, botCx: TUCK_W / 2 };
   private micEl: HTMLElement;
   private camEl: HTMLElement;
@@ -130,7 +130,7 @@ export class NotchSides {
     this.micEl = h("span", { class: "ns-light mic" }, svg(ICONS.mic, 9, { stroke: 2.4 }));
     this.camEl = h("span", { class: "ns-light camera" }, svg(ICONS.camera, 9, { stroke: 2.4 }));
     this.privacyEl = h("div", { class: "ns-privacy" }, this.micEl, this.camEl);
-    // The pill's row: Mochi's slot (his canvas is drawn over it), a timer's ring
+    // The pill's row: Stew's slot (his canvas is drawn over it), a timer's ring
     // and time, and the icon of what is waiting. The pill is as wide as the row.
     this.tuckBot = h("i", { class: "tuck-bot" });
     this.tuckTimeEl = h("span", { class: "tuck-time" });
@@ -150,7 +150,7 @@ export class NotchSides {
     circle("tuck-ring-track");
     this.tuckArc = circle("tuck-ring-arc");
     this.tuckIcon = h("span", { class: "tuck-icon" });
-    // Music playing: three bars in Mochi's place (CSS keyframes, transform only).
+    // Music playing: three bars in Stew's place (CSS keyframes, transform only).
     this.tuckEq = h("span", { class: "tuck-eq" }, h("i"), h("i"), h("i"));
     // A reminder due within the hour: a bell and its countdown ("4m").
     this.tuckSoonText = h("span", { class: "tuck-soon-text" });
@@ -395,9 +395,9 @@ export class NotchSides {
   }
 
   /**
-   * The tucked pill, sized to what it shows. One main thing in Mochi's place —
+   * The tucked pill, sized to what it shows. One main thing in Stew's place —
    * a job's progress, else a running timer, else music playing (an equaliser),
-   * else Mochi himself — then the alert's icon or else a reminder due within
+   * else Stew himself — then the alert's icon or else a reminder due within
    * the hour ("🔔 4m"), then the camera and microphone lights. Something
    * waiting also makes it glow.
    */

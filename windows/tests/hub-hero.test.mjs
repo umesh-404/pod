@@ -1,4 +1,4 @@
-// The Pod window's live Mochi (hub/hero.ts liveMochi) listens to the window's
+// The Pod window's live Stew (hub/hero.ts liveMochi) listens to the window's
 // pointer for his eyes. The Notch page builds a new one on every visit, so the
 // listener must leave with his canvas, not pile up one per visit.
 import { test } from "node:test";
@@ -32,7 +32,7 @@ window.removeEventListener = (type, fn) => { if (type === "pointermove") moves.d
 
 const { liveMochi } = await import("../src/hub/hero.ts");
 
-test("live Mochi: his window listener goes once his canvas is gone", () => {
+test("live Stew: his window listener goes once his canvas is gone", () => {
   const canvas = document.createElement("canvas");
   canvas.isConnected = true;
   liveMochi(canvas);
@@ -47,7 +47,7 @@ test("live Mochi: his window listener goes once his canvas is gone", () => {
   assert.equal(moves.size, 0);
 });
 
-test("live Mochi: one built but never put on a page is not let go early", () => {
+test("live Stew: one built but never put on a page is not let go early", () => {
   moves.clear();
   const canvas = document.createElement("canvas");
   canvas.isConnected = false;

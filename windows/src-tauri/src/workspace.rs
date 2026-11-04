@@ -1,4 +1,4 @@
-// The temporary workspace: files dropped on "Copy to workspace" are copied into
+// The temporary workspace: files dropped on "Copy to shelf" are copied into
 // one folder, set in Settings, and the originals stay where they were. Changing
 // the folder moves everything already in the old one to the new one.
 //
@@ -118,7 +118,7 @@ pub fn workspace_open(app: AppHandle) -> Result<(), String> {
 // ── Where the workspace is ──────────────────────────────────────────────────
 
 fn default_dir() -> PathBuf {
-    crate::platform::home_dir().join("Notch Workspace")
+    crate::platform::home_dir().join("Pod Shelf")
 }
 
 /// The configured folder, else the default one.
@@ -174,7 +174,7 @@ fn change(app: &AppHandle) -> Result<Option<WorkspaceChange>, String> {
     let Some(picked) = app
         .dialog()
         .file()
-        .set_title(t("Choose the workspace folder"))
+        .set_title(t("Choose the shelf folder"))
         .set_directory(&start)
         .blocking_pick_folder()
     else {
@@ -188,10 +188,10 @@ fn change(app: &AppHandle) -> Result<Option<WorkspaceChange>, String> {
     }
     let (new_key, old_key) = (key(&canon(&new)), key(&canon(&old)));
     if new_key.starts_with(&old_key) {
-        return Err(t("The new folder is inside the current workspace. Pick a folder outside it."));
+        return Err(t("The new folder is inside the current shelf folder. Pick a folder outside it."));
     }
     if old_key.starts_with(&new_key) {
-        return Err(t("The current workspace is inside that folder. Pick another folder."));
+        return Err(t("The current shelf folder is inside that folder. Pick another folder."));
     }
 
     let items = entries(&old);
@@ -218,7 +218,7 @@ fn change(app: &AppHandle) -> Result<Option<WorkspaceChange>, String> {
             let ok = app
                 .dialog()
                 .message(question)
-                .title(t("Change the workspace folder"))
+                .title(t("Change the shelf folder"))
                 .kind(MessageDialogKind::Warning)
                 .buttons(MessageDialogButtons::OkCancelCustom(t("Move"), t("Cancel")))
                 .blocking_show();
@@ -269,13 +269,13 @@ fn move_in(src: &Path, ws: &Path, home: &Path) -> Result<PathBuf, String> {
     let ws_canon = canon(ws);
     let (src_key, ws_key) = (key(&src_canon), key(&ws_canon));
     if src_key == ws_key {
-        return Err(t("That is the workspace itself."));
+        return Err(t("That is the shelf folder itself."));
     }
     if ws_key.starts_with(&src_key) {
-        return Err(t("This folder contains the workspace."));
+        return Err(t("This folder contains the shelf folder."));
     }
     if src_key.parent() == Some(ws_key.as_path()) {
-        return Err(t("Already in the workspace"));
+        return Err(t("Already on the shelf"));
     }
     if is_protected(home, &src_canon) {
         return Err(t("This is a system folder; Pod won't move it."));
@@ -627,7 +627,7 @@ mod tests {
         write(&ws.join("inside.txt"), "x");
         assert!(move_in(&ws, &ws, &home).is_err());
         assert!(move_in(&s.0.join("parent"), &ws, &home).is_err());
-        assert_eq!(move_in(&ws.join("inside.txt"), &ws, &home).unwrap_err(), t("Already in the workspace"));
+        assert_eq!(move_in(&ws.join("inside.txt"), &ws, &home).unwrap_err(), t("Already on the shelf"));
         assert!(move_in(&s.0.join("nothing-here"), &ws, &home).is_err());
         assert!(s.0.join("parent").exists() && ws.join("inside.txt").exists());
 

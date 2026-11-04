@@ -30,6 +30,26 @@ struct FileDrop {
 pub fn install(app: &AppHandle) {
     let Some(win) = island::window(app) else { return };
     let handle = app.clone();
+    listen(&win, move |paths| {
+        crate::files::allow_dropped(paths.iter().filter(|p| !p.is_empty()).cloned());
+        let _ = handle.emit_to(WINDOW_LABEL, "file-drag", FileDrop { kind: "drop", paths });
+    });
+}
+
+/// Files dropped on the PDF editor in the Pod window go straight to it.
+pub fn install_hub(app: &AppHandle) {
+    use tauri::Manager;
+    let Some(win) = app.get_webview_window(crate::HUB_LABEL) else { return };
+    let handle = app.clone();
+    listen(&win, move |paths| {
+        let paths = paths.into_iter().filter(|p| !p.is_empty()).map(std::path::PathBuf::from).collect();
+        crate::pdfstudio::window_drop(&handle, paths);
+    });
+}
+
+/// Calls `on_drop` with the paths of the files a page hands over with
+/// `postMessageWithAdditionalObjects` ("" for one with no path of its own).
+fn listen(win: &tauri::WebviewWindow, on_drop: impl Fn(Vec<String>) + Send + 'static) {
     let result = win.with_webview(move |webview| unsafe {
         let core = match webview.controller().CoreWebView2() {
             Ok(core) => core,
@@ -66,8 +86,7 @@ pub fn install(app: &AppHandle) {
                     .unwrap_or_default();
                 paths.push(path);
             }
-            crate::files::allow_dropped(paths.iter().filter(|p| !p.is_empty()).cloned());
-            let _ = handle.emit_to(WINDOW_LABEL, "file-drag", FileDrop { kind: "drop", paths });
+            on_drop(paths);
             Ok(())
         }));
         let mut token = 0i64;

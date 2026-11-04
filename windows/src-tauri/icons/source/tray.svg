@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Pod's tray icon at 32 px and up: Stew as a shaded ball, a dark rim that holds on light taskbars and a bright body for dark ones. tray-16/20/24.svg are the small drawings; scripts/gen-icons.mjs makes the blue copy for when an update waits. -->
+  <defs>
+    <radialGradient id="pea" cx="0.5" cy="0.5" r="0.5" fx="0.33" fy="0.27">
+      <stop offset="0" stop-color="#B5E79A"/>
+      <stop offset="0.35" stop-color="#8FD078"/>
+      <stop offset="0.65" stop-color="#7CC46A"/>
+      <stop offset="1" stop-color="#3F8A3A"/>
+    </radialGradient>
+  </defs>
+  <circle cx="16" cy="16" r="14" fill="url(#pea)" stroke="#2F5F2A" stroke-width="1.6"/>
+  <ellipse cx="10.4" cy="10" rx="3" ry="1.8" transform="rotate(-36 10.4 10)" fill="#FFFFFF" fill-opacity="0.9"/>
+  <rect x="11" y="14" width="3" height="6" rx="1.5" fill="#1F2A1C"/>
+  <rect x="18" y="14" width="3" height="6" rx="1.5" fill="#1F2A1C"/>
+</svg>

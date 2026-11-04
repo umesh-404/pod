@@ -1,4 +1,4 @@
-// Mochi on the desktop — the pure logic, port of
+// Stew on the desktop — the pure logic, port of
 // NotchBuddy/Sources/App/DesktopMochiLogic.swift and of the life cycle in
 // DesktopMochiController (DesktopMochi.swift). No DOM, no Tauri: the island
 // wires it up in src/island/desktop.ts, the desktop window draws him in
@@ -13,7 +13,7 @@ import type { Outfit } from "./wardrobe";
 /** What the island tells the desktop window, whenever it changes. */
 export interface DesktopSnapshot {
   state: BotStateName;
-  /** He is always the main Mochi, so always dressed (try-ons included). */
+  /** He is always the main Stew, so always dressed (try-ons included). */
   outfit: Outfit;
   soundEnabled: boolean;
   soundVolume: number;
@@ -69,7 +69,7 @@ export interface Point {
 }
 
 /**
- * Whether Mochi should be asleep: no agent activity for longer than
+ * Whether Stew should be asleep: no agent activity for longer than
  * SLEEP_TIMEOUT (strictly), and the pointer not close to him.
  */
 export function shouldSleep(sinceAgentActive: number, mouseDistanceToCenter: number): boolean {
@@ -189,9 +189,9 @@ export interface DesktopPorts {
   flyOut(anywhere: boolean): Promise<boolean>;
   /** Flies the window to the island and hides it. `forget`: he lives there again. */
   flyHome(forget: boolean): Promise<boolean>;
-  /** The island's own Mochi hides while he is out. */
+  /** The island's own Stew hides while he is out. */
   setAway(away: boolean): void;
-  /** An emote on the desktop Mochi. */
+  /** An emote on the desktop Stew. */
   emote(emote: BotEmoteName, duration?: number): void;
   play(sound: string): void;
   alertActive(): boolean;

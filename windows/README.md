@@ -1,6 +1,6 @@
 # Pod for Windows and Linux
 
-Pod puts a small island at the top of your screen, with Mochi in the middle.
+Pod puts a small island at the top of your screen, with Stew, a glossy green ball, in the middle.
 The island is a temporary workspace: drag files over it and drop them on an
 action, keep files on a shelf, set reminders, and glance at what is going on
 without leaving what you are doing. No API keys, no accounts, nothing sent
@@ -11,7 +11,7 @@ backend (`src-tauri/`) and a TypeScript front end with no framework (`src/`).
 It is built and tested on Windows 10/11; Linux support is partial (see
 [Linux](#linux)).
 
-There are no releases yet: Pod still carries Coucou's character, icon and
+There are no releases yet: Pod still carries Coucou's icon and
 sounds, which may not be redistributed (see [LICENSE-ASSETS.md](../LICENSE-ASSETS.md)).
 [Build it from source](#build-run-test).
 
@@ -19,8 +19,8 @@ sounds, which may not be redistributed (see [LICENSE-ASSETS.md](../LICENSE-ASSET
 
 | Where | What |
 |---|---|
-| **Drop actions** | Drag files over the island and tiles appear: **Convert File Format** (video, audio, images, with ffmpeg), **Zip / Unzip**, **Resize image**, **PDF tools** (merge, split, rotate, compress, photos → PDF), **Text from image** (Windows OCR), **Remove EXIF**, **Video to GIF**, **Compress video**, **SHA-256 checksum**, **Batch rename**, **Copy to workspace**. What an action makes is saved in the workspace folder |
-| **Shelf** tab | The files in your workspace folder, with thumbnails. Drag one out to drop a copy anywhere; remove one to send it to the Recycle Bin / Trash |
+| **Drop actions** | Drag files over the island and tiles appear: **Convert File Format** (video, audio, images, with ffmpeg), **Zip / Unzip**, **Resize image**, **PDF tools** (merge, split, rotate, compress, photos → PDF), **Text from image** (Windows OCR), **Remove EXIF**, **Video to GIF**, **Compress video**, **SHA-256 checksum**, **Batch rename**, **Copy to shelf**. What an action makes is saved on the shelf |
+| **Shelf** tab | The files in your shelf folder, with thumbnails. Drag one out to drop a copy anywhere; remove one to send it to the Recycle Bin / Trash |
 | **Reminders** tab | Type "call Sam at 4pm" or "essay in 2 days": reminders and deadlines, with a sound when one is due |
 | **Notes** tab | Plain-text notes, saved as `.md` files on the shelf |
 | **Tools** tab | Screenshot to shelf, focus timer, smart clipboard (JSON, JWT, Base64, Unix time…), the dev servers running on this computer |
@@ -51,13 +51,13 @@ taskbar when there is one.
    Linux it is Tauri's drag-drop window event.
 3. **Record.** Rust records those paths as *dropped* (`files.rs`). Each is good
    once, for a couple of minutes.
-4. **Act.** Every file command (convert, zip, resize, PDF, move to workspace)
+4. **Act.** Every file command (convert, zip, resize, PDF, copy to shelf)
    starts with `files::take_dropped`: only paths a real drop just delivered are
    accepted. A script injected into the page could otherwise ask Rust to copy,
    move or zip any file the user can read; this way it can't.
 
 The same rules hold everywhere a file is written: outputs go to the
-workspace folder, the original is never touched (except by **Batch rename**,
+shelf folder, the original is never touched (except by **Batch rename**,
 which renames it in place, with Undo), nothing is ever
 overwritten (a taken name gets " (2)", " (3)"…), and a half-written output is
 removed.
@@ -70,18 +70,18 @@ removed.
 - **PDF tools** (`pdf.rs`) are pure Rust (`lopdf`); password-protected PDFs are
   left alone.
 
-### The workspace
+### The shelf folder
 
-**Copy to workspace** copies dropped files into one folder, `~/Notch Workspace`
-by default, changed in Settings (`workspace.rs`); the originals stay where they
-were. The shelf shows that folder and watches it with `notify` (no polling).
+The Shelf and the shelf folder are one thing. **Copy to shelf** copies dropped
+files into one folder, `~/Pod Shelf` by default, changed in Settings
+(`workspace.rs`); the originals stay where they were. The Shelf tab shows that folder and watches it with `notify` (no polling).
 Changing the folder moves what is in the old one to the new one, after asking:
 across drives a move is a copy, and the original is removed only once the whole
 copy succeeded. The home folder, a drive root and the usual system folders are
 never moved, emptied or removed.
 
 A name coming from the page (shelf, notes) must be a single file name directly
-in the workspace, never a path, so the page can't reach anything else. A drag
+in the shelf folder, never a path, so the page can't reach anything else. A drag
 out of the shelf offers a copy only.
 
 ### ffmpeg
@@ -93,7 +93,7 @@ offers **Download ffmpeg**: the "essentials" build from
 published `.sha256` is fetched first, the archive is hashed while it downloads,
 and it is unpacked only when the SHA-256 matches. On Linux, install ffmpeg with
 your package manager. ffmpeg runs at a lower priority, and the result is saved
-in the workspace folder.
+on the shelf.
 
 ### Efficiency
 
@@ -218,7 +218,7 @@ An Arch package recipe is in `linux/arch/` (`makepkg -si`).
   window instead of a dock, `POD_LAYER_SHELL=0` forces the regular window.
 - **Click-through** is the window's input region, kept equal to the island's
   shape.
-- **Mochi's eyes** follow the pointer only while it is over the island: Wayland
+- **Stew's eyes** follow the pointer only while it is over the island: Wayland
   gives no app the cursor position anywhere else.
 - **Global shortcuts** are X11 key grabs in an X11 session. On Wayland, Pod
   hands them to the desktop through the XDG GlobalShortcuts portal (KDE Plasma 6,
@@ -238,8 +238,8 @@ windows/
     island/            the island: state machine, drop actions, compact notch, tabs
     views/             island views; views/tabs/ holds Shelf, Reminders, Notes, Tools
     hub/, settings/    the Pod window (settings)
-    mochi/             Mochi, drawn in Canvas 2D
-    desktop/           Mochi's own window, when he lives on the desktop
+    mochi/             Stew, Pod's character, drawn in Canvas 2D as a lit sphere (stew.ts)
+    desktop/           Stew's own window, when he lives on the desktop
     i18n/              strings.json, extra.json and the lookup
     whats-new/         the card shown once after an update
   src-tauri/src/       Rust backend
@@ -251,6 +251,6 @@ windows/
     calendar.rs media.rs sysglance.rs privacy.rs downloads.rs devservers.rs
     platform/          everything that differs between Windows and Linux
   tests/               front-end tests
-  scripts/             icon generator, packaging, test-whats-new.py
-  sounds/              Mochi's sounds (Coucou assets, see LICENSE-ASSETS.md)
+  scripts/             icon generator, sound generator (make-sounds.py), packaging, test-whats-new.py
+  sounds/              Pod's sounds, generated by scripts/make-sounds.py (MIT, © Pod contributors)
 ```

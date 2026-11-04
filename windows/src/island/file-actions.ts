@@ -26,7 +26,7 @@ export interface FileActionHost {
   hold(on: boolean): void;
   /** Done / Cancel: back to the usual view, or folded away. */
   finish(): void;
-  /** A conversion saved its files: the success chime and Mochi's happy face. */
+  /** A conversion saved its files: the success chime and Stew's happy face. */
   celebrate(): void;
   /** Something went wrong: the error sound. */
   failed(): void;
@@ -65,7 +65,9 @@ const DROP_ACTION_DETAILS: Record<DropActionId, Omit<DropAction, "id">> = {
   // Folders and unknown files: what they are may not be known during the drag,
   // so one label for both ways (Rust zips or unzips by what it gets).
   zip: { title: N_("Zip / Unzip"), sub: N_("Compress or extract"), icon: "archive", evenOdd: true },
-  workspace: { title: N_("Copy to workspace"), sub: N_("Workspace"), icon: "folder" },
+  workspace: { title: N_("Copy to shelf"), sub: N_("Shelf folder"), icon: "folder" },
+  note: { title: N_("Save as note"), sub: N_("A note on the shelf"), icon: "note" },
+  pages: { title: N_("PDF editor"), sub: N_("Arrange pages, then save"), icon: "stack" },
 };
 
 /** Every drop action, in the order of DROP_ACTION_IDS (core/layout.ts places the ones shown). */
@@ -79,7 +81,8 @@ export function dropAction(id: DropActionId): DropAction {
 // ── Which tiles a drag shows (tests/file-actions.test.mjs) ────────────────────
 
 /** What a dragged item is, as far as the drag tells. */
-export type FileKind = "image" | "video" | "audio" | "pdf" | "zip" | "folder" | "other";
+/** "text": text dragged out of a page or an app, not a file. */
+export type FileKind = "image" | "video" | "audio" | "pdf" | "zip" | "folder" | "text" | "other";
 
 const EXT_KIND: Record<string, FileKind> = {};
 for (const [kind, exts] of [
@@ -156,19 +159,27 @@ export function chooseDropTiles(
   const set = new Set(kinds);
   const only = set.size === 1 ? kinds[0] : null;
   let tiles: DropActionId[];
+  if (only === "text") {
+    // Text dragged in becomes a note; nothing else applies to it.
+    const off = new Set(disabled);
+    return off.has(DROP_FEATURE.note) ? [] : ["note"];
+  }
   if (only === "image") {
-    tiles = ["convert", "ocr", "resize", "clean", "images", "rename", "sha256", "zip"];
+    tiles = ["convert", "ocr", "resize", "clean", "pages", "images", "rename", "sha256", "zip"];
   } else if (only === "video") {
     tiles = ["convert", "gif", "share", "rename", "sha256", "zip"];
   } else if (only === "pdf") {
     tiles = kinds.length >= 2
-      ? ["merge", "split", "rotate", "compress", "rename", "sha256", "zip"]
-      : ["split", "rotate", "compress", "rename", "sha256", "zip"];
+      ? ["merge", "pages", "split", "rotate", "compress", "rename", "sha256", "zip"]
+      : ["pages", "split", "rotate", "compress", "rename", "sha256", "zip"];
   } else if (only === "zip") {
     tiles = ["unzip", "rename", "sha256"];
   } else if (set.size > 0 && [...set].every(isMedia)) {
     // Audio, or a mix of media.
     tiles = ["convert", "rename", "sha256", "zip"];
+  } else if (set.size === 2 && set.has("pdf") && set.has("image")) {
+    // Pictures and PDFs together: pages for one PDF.
+    tiles = ["pages", "rename", "sha256", "zip"];
   } else if (set.has("folder")) {
     tiles = ["rename", "zip"];
   } else {
@@ -297,16 +308,11 @@ const KIND_PLURAL: Record<ConvertJob["kind"], string> = {
 };
 
 /** "Saved photo.gif to Notch Workspace", "Saved 3 files to Notch Workspace". */
+/** Every action saves onto the shelf (the shelf folder); the card says so, the full folder below. */
 function savedTitle(outputs: readonly string[]): string {
-  const folder = baseName(dirName(outputs[0] ?? ""));
-  if (!folder || folder === outputs[0]) {
-    return outputs.length === 1
-      ? t("Saved {name}", { name: shortName(baseName(outputs[0])) })
-      : t("Saved {count} files", { count: outputs.length });
-  }
   return outputs.length === 1
-    ? t("Saved {name} to {folder}", { name: shortName(baseName(outputs[0]), 28), folder })
-    : t("Saved {count} files to {folder}", { count: outputs.length, folder });
+    ? t("Saved {name} to the shelf", { name: shortName(baseName(outputs[0]), 28) })
+    : t("Saved {count} files to the shelf", { count: outputs.length });
 }
 
 function failedLine(failed: readonly FileFailure[]): string {
@@ -319,7 +325,6 @@ export function fileActionText(s: FileAction): FileActionText {
     case "working":
       return { title: s.title, sub: "", tone: "dim" };
     case "moved": {
-      const where = baseName(s.dir) || t("the workspace");
       const n = s.moved.length;
       const failedLine = s.failed.length === 0
         ? ""
@@ -334,8 +339,8 @@ export function fileActionText(s: FileAction): FileActionText {
         return { title, sub, tone: "error" };
       }
       const title = n === 1
-        ? t("Copied {name} to {folder}", { name: shortName(baseName(s.moved[0]), 28), folder: where })
-        : t("Copied {count} items to {folder}", { count: n, folder: where });
+        ? t("Copied {name} to the shelf", { name: shortName(baseName(s.moved[0]), 28) })
+        : t("Copied {count} items to the shelf", { count: n });
       return failedLine ? { title, sub: failedLine, tone: "error" } : { title, sub: s.dir, tone: "dim" };
     }
     case "pick": {
@@ -539,9 +544,21 @@ export class FileActions {
     void onEvent<ConvertDone>("convert-done", (d) => this.apply({ type: "done", d }));
     void onEvent<FfmpegDownloadProgress>("ffmpeg-download", (p) => this.onDownload(p));
     void onEvent<HashProgress>("hash-progress", (p) => this.apply({ type: "hash", p }));
+    // The PDF editor saved its pages: the card says where, as for any PDF action.
+    void onEvent<string>("pdf-studio-saved", (output) => {
+      this.set({ kind: "written", action: "pages", outputs: [output], failed: [] }, false);
+      this.host.celebrate();
+    });
   }
 
   /** Files were dropped on a tile. Nothing dropped, or no tile: nothing to do. */
+  /** Text dropped on the "Save as note" tile: a new note on the shelf. */
+  dropText(action: DropActionId | null, text: string): boolean {
+    if (action !== "note" || !text.trim()) return false;
+    void this.run("note", async () => ({ outputs: [await Bridge.noteSave(null, text)] }));
+    return true;
+  }
+
   drop(action: DropActionId | null, paths: string[]): boolean {
     if (!action || paths.length === 0) return false;
     switch (action) {
@@ -574,6 +591,9 @@ export class FileActions {
       case "rename":
         void this.prepareRename(paths);
         break;
+      case "pages":
+        void this.openStudio(paths);
+        break;
       default: {
         const pdf = PDF_ACTIONS[action];
         if (pdf) void this.run(action, () => Bridge.pdfRun(paths, pdf));
@@ -582,6 +602,25 @@ export class FileActions {
       }
     }
     return true;
+  }
+
+  /** PDF editor: the files go to the Pod window, where the pages are arranged. */
+  private async openStudio(paths: string[]) {
+    const working: FileAction = { kind: "working", title: t("Opening the PDF editor…") };
+    this.set(working, true);
+    try {
+      const state = await Bridge.pdfStudioOpen(paths);
+      if (State.fileAction !== working) return;
+      if (state.sources.length === 0 && state.failed.length > 0) {
+        this.set({ kind: "written", action: "pages", outputs: [], failed: state.failed }, false);
+        this.host.failed();
+      } else {
+        this.close();
+      }
+    } catch (err) {
+      if (State.fileAction !== working) return;
+      this.fail(t("Couldn't open the PDF editor"), err);
+    }
   }
 
   /** A size chip on the resize card. */
@@ -612,13 +651,13 @@ export class FileActions {
   }
 
   private async moveIn(paths: string[]) {
-    this.set({ kind: "working", title: t("Moving to the workspace…") }, true);
+    this.set({ kind: "working", title: t("Copying to the shelf…") }, true);
     try {
       const report = await Bridge.workspaceMoveIn(paths);
       this.set(movedState(report), false);
       if (report.moved.length === 0) this.host.failed();
     } catch (err) {
-      this.fail(t("Couldn't move to the workspace"), err);
+      this.fail(t("Couldn't copy to the shelf"), err);
     }
   }
 
@@ -908,7 +947,7 @@ export class FileActions {
   }
 
   openWorkspace() {
-    void Bridge.workspaceOpen().catch((err) => this.fail(t("Couldn't open the workspace"), err));
+    void Bridge.workspaceOpen().catch((err) => this.fail(t("Couldn't open the shelf folder"), err));
   }
 
   revealOutput() {

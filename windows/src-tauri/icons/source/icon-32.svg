@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Stew at 32 px (also 40 and 48): shaded ball, highlight, contact shadow, no notch. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2C3034"/>
+      <stop offset="1" stop-color="#101113"/>
+    </linearGradient>
+    <radialGradient id="pea" cx="0.5" cy="0.5" r="0.5" fx="0.33" fy="0.27">
+      <stop offset="0" stop-color="#B5E79A"/>
+      <stop offset="0.35" stop-color="#8FD078"/>
+      <stop offset="0.65" stop-color="#7CC46A"/>
+      <stop offset="1" stop-color="#3F8A3A"/>
+    </radialGradient>
+  </defs>
+  <path d="M8 1H24C29 1 31 3 31 8V24C31 29 29 31 24 31H8C3 31 1 29 1 24V8C1 3 3 1 8 1Z" fill="url(#bg)"/>
+  <ellipse cx="16.5" cy="28.4" rx="8.5" ry="1.4" fill="#000000" fill-opacity="0.55"/>
+  <circle cx="16" cy="16.4" r="12" fill="url(#pea)"/>
+  <circle cx="16" cy="16.4" r="11.7" fill="none" stroke="#2C6328" stroke-opacity="0.4" stroke-width="0.6"/>
+  <ellipse cx="10.9" cy="10.6" rx="2.7" ry="1.6" transform="rotate(-36 10.9 10.6)" fill="#FFFFFF" fill-opacity="0.9"/>
+  <rect x="12" y="16" width="2" height="5" rx="1" fill="#1F2A1C"/>
+  <rect x="18" y="16" width="2" height="5" rx="1" fill="#1F2A1C"/>
+</svg>

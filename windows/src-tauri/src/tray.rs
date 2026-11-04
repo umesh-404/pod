@@ -1,6 +1,7 @@
 // Notification-area icon: Open, Wardrobe, Settings, Pause, Quit.
 // "Update Pod to X…" shows under Open only while a new version is out
-// (update.rs). While one waits, the tray Mochi turns blue like the island's.
+// (update.rs). While one waits, the tray Stew turns blue like the island's.
+// The tray has its own drawings (icons/tray/), simpler than the app icon.
 
 use std::sync::Mutex;
 
@@ -64,7 +65,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
             }
         });
 
-    if let Some(icon) = app.default_window_icon().cloned() {
+    if let Some(icon) = tray_icon(false).or_else(|| app.default_window_icon().cloned()) {
         builder = builder.icon(icon);
     }
 
@@ -112,56 +113,75 @@ pub fn set_update(app: &AppHandle, version: Option<&str>) {
     }
 }
 
-/// Pod's update blue, #3B82F6, the colour of Mochi while a new version waits.
-const UPDATE_BLUE: [f32; 3] = [59.0, 130.0, 246.0];
+/// Stew in the tray, drawn for each size the notification area asks for (100 to
+/// 300 % scaling): (size, usual, blue while an update waits). The blue one is
+/// Stew in Pod's update blue, #3B82F6, with the same shading.
+/// Drawn from icons/source/tray*.svg by scripts/gen-icons.mjs (npm run icons).
+const TRAY: [(u32, &[u8], &[u8]); 6] = [
+    (16, include_bytes!("../icons/tray/tray-16.png"), include_bytes!("../icons/tray/tray-16-update.png")),
+    (20, include_bytes!("../icons/tray/tray-20.png"), include_bytes!("../icons/tray/tray-20-update.png")),
+    (24, include_bytes!("../icons/tray/tray-24.png"), include_bytes!("../icons/tray/tray-24-update.png")),
+    (32, include_bytes!("../icons/tray/tray-32.png"), include_bytes!("../icons/tray/tray-32-update.png")),
+    (40, include_bytes!("../icons/tray/tray-40.png"), include_bytes!("../icons/tray/tray-40-update.png")),
+    (48, include_bytes!("../icons/tray/tray-48.png"), include_bytes!("../icons/tray/tray-48-update.png")),
+];
 
-/// The tray Mochi in the update blue: the light body takes the blue and keeps its
-/// shading, the dark outline and eyes stay as they are, transparency untouched.
-pub fn tint_blue(rgba: &[u8]) -> Vec<u8> {
-    let mut out = Vec::with_capacity(rgba.len());
-    for p in rgba.chunks_exact(4) {
-        let light = (0.2126 * p[0] as f32 + 0.7152 * p[1] as f32 + 0.0722 * p[2] as f32) / 255.0;
-        // 0 for the outline and eyes, 1 for the white body.
-        let body = ((light - 0.35) / 0.65).clamp(0.0, 1.0);
-        for (i, blue) in UPDATE_BLUE.iter().enumerate() {
-            let shaded = blue * (0.8 + 0.2 * light);
-            out.push((p[i] as f32 * (1.0 - body) + shaded * body).round().clamp(0.0, 255.0) as u8);
-        }
-        out.push(p[3]);
+/// The small-icon size the notification area draws at (16 px at 100 %).
+#[cfg(windows)]
+fn tray_px() -> u32 {
+    use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSMICON};
+    match unsafe { GetSystemMetrics(SM_CXSMICON) } {
+        n if n > 0 => n as u32,
+        _ => 16,
     }
-    out
+}
+
+/// Linux panels scale the icon themselves: give them a sharp one to shrink.
+#[cfg(not(windows))]
+fn tray_px() -> u32 {
+    48
+}
+
+/// The drawing made for `px` or the next size up, so it is never stretched.
+fn tray_png(px: u32, update: bool) -> &'static [u8] {
+    let (_, usual, blue) = TRAY.iter().find(|(s, _, _)| *s >= px).unwrap_or(&TRAY[TRAY.len() - 1]);
+    if update { blue } else { usual }
+}
+
+fn tray_icon(update: bool) -> Option<Image<'static>> {
+    let png = tray_png(tray_px(), update);
+    let img = image::load_from_memory_with_format(png, image::ImageFormat::Png).ok()?.into_rgba8();
+    let (w, h) = img.dimensions();
+    Some(Image::new_owned(img.into_raw(), w, h))
 }
 
 /// The island says whether a new version waits (consent, newer, not put off with
-/// Later): blue Mochi in the tray, or the usual one.
+/// Later): blue Stew in the tray, or the usual one.
 #[tauri::command]
 pub fn tray_update_hint(app: AppHandle, on: bool) {
     let Some(tray) = app.tray_by_id("pod") else { return };
-    let Some(base) = app.default_window_icon() else { return };
-    let icon = if on {
-        Image::new_owned(tint_blue(base.rgba()), base.width(), base.height())
-    } else {
-        base.clone().to_owned()
-    };
+    let Some(icon) = tray_icon(on) else { return };
     let _ = tray.set_icon(Some(icon));
 }
 
 #[cfg(test)]
 mod tests {
-    use super::tint_blue;
+    use super::{tray_png, TRAY};
 
     #[test]
-    fn the_body_turns_blue_the_outline_stays() {
-        let px = [
-            245, 240, 235, 255, // the off-white body
-            10, 10, 10, 255, // the outline
-            250, 250, 250, 0, // transparent around Mochi
-        ];
-        let out = tint_blue(&px);
-        let body = &out[0..4];
-        assert!(body[2] > 220 && body[0] < 80 && body[1] > 100 && body[1] < 150, "body {body:?}");
-        assert_eq!(&out[4..8], &[10, 10, 10, 255], "the outline stays dark");
-        assert_eq!(out[11], 0, "transparency is kept");
-        assert_eq!(out.len(), px.len());
+    fn every_tray_drawing_decodes_at_its_size() {
+        for (size, usual, blue) in TRAY {
+            for png in [usual, blue] {
+                let img = image::load_from_memory_with_format(png, image::ImageFormat::Png).unwrap();
+                assert_eq!((img.width(), img.height()), (size, size));
+            }
+        }
+    }
+
+    #[test]
+    fn the_tray_takes_the_next_size_up() {
+        assert!(tray_png(16, false) == TRAY[0].1);
+        assert!(tray_png(18, true) == TRAY[1].2);
+        assert!(tray_png(64, false) == TRAY[5].1);
     }
 }

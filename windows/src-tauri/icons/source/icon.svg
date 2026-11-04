@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Pod's app icon: Stew, a glossy green ball lit from the upper left, sitting
+       on the notch's near-black squircle. Master for 64 px and up;
+       icon-16/20/24/32.svg are hand-tuned for small sizes.
+       Render with scripts/gen-icons.mjs (npm run icons). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2C3034"/>
+      <stop offset="1" stop-color="#101113"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.16"/>
+      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.02"/>
+    </linearGradient>
+    <!-- Diffuse shading: the focal point sits toward the light. -->
+    <radialGradient id="pea" cx="0.5" cy="0.5" r="0.5" fx="0.33" fy="0.27">
+      <stop offset="0" stop-color="#B5E79A"/>
+      <stop offset="0.3" stop-color="#8FD078"/>
+      <stop offset="0.58" stop-color="#7CC46A"/>
+      <stop offset="0.84" stop-color="#4F9C44"/>
+      <stop offset="1" stop-color="#3F8A3A"/>
+    </radialGradient>
+    <!-- The terminator: the far side turns away from the light. -->
+    <radialGradient id="terminator" cx="0.36" cy="0.3" r="0.95">
+      <stop offset="0.55" stop-color="#173D16" stop-opacity="0"/>
+      <stop offset="0.8" stop-color="#173D16" stop-opacity="0.38"/>
+      <stop offset="1" stop-color="#173D16" stop-opacity="0.5"/>
+    </radialGradient>
+    <!-- Bounce light along the lower-right edge, from the tile below. -->
+    <linearGradient id="bounce" x1="0.2" y1="0.2" x2="0.85" y2="0.9">
+      <stop offset="0.55" stop-color="#A6DB8E" stop-opacity="0"/>
+      <stop offset="1" stop-color="#A6DB8E" stop-opacity="0.95"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="contact" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#000000" stop-opacity="0.75"/>
+      <stop offset="0.6" stop-color="#000000" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="blur18" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+    <filter id="blur8" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+    <filter id="blur2" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.5"/>
+    </filter>
+    <clipPath id="tile">
+      <path d="M290 64H734C894 64 960 130 960 290V734C960 894 894 960 734 960H290C130 960 64 894 64 734V290C64 130 130 64 290 64Z"/>
+    </clipPath>
+    <clipPath id="ball">
+      <circle cx="512" cy="566" r="300"/>
+    </clipPath>
+  </defs>
+
+  <!-- The tile, with the notch hanging from its top edge. -->
+  <path d="M290 64H734C894 64 960 130 960 290V734C960 894 894 960 734 960H290C130 960 64 894 64 734V290C64 130 130 64 290 64Z" fill="url(#bg)"/>
+  <g clip-path="url(#tile)">
+    <path d="M356 40H668V106Q668 154 620 154H404Q356 154 356 106Z" fill="#000000"/>
+  </g>
+  <path d="M290 66H734C893 66 958 131 958 290V734C958 893 893 958 734 958H290C131 958 66 893 66 734V290C66 131 131 66 290 66Z" fill="none" stroke="url(#edge)" stroke-width="4"/>
+
+  <!-- Contact shadow: a broad soft one and a tight dark one where the ball sits. -->
+  <ellipse cx="530" cy="874" rx="270" ry="44" fill="url(#contact)" filter="url(#blur8)"/>
+  <ellipse cx="520" cy="864" rx="150" ry="16" fill="#000000" fill-opacity="0.7" filter="url(#blur8)"/>
+
+  <!-- Stew. -->
+  <circle cx="512" cy="566" r="300" fill="url(#pea)"/>
+  <g clip-path="url(#ball)">
+    <circle cx="512" cy="566" r="300" fill="url(#terminator)"/>
+    <circle cx="512" cy="566" r="292" fill="none" stroke="url(#bounce)" stroke-width="34" filter="url(#blur8)"/>
+    <ellipse cx="420" cy="430" rx="170" ry="110" transform="rotate(-35 420 430)" fill="url(#sheen)" filter="url(#blur18)"/>
+  </g>
+  <circle cx="512" cy="566" r="298.5" fill="none" stroke="#2C6328" stroke-opacity="0.45" stroke-width="3"/>
+
+  <!-- Specular highlight: crisp, small, toward the light. -->
+  <ellipse cx="398" cy="408" rx="54" ry="30" transform="rotate(-36 398 408)" fill="#FFFFFF" fill-opacity="0.95" filter="url(#blur2)"/>
+  <circle cx="452" cy="372" r="9" fill="#FFFFFF" fill-opacity="0.7"/>
+
+  <!-- Eyes, on the curved surface a little toward the light. -->
+  <ellipse cx="436" cy="586" rx="31" ry="47" fill="#1F2A1C"/>
+  <ellipse cx="572" cy="586" rx="30" ry="46" fill="#1F2A1C"/>
+  <circle cx="427" cy="568" r="10" fill="#FFFFFF" fill-opacity="0.9"/>
+  <circle cx="563" cy="568" r="9.5" fill="#FFFFFF" fill-opacity="0.9"/>
+</svg>

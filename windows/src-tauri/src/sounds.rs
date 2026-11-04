@@ -1,4 +1,4 @@
-// Your own sounds: a file named like one of Mochi's sounds in the sounds folder
+// Your own sounds: a file named like one of Stew's sounds in the sounds folder
 // replaces it (finish.wav, approval.mp3, greet.m4a…), as on the Mac
 // (SoundEngine.customFolder). The folder is platform::config_dir()/sounds:
 // ~/.config/pod/sounds on Linux, %APPDATA%\Pod\sounds on Windows.

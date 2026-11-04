@@ -40,7 +40,7 @@ test("English is the key itself, other languages come from either table", () => 
   assert.equal(t("Allow"), "Allow");
   inLanguage("fr", () => {
     assert.equal(t("Allow"), "Autoriser"); // the Mac's catalog
-    assert.equal(t("Copy to workspace"), "Copier dans l’espace de travail"); // extra.json
+    assert.equal(t("Copy to shelf"), "Copier sur l’étagère"); // extra.json
   });
   inLanguage("zh-Hans", () => assert.equal(t("Cancel"), "取消"));
 });
@@ -48,7 +48,7 @@ test("English is the key itself, other languages come from either table", () => 
 test("a string nobody translated falls back to its English text", () => {
   inLanguage("ru", () => {
     assert.equal(t("Some brand new sentence."), "Some brand new sentence.");
-    assert.equal(t("Hello {name}", { name: "Mochi" }), "Hello Mochi");
+    assert.equal(t("Hello {name}", { name: "Stew" }), "Hello Stew");
   });
 });
 
@@ -125,7 +125,7 @@ test("German translates both tables, fills placeholders and falls back to Englis
   inLanguage("de", () => {
     assert.equal(t("Allow"), "Zulassen");
     assert.equal(t("Deny"), "Ablehnen");
-    assert.equal(t("Copy to workspace"), "In den Arbeitsbereich kopieren");
+    assert.equal(t("Copy to shelf"), "In die Ablage kopieren");
     assert.equal(t("Uploading {name}", { name: "Grüße.pdf" }), "Grüße.pdf wird hochgeladen");
     assert.equal(t("A string nobody translated"), "A string nobody translated");
     assert.match(monthShort(9), /^Okt/);
@@ -173,10 +173,10 @@ test("Turkish translates both tables, interpolates and falls back to English", (
   inLanguage("tr", () => {
     assert.equal(t("Allow"), "İzin ver");
     assert.equal(t("Deny"), "Reddet");
-    assert.equal(t("Copy to workspace"), "Çalışma alanına kopyala");
+    assert.equal(t("Copy to shelf"), "Rafa kopyala");
     assert.equal(t("Uploading {name}", { name: "öğrenci.pdf" }), "öğrenci.pdf yükleniyor");
     assert.equal(t("Some brand new sentence."), "Some brand new sentence.");
-    assert.equal(t("Hello {name}", { name: "Mochi" }), "Hello Mochi");
+    assert.equal(t("Hello {name}", { name: "Stew" }), "Hello Stew");
     assert.equal(dayMonth(9, 9), "9 Eki");
     assert.equal(isRtl(), false);
   });
@@ -205,7 +205,7 @@ test("Korean translates both tables, interpolates and falls back to English", ()
   inLanguage("ko", () => {
     assert.equal(t("Allow"), "허용");
     assert.equal(t("Deny"), "거부");
-    assert.equal(t("Copy to workspace"), "작업 공간에 복사");
+    assert.equal(t("Copy to shelf"), "선반에 복사");
     assert.equal(t("Uploading {name}", { name: "보고서.pdf" }), "보고서.pdf 업로드 중");
     assert.equal(t("Some brand new sentence."), "Some brand new sentence.");
     assert.equal(isRtl(), false);
@@ -235,7 +235,7 @@ test("Japanese translates both tables, interpolates and falls back to English", 
   inLanguage("ja", () => {
     assert.equal(t("Allow"), "許可");
     assert.equal(t("Deny"), "拒否");
-    assert.equal(t("Copy to workspace"), "ワークスペースにコピー");
+    assert.equal(t("Copy to shelf"), "シェルフにコピー");
     assert.equal(t("Some brand new sentence."), "Some brand new sentence.");
     assert.equal(isRtl(), false);
   });

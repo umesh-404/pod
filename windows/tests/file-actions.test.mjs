@@ -34,17 +34,17 @@ for (const mode of ["grid", "row"]) {
   // switched off, up to MAX_DROP_TILES); one row only up to four.
   const counts = mode === "grid" ? Array.from({ length: MAX_DROP_TILES }, (_, i) => i + 1) : [2, 3, 4];
   for (const n of counts) {
-    test(`${mode}, ${n} tiles: inside the island, apart, and Mochi's column is free`, () => {
+    test(`${mode}, ${n} tiles: inside the island, apart, and Stew's column is free`, () => {
       const g = dropTargetsGeometry(n, mode);
       assert.equal(g.tiles.length, n);
       for (const r of g.tiles) {
         assert.ok(r.x >= 10 && r.y >= 8 && r.x + r.w <= g.w - 10 + 0.01 && r.y + r.h <= g.h - 10 + 0.01, JSON.stringify(r));
         // Whole tiles: a positive size, never thinner than the flat layout's 58 px.
         assert.ok(r.w >= 137 && r.h >= 58, JSON.stringify(r));
-        // Mochi (a box) never sits on a tile.
+        // Stew never sits on a tile.
         const half = g.bot.diameter / 2;
         const clear = g.bot.cx + half <= r.x || g.bot.cx - half >= r.x + r.w;
-        assert.ok(clear, `Mochi overlaps ${JSON.stringify(r)}`);
+        assert.ok(clear, `Stew overlaps ${JSON.stringify(r)}`);
       }
       for (let i = 0; i < n; i++) {
         for (let j = i + 1; j < n; j++) {
@@ -71,7 +71,7 @@ for (const mode of ["grid", "row"]) {
         assert.ok(Math.abs(col[0].y - 8) < 0.01 && Math.abs(col.at(-1).y + col.at(-1).h - bottom) < 0.01);
         for (let i = 1; i < col.length; i++) assert.ok(Math.abs(col[i].y - (col[i - 1].y + col[i - 1].h) - 8) < 0.01);
       }
-      // Mochi sits inside the island, between the columns, with room around him.
+      // Stew sits inside the island, between the columns, with room around him.
       assert.ok(g.bot.cx - g.bot.diameter / 2 >= 0 && g.bot.cx + g.bot.diameter / 2 <= g.w);
       assert.ok(g.bot.cy - g.bot.diameter / 2 >= 0 && g.bot.cy + g.bot.diameter / 2 <= g.h);
       // One look per layout: the grid puts every icon beside its text, the row above it.
@@ -89,7 +89,7 @@ for (const mode of ["grid", "row"]) {
         if (own >= 0) assert.equal(i, own, `(${x}, ${y})`);
       }
       assert.equal(hit.size, n);
-      // The island's left and right halves never cross: Mochi's column splits them.
+      // The island's left and right halves never cross: Stew's column splits them.
       if (n === 1) return;
       for (const [x, y] of islandPoints(g)) {
         const r = g.tiles[dropTileAt(x, y, g.tiles)];
@@ -129,7 +129,7 @@ test("three tiles in the grid: the lone right tile spans the full height", () =>
   assert.equal(dropTileAt(g.w, g.h, g.tiles), 1);
 });
 
-test("four tiles in a row: 660 wide, two each side of Mochi", () => {
+test("four tiles in a row: 660 wide, two each side of Stew", () => {
   const g = dropTargetsGeometry(4, "row");
   assert.equal(g.w, 660);
   assert.equal(g.bot.cx, g.w / 2);
@@ -182,26 +182,26 @@ test("the tiles fit what is dragged", () => {
   assert.deepEqual(chooseDropTiles(["video", "audio"]), ["convert", "rename", "sha256", "zip", "workspace"]);
   assert.deepEqual(
     chooseDropTiles(["image", "image"]),
-    ["convert", "ocr", "resize", "clean", "images", "rename", "zip", "workspace"],
+    ["convert", "ocr", "resize", "clean", "pages", "rename", "zip", "workspace"],
   );
-  assert.deepEqual(chooseDropTiles(["pdf"]), ["split", "rotate", "compress", "rename", "sha256", "zip", "workspace"]);
+  assert.deepEqual(chooseDropTiles(["pdf"]), ["pages", "split", "rotate", "compress", "rename", "sha256", "zip", "workspace"]);
   assert.deepEqual(
     chooseDropTiles(["pdf", "pdf"]),
-    ["merge", "split", "rotate", "compress", "rename", "sha256", "zip", "workspace"],
+    ["merge", "pages", "split", "compress", "rename", "sha256", "zip", "workspace"],
   );
   assert.deepEqual(chooseDropTiles(["zip"]), ["unzip", "rename", "sha256", "workspace"]);
   // A folder can't be hashed.
   assert.deepEqual(chooseDropTiles(["folder"]), ["rename", "zip", "workspace"]);
   assert.deepEqual(chooseDropTiles(["other"]), ["rename", "sha256", "zip", "workspace"]);
   assert.deepEqual(chooseDropTiles([]), ["rename", "sha256", "zip", "workspace"]);
-  // A mix: the actions for any file, with Convert when it is all media.
-  assert.deepEqual(chooseDropTiles(["pdf", "image"]), ["rename", "sha256", "zip", "workspace"]);
+  // A mix: the actions for any file, with Convert when it is all media, the PDF editor for pictures and PDFs.
+  assert.deepEqual(chooseDropTiles(["pdf", "image"]), ["pages", "rename", "sha256", "zip", "workspace"]);
   assert.deepEqual(chooseDropTiles(["zip", "folder"]), ["rename", "zip", "workspace"]);
   assert.deepEqual(chooseDropTiles(["image", "video"]), ["convert", "rename", "sha256", "zip", "workspace"]);
   // An image with a tile switched off: SHA-256 comes back in its place.
   assert.deepEqual(
     chooseDropTiles(["image"], ["resize"]),
-    ["convert", "ocr", "clean", "images", "rename", "sha256", "zip", "workspace"],
+    ["convert", "ocr", "clean", "pages", "images", "rename", "zip", "workspace"],
   );
 });
 
@@ -211,7 +211,7 @@ test("an action this system can't do is left out (no OCR on Linux)", () => {
   assert.deepEqual(unavailableActions("Node.js/22"), []);
   const linux = chooseDropTiles(["image"], [], ["ocr"]);
   assert.ok(!linux.includes("ocr"));
-  assert.deepEqual(linux, ["convert", "resize", "clean", "images", "rename", "sha256", "zip", "workspace"]);
+  assert.deepEqual(linux, ["convert", "resize", "clean", "pages", "images", "rename", "zip", "workspace"]);
 });
 
 test("every choice shows 2 to MAX_DROP_TILES tiles, Workspace last", () => {
@@ -232,12 +232,12 @@ test("every choice shows 2 to MAX_DROP_TILES tiles, Workspace last", () => {
 test("switched-off features leave their tiles out", () => {
   assert.deepEqual(
     chooseDropTiles(["image"], ["convert", "pdf"]),
-    ["ocr", "resize", "clean", "rename", "sha256", "zip", "workspace"],
+    ["ocr", "resize", "clean", "pages", "rename", "sha256", "zip", "workspace"],
   );
-  assert.deepEqual(chooseDropTiles(["pdf", "pdf"], ["pdf"]), ["rename", "sha256", "zip", "workspace"]);
+  assert.deepEqual(chooseDropTiles(["pdf", "pdf"], ["pdf"]), ["pages", "rename", "sha256", "zip", "workspace"]);
   assert.deepEqual(chooseDropTiles(["zip"], ["zip"]), ["rename", "sha256", "workspace"]);
   assert.deepEqual(chooseDropTiles(["video"], ["zip", "workspace", "gif"]), ["convert", "share", "rename", "sha256"]);
-  assert.deepEqual(chooseDropTiles(["image"], ["ocr", "clean", "rename", "sha256"]), ["convert", "resize", "images", "zip", "workspace"]);
+  assert.deepEqual(chooseDropTiles(["image"], ["ocr", "clean", "rename", "sha256"]), ["convert", "resize", "pages", "images", "zip", "workspace"]);
   assert.deepEqual(chooseDropTiles(["zip"], ["zip", "rename", "sha256"]), ["workspace"]);
   assert.deepEqual(chooseDropTiles(["other"], ["zip", "workspace", "rename", "sha256"]), []);
   // Every new action has its own switch.
@@ -264,7 +264,7 @@ test("every count of tiles a drag can show has a geometry, its tiles in place", 
   assert.ok(Math.max(...seen) <= MAX_DROP_TILES && seen.has(MAX_DROP_TILES) && seen.has(1), [...seen].join(","));
 });
 
-test("the drop targets view: its own width and height, no header, Mochi in the middle", () => {
+test("the drop targets view: its own width and height, no header, Stew in the middle", () => {
   const g = DROP_GEOMETRY;
   assert.deepEqual(islandSize("expanded", "dropTargets"), { w: g.w, h: g.h });
   assert.equal(expandedWidth("dropTargets"), g.w);
@@ -309,7 +309,7 @@ test("a tab sizes the open island: 640 wide, its height clamped to the window", 
   const shape = { ...DEFAULT_SHAPE, tabsH: 240 };
   assert.deepEqual(islandSize("expanded", "overview", shape), { w: TAB_WIDTH, h: 240 });
   assert.equal(expandedWidth("overview", shape), TAB_WIDTH);
-  // Mochi in the header's corner, the plain overview card's place otherwise.
+  // Stew in the header's corner, the plain overview card's place otherwise.
   assert.deepEqual(botPosition("expanded", "overview", 240, shape), { ...TAB_BOT, opacity: 1 });
   assert.equal(botPosition("expanded", "overview", 160).cx, VIEW_LAYOUTS.overview.botX);
   // Other views keep their own size while a tab exists.
@@ -373,10 +373,10 @@ test("ffmpeg download: MB move on, done fills the bar, an error ends it", () => 
 
 test("the card's text in each state", () => {
   const moved = movedState({ dir: "C:\\Users\\me\\Notch Workspace", moved: ["C:\\Users\\me\\Notch Workspace\\photo.png"], failed: [] });
-  assert.equal(fileActionText(moved).title, "Copied photo.png to Notch Workspace");
+  assert.equal(fileActionText(moved).title, "Copied photo.png to the shelf");
   assert.equal(fileActionText(moved).tone, "dim");
   const some = movedState({ dir: "/ws", moved: ["/ws/a", "/ws/b", "/ws/c"], failed: [{ name: "d", error: "in use" }] });
-  assert.equal(fileActionText(some).title, "Copied 3 items to ws");
+  assert.equal(fileActionText(some).title, "Copied 3 items to the shelf");
   assert.equal(fileActionText(some).sub, "1 couldn't be moved: in use");
   assert.equal(fileActionText(some).tone, "error");
   const none = movedState({ dir: "/ws", moved: [], failed: [{ name: "d.txt", error: "in use" }] });
@@ -387,14 +387,14 @@ test("the card's text in each state", () => {
   assert.equal(fileActionText({ kind: "pick", job }).sub, "Choose a format");
   assert.equal(fileActionText({ ...converting, index: 1, fraction: 0.5 }).title, "Converting b.mov → MP4");
   assert.equal(fileActionText({ ...converting, index: 1, fraction: 0.5 }).sub, "2 of 2 · 50 %");
-  // Saved in the workspace: its name in the title, the full folder below.
-  assert.equal(fileActionText({ kind: "done", job, format, outputs: ["/v/a.mp4"] }).title, "Saved a.mp4 to v");
-  assert.equal(fileActionText({ kind: "done", job, format, outputs: ["/v/a.mp4", "/v/b.mp4"] }).title, "Saved 2 files to v");
+  // Saved onto the shelf: its name in the title, the full folder below.
+  assert.equal(fileActionText({ kind: "done", job, format, outputs: ["/v/a.mp4"] }).title, "Saved a.mp4 to the shelf");
+  assert.equal(fileActionText({ kind: "done", job, format, outputs: ["/v/a.mp4", "/v/b.mp4"] }).title, "Saved 2 files to the shelf");
   assert.equal(
     fileActionText({ kind: "done", job, format, outputs: ["C:\\Users\\me\\Notch Workspace\\clip.gif"] }).title,
-    "Saved clip.gif to Notch Workspace",
+    "Saved clip.gif to the shelf",
   );
-  assert.equal(fileActionText({ kind: "done", job, format, outputs: ["a.mp4"] }).title, "Saved a.mp4");
+  assert.equal(fileActionText({ kind: "done", job, format, outputs: ["a.mp4"] }).title, "Saved a.mp4 to the shelf");
   assert.equal(fileActionText({ kind: "done", job, format, outputs: ["/v/a.mp4"] }).sub, "/v");
   assert.equal(fileActionText({ kind: "needsFfmpeg", job, format, canDownload: true }).title, "Converting needs ffmpeg");
   assert.equal(fileActionText({ kind: "soon", action: "zip" }).title, "Coming soon");
@@ -408,10 +408,10 @@ test("the card's text in each state", () => {
   assert.deepEqual([...RESIZE_PRESETS], ["half", "1920", "1280", "800"]);
   const zipped = filesState("zip", { outputs: ["/w/stuff.zip"], failed: [] });
   assert.equal(zipped.kind, "written");
-  assert.equal(fileActionText(zipped).title, "Saved stuff.zip to w");
+  assert.equal(fileActionText(zipped).title, "Saved stuff.zip to the shelf");
   assert.equal(fileActionText(zipped).sub, "/w");
   const split = filesState("split", { outputs: ["/w/a-1.pdf", "/w/a-2.pdf"], failed: [{ name: "b.pdf", error: "locked" }] });
-  assert.equal(fileActionText(split).title, "Saved 2 files to w");
+  assert.equal(fileActionText(split).title, "Saved 2 files to the shelf");
   assert.equal(fileActionText(split).sub, "1 failed: locked");
   assert.equal(fileActionText(split).tone, "error");
   const nothing = filesState("merge", { outputs: [], failed: [{ name: "a.pdf", error: "encrypted" }] });
@@ -482,7 +482,7 @@ test("the text card: copied, from one or several pictures, what failed", () => {
 
 test("Remove EXIF: the clean copies, and whether there was anything to remove", () => {
   const cleaned = filesState("clean", { outputs: ["/ws/p (clean).jpg"], failed: [], cleaned: 1 });
-  assert.equal(fileActionText(cleaned).title, "Saved p (clean).jpg to ws");
+  assert.equal(fileActionText(cleaned).title, "Saved p (clean).jpg to the shelf");
   assert.equal(fileActionText(cleaned).tone, "ok");
   const already = filesState("clean", { outputs: ["/ws/p (clean).png"], failed: [], cleaned: 0 });
   assert.equal(fileActionText(already).tone, "dim");
@@ -525,9 +525,14 @@ test("Video to GIF and Compress video show as conversions", () => {
   assert.equal(fileActionText(s).title, "Converting clip.mp4 → GIF");
   assert.equal(fileActionText(s).sub, "25 %");
   const done = reduceFileAction(s, { type: "done", d: { id: 9, outputs: ["/ws/clip (small).mp4"], error: null, cancelled: false } });
-  assert.equal(fileActionText(done).title, "Saved clip (small).mp4 to ws");
+  assert.equal(fileActionText(done).title, "Saved clip (small).mp4 to the shelf");
   for (const id of ["gif", "share", "ocr", "clean", "sha256", "rename"]) {
     const a = dropAction(id);
     assert.ok(a.title && a.sub && a.icon, id);
   }
+});
+
+test("text dragged in offers only Save as note, and not when it's switched off", () => {
+  assert.deepEqual(chooseDropTiles(["text"]), ["note"]);
+  assert.deepEqual(chooseDropTiles(["text"], ["textnote"]), []);
 });

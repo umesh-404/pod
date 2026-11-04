@@ -24,7 +24,7 @@ pub struct Settings {
     /// Global shortcuts the user changed, by action id; the others keep their
     /// default (see shortcuts.rs).
     pub shortcuts: crate::shortcuts::Bindings,
-    /// Mochi's outfit, picked in the wardrobe: "auto" (dresses for the
+    /// Stew's outfit, picked in the wardrobe: "auto" (dresses for the
     /// season), "none" or an outfit id — the Mac's raw values. The island reads
     /// anything it doesn't know as "auto", so the value is stored as it comes.
     pub mochi_outfit: String,
@@ -32,12 +32,12 @@ pub struct Settings {
     /// ("fr", "pt-BR", "zh-Hans"…). Kept as it comes, like `mochi_outfit`: a
     /// code this build doesn't know reads as "".
     pub language: String,
-    /// Mochi on the desktop: whether he lives there, and his spot. Owned by
+    /// Stew on the desktop: whether he lives there, and his spot. Owned by
     /// the Rust side (desktop.rs) — what a webview sends back is ignored.
     pub desktop_mochi: DesktopMochiPref,
     /// The date and time in the middle of the compact island. Off by default.
     pub show_clock: bool,
-    /// The temporary workspace files dropped on "Copy to workspace" go to; empty
+    /// The temporary workspace files dropped on "Copy to shelf" go to; empty
     /// means the default (workspace.rs). Owned by Rust: only `workspace_change`
     /// sets it, because changing it moves everything already there.
     pub workspace_dir: String,
@@ -362,6 +362,49 @@ fn save_to(path: &Path, settings: &Settings) -> std::io::Result<()> {
         let _ = std::fs::remove_file(&temp);
     }
     written
+}
+
+// ── Self-repair (heal.rs) ─────────────────────────────────────────────────────
+
+/// settings.json as it is on the disk right now.
+pub(crate) enum FileState {
+    /// None yet: the defaults, nothing to repair.
+    Missing,
+    Usable,
+    /// There, but nothing in it can be used.
+    Unusable,
+    /// There, but it can't be read (locked, no permission): left alone.
+    Unreadable(String),
+}
+
+pub(crate) fn file_state() -> FileState {
+    match std::fs::read(settings_path()) {
+        Ok(bytes) if parse(&bytes).is_some() => FileState::Usable,
+        Ok(_) => FileState::Unusable,
+        Err(err) if err.kind() == ErrorKind::NotFound => FileState::Missing,
+        Err(err) => FileState::Unreadable(err.to_string()),
+    }
+}
+
+/// An unusable settings.json is kept aside, as `load` does (the same copy is
+/// never made twice), and `current` — the settings in use — written in its
+/// place. Returns the copy; None when the file was fine by then.
+pub(crate) fn repair(current: &Settings) -> std::io::Result<Option<PathBuf>> {
+    crate::platform::ensure_private_dir(&config_dir())?;
+    repair_at(&settings_path(), current)
+}
+
+fn repair_at(path: &Path, current: &Settings) -> std::io::Result<Option<PathBuf>> {
+    let copy = {
+        let _lock = save_lock();
+        let bytes = std::fs::read(path)?;
+        if parse(&bytes).is_some() {
+            return Ok(None);
+        }
+        set_aside(path, "corrupt", &bytes)?
+    };
+    save_to(path, current)?;
+    Ok(Some(copy))
 }
 
 #[cfg(test)]
@@ -878,6 +921,24 @@ mod tests {
         // Must still be valid settings that load cleanly without corruption
         let loaded = load_from(&file);
         assert!(loaded.sound_volume >= 0.0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn self_repair_keeps_an_unusable_file_aside_once_and_writes_the_settings_in_use() {
+        let (dir, file) = scratch("repair");
+        std::fs::write(&file, b"{ not json").unwrap();
+        // What load did at launch: one copy aside, the defaults in use.
+        assert_eq!(shown(&load_from(&file)), defaults());
+        let mut current = Settings::default();
+        current.sound_volume = 0.5;
+
+        let copy = repair_at(&file, &current).unwrap().expect("repaired");
+        assert_eq!(std::fs::read(&copy).unwrap(), b"{ not json");
+        assert_eq!(kept(&dir, "corrupt").len(), 1, "the copy load made is reused");
+        assert_eq!(load_from(&file).sound_volume, 0.5);
+        // Usable now: nothing more to do.
+        assert_eq!(repair_at(&file, &current).unwrap(), None);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

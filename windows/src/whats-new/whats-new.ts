@@ -1,4 +1,4 @@
-// What's new after an update, and the blue Mochi while one waits — the rules,
+// What's new after an update, and the blue Stew while one waits — the rules,
 // pure, so tests/whats-new.test.mjs checks them. The island side is in
 // controller.ts, the card in views/whatsnew.ts.
 //
@@ -156,7 +156,7 @@ export function usedBefore(facts: {
     || facts.notes > 0;
 }
 
-// ── The blue Mochi while a version waits ──────────────────────────────────────
+// ── The blue Stew while a version waits ──────────────────────────────────────
 
 /** "Later" keeps the version quiet for a day, the blue included (Mac: snooze). */
 export const LATER_MS = 24 * 3600 * 1000;
@@ -179,7 +179,7 @@ export function updateWaiting(status: UpdateStatus, later: Later | null, nowMs: 
   return true;
 }
 
-/** Mochi turns blue only when he has nothing else to say. */
+/** Stew turns blue only when he has nothing else to say. */
 export function showsUpdateHint(waiting: boolean, state: BotStateName, pending: boolean): boolean {
   return waiting && !pending && (state === "idle" || state === "sleeping");
 }

@@ -1,7 +1,7 @@
 // What's new after an update (whats-new/controller.ts decides when): first
 // what this version brings — an icon, a title and a line per item — then
 // "Your Pod so far", the numbers this computer kept, and OK. Same left
-// inset as the other cards, Mochi on the left.
+// inset as the other cards, Stew on the left.
 
 import { h, clear, svg } from "./dom";
 import { washRGBA } from "../core/layout";

@@ -51,7 +51,7 @@ export const EXPANDED_W = 640;
 
 // ── Drop targets ──────────────────────────────────────────────────────────────
 // Files dragged over the island: it grows a little into a menu of drop tiles,
-// no header, Mochi (a box) in the middle. The tiles' text and icons are in
+// no header, Stew in the middle, ready to catch. The tiles' text and icons are in
 // island/file-actions.ts (DROP_ACTIONS); only their ids and geometry live here.
 
 /**
@@ -60,7 +60,7 @@ export const EXPANDED_W = 640;
  */
 export const DROP_ACTION_IDS = [
   "convert", "gif", "share", "ocr", "resize", "clean", "images", "merge", "split", "rotate", "compress", "unzip",
-  "rename", "sha256", "zip", "workspace",
+  "rename", "sha256", "zip", "workspace", "note", "pages",
 ] as const;
 export type DropActionId = (typeof DROP_ACTION_IDS)[number];
 export type DropZone = DropActionId;
@@ -89,11 +89,13 @@ export const DROP_FEATURE: Record<DropActionId, string> = {
   share: "share",
   sha256: "sha256",
   rename: "rename",
+  note: "textnote",
+  pages: "pdfstudio",
 };
 
 /**
- * "grid": two columns of tiles with Mochi in the column between them (2×2 for
- * four); "row": every tile in one row, Mochi in the middle of it.
+ * "grid": two columns of tiles with Stew in the column between them (2×2 for
+ * four); "row": every tile in one row, Stew in the middle of it.
  */
 export type DropLayoutMode = "grid" | "row";
 export const DROP_LAYOUT: DropLayoutMode = "grid";
@@ -122,7 +124,7 @@ export interface DropTargetsGeometry {
 const DROP_PAD_TOP = 8;
 const DROP_PAD_SIDE = 10;
 const DROP_PAD_BOTTOM = 10;
-/** Room for Mochi between the two halves. */
+/** Room for Stew between the two halves. */
 const DROP_BOT_GAP = 76;
 /** Between two tiles on the same side. */
 const DROP_TILE_GAP = 8;
@@ -131,7 +133,7 @@ const DROP_TILE_GAP = 8;
 export function dropTargetsGeometry(count: number, mode: DropLayoutMode = DROP_LAYOUT): DropTargetsGeometry {
   const n = Math.max(1, Math.min(MAX_DROP_TILES, Math.round(Number.isFinite(count) ? count : 1)));
   if (n === 1) {
-    // One tile (the others switched off): Mochi beside it, not on it.
+    // One tile (the others switched off): Stew beside it, not on it.
     const tileW = 212;
     const tileH = 102;
     const w = DROP_PAD_SIDE + tileW + DROP_BOT_GAP;
@@ -142,7 +144,7 @@ export function dropTargetsGeometry(count: number, mode: DropLayoutMode = DROP_L
     };
   }
   if (mode === "row" || n <= 2) {
-    // One row, split in two halves around Mochi: the left half takes the extra one.
+    // One row, split in two halves around Stew: the left half takes the extra one.
     const tileW = n <= 2 ? 212 : 137;
     const tileH = 102;
     const left = Math.ceil(n / 2);
@@ -187,7 +189,7 @@ export function dropTargetsGeometry(count: number, mode: DropLayoutMode = DROP_L
 
 /**
  * The tile a point is over: the nearest one, so every point of the island —
- * the gaps and Mochi's column included — picks a tile, and the pointer never
+ * the gaps and Stew's column included — picks a tile, and the pointer never
  * has to be inside a tile's own bounds. Ties go to the first tile.
  */
 export function dropTileAt(x: number, y: number, tiles: readonly TileRect[]): number {
@@ -219,9 +221,9 @@ export const DROP_GEOMETRY = dropTargetsGeometry(DEFAULT_DROP_TILES.length);
 
 // ── Compact notch sides ───────────────────────────────────────────────────────
 // Left: the next reminder; right: the rotating live items (island/notch.ts).
-// The compact island grows symmetrically so Mochi stays in the middle.
+// The compact island grows symmetrically so Stew stays in the middle.
 
-/** Room for Mochi in the middle of the compact island. */
+/** Room for Stew in the middle of the compact island. */
 export const COMPACT_BOT_GAP = 40;
 /** Between a side's text and the island's edge. */
 export const COMPACT_SIDE_PAD = 12;
@@ -248,7 +250,7 @@ export const TAB_CHROME_H = 52;
 export const TABS_MIN_H = 160;
 /** The window is PANEL_H tall: the island can't grow past it. */
 export const TABS_MAX_H = PANEL_H;
-/** Mochi in the header row, left of the tab buttons. */
+/** Stew in the header row, left of the tab buttons. */
 export const TAB_BOT = { cx: 26, cy: 25, diameter: 20 } as const;
 
 /** The island's height for a tab whose content wants `contentH`. */
@@ -269,7 +271,7 @@ export interface IslandShape {
   tuck: TuckShape;
 }
 
-/** The tucked pill: its width, and Mochi's centre in it (null: a timer has his place). */
+/** The tucked pill: its width, and Stew's centre in it (null: a timer has his place). */
 export interface TuckShape {
   w: number;
   botCx: number | null;
@@ -300,17 +302,17 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   settings: { height: 160, botX: 54, botY: null, botDiameter: 46 },
   greeting: { height: 150, botX: 320, botY: 90, botDiameter: 0 },
   wardrobe: { height: 160, botX: 68, botY: null, botDiameter: 58 },
-  // New version: Mochi on the left, the version and Update now (Mac: .update).
+  // New version: Stew on the left, the version and Update now (Mac: .update).
   update: { height: 160, botX: 62, botY: null, botDiameter: 58 },
   // After an update: what the new version brings, then "Your Pod so far".
   // Taller than a card, for two rows of items with their line.
   whatsNew: { height: 222, botX: 62, botY: null, botDiameter: 58 },
-  // A file dragged over the island: the drop tiles, Mochi (a box) between them.
+  // A file dragged over the island: the drop tiles, Stew between them, mouth open.
   dropTargets: {
     height: DROP_GEOMETRY.h, botX: DROP_GEOMETRY.bot.cx, botY: DROP_GEOMETRY.bot.cy,
     botDiameter: DROP_GEOMETRY.bot.diameter,
   },
-  // What became of the drop: moved, convert, ffmpeg, progress, done. Mochi on the left.
+  // What became of the drop: moved, convert, ffmpeg, progress, done. Stew on the left.
   fileAction: { height: 160, botX: 62, botY: null, botDiameter: 56 },
 };
 
@@ -333,7 +335,7 @@ export function islandSize(
   switch (mode) {
     case "hidden":
       // Tucked away (over a maximized window, or folded): a small pill at the top
-      // edge with Mochi still in it. Opening grows the island out of it.
+      // edge with Stew still in it. Opening grows the island out of it.
       return { w: shape.tuck.w, h: TUCK_H };
     case "compact":
       return { w: shape.compactW, h: NOTCH_H };
@@ -368,7 +370,7 @@ export function botPosition(
         cx: shape.tuck.botCx ?? shape.tuck.w / 2, cy: TUCK_H / 2, diameter: 16, opacity: shape.tuck.botCx == null ? 0 : 1,
       };
     case "compact":
-      // Mochi centred in the compact island, between its two sides.
+      // Stew centred in the compact island, between its two sides.
       return { cx: shape.compactW / 2, cy: 16, diameter: 20, opacity: 1 };
     case "expanded": {
       if (view === "dropTargets") {

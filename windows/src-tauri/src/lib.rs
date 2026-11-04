@@ -11,6 +11,7 @@ mod downloads;
 mod desktop;
 mod devservers;
 mod files;
+mod heal;
 mod i18n;
 mod island;
 mod log;
@@ -19,6 +20,7 @@ mod metaclean;
 mod net;
 mod ocr;
 mod pdf;
+mod pdfstudio;
 mod platform;
 #[cfg(target_os = "linux")]
 mod portal;
@@ -34,6 +36,8 @@ mod sounds;
 mod sysglance;
 mod tray;
 mod update;
+#[cfg(windows)]
+mod webview_check;
 #[cfg(windows)]
 mod webview_drop;
 mod workspace;
@@ -84,7 +88,7 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
         let screen_changed = current.screen != settings.screen;
         let autostart_changed = current.autostart != settings.autostart;
         let shortcuts_changed = current.shortcuts != settings.shortcuts;
-        // Where Mochi sits on the desktop is desktop.rs's to say, not a webview's.
+        // Where Stew sits on the desktop is desktop.rs's to say, not a webview's.
         let mut settings = settings.clone();
         settings.desktop_mochi = current.desktop_mochi.clone();
         // Moving the workspace moves its files, and ffmpeg is picked natively:
@@ -291,19 +295,28 @@ pub const HUB_LABEL: &str = "settings";
 /// one that exists before the island's webview does.
 fn create_settings_window(app: &AppHandle) {
     let url = settings_page_url(app);
-    match WebviewWindowBuilder::new(app, HUB_LABEL, url)
+    let builder = WebviewWindowBuilder::new(app, HUB_LABEL, url)
         .additional_browser_args(BROWSER_ARGS)
         .title("Pod")
         .inner_size(1100.0, 720.0)
         .min_inner_size(820.0, 560.0)
         .resizable(true)
         .visible(false)
-        .center()
-        .build()
-    {
+        .center();
+    // Files dropped on the PDF editor: on Windows WebView2 takes them, as on the
+    // island (webview_drop.rs); Tauri's own drop events do it elsewhere.
+    #[cfg(windows)]
+    let builder = builder.disable_drag_drop_handler();
+    match builder.build() {
         Ok(win) => {
+            #[cfg(windows)]
+            webview_drop::install_hub(app);
             let this = win.clone();
+            let handle = app.clone();
             win.on_window_event(move |event| match event {
+                tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) => {
+                    pdfstudio::window_drop(&handle, paths.clone());
+                }
                 // Closing it must only hide it, or it could never be reopened.
                 tauri::WindowEvent::CloseRequested { api, .. } => {
                     api.prevent_close();
@@ -331,6 +344,19 @@ static HUB_SHOWN: AtomicBool = AtomicBool::new(false);
 fn set_hub_shown(win: &tauri::WebviewWindow, shown: bool) {
     if HUB_SHOWN.swap(shown, Ordering::Relaxed) != shown {
         let _ = win.emit_to(HUB_LABEL, "hub-visible", shown);
+    }
+}
+
+/// Whether the Pod window is on screen now.
+pub fn hub_visible() -> bool {
+    HUB_SHOWN.load(Ordering::Relaxed)
+}
+
+/// Hides the Pod window (the PDF editor closing when it opened it).
+pub fn hide_hub(app: &AppHandle) {
+    if let Some(win) = app.get_webview_window(HUB_LABEL) {
+        let _ = win.hide();
+        set_hub_shown(&win, false);
     }
 }
 
@@ -382,6 +408,11 @@ pub fn run() {
     platform::prepare_environment();
     let loaded = settings::load();
     i18n::set_picked(&loaded.language);
+    // Before any webview: a broken WebView2 is offered its repair, never a
+    // crash, and Pod quits cleanly if it stays broken (webview_check.rs).
+    if !webview_check::ensure_ready(heal::enabled(&loaded)) {
+        return;
+    }
     let gate = Arc::new(PollGate::new());
 
     let mut builder = tauri::Builder::default()
@@ -475,6 +506,12 @@ pub fn run() {
             cover::notch_covered,
             resize::resize_run,
             pdf::pdf_run,
+            pdfstudio::pdf_studio_open,
+            pdfstudio::pdf_studio_state,
+            pdfstudio::pdf_studio_pick,
+            pdfstudio::pdf_studio_thumb,
+            pdfstudio::pdf_studio_save,
+            pdfstudio::pdf_studio_close,
             ocr::ocr_run,
             checksum::hash_new_job,
             checksum::hash_run,
@@ -507,13 +544,15 @@ pub fn run() {
             reminders::reminder_add,
             reminders::reminder_done,
             reminders::reminder_snooze,
+            heal::heal_status,
+            heal::heal_check,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
             tray::build(&handle)?;
             // Before the island: see create_settings_window.
             create_settings_window(&handle);
-            // Same rule for Mochi's desktop window.
+            // Same rule for Stew's desktop window.
             desktop::setup(&handle);
             reminders::start(&handle);
             shelf::start(&handle);
@@ -545,17 +584,20 @@ pub fn run() {
 
             log::line(format!("--- Pod {} started ---", env!("CARGO_PKG_VERSION")));
             shortcuts::apply(&handle, &loaded.shortcuts);
-            // New versions: nothing goes to GitHub until the user agrees (update.rs).
+            // New versions: checks and installs as set in Settings (update.rs).
             update::start(handle.clone());
-            if loaded.autostart {
-                // Login items written before 0.5 start Pod without --autostart:
-                // writing it again adds it, so the window stays hidden at login.
-                let _ = handle.autolaunch().enable();
-            }
+            // The Windows startup entry is written only when the user switches
+            // "Start with Windows" on or off (apply_settings), never at launch:
+            // a program that re-registers itself on every start looks like
+            // malware persisting, and antivirus heuristics treat it so.
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("error while building Pod")
+        // Creating the island's webview failed anyway: say so, don't panic.
+        .unwrap_or_else(|err| {
+            webview_check::startup_failed(&err.to_string());
+            std::process::exit(1)
+        })
         .run(|_app, event| {
             // Quitting (the tray, an update): no ffmpeg goes on without Pod.
             if let tauri::RunEvent::Exit = event {

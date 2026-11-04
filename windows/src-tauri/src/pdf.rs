@@ -53,7 +53,7 @@ impl Action {
     }
 }
 
-const IMAGE_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp", "gif", "bmp"];
+pub(crate) const IMAGE_EXTS: &[&str] = &["png", "jpg", "jpeg", "webp", "gif", "bmp"];
 /// Most one stream may inflate to while loading or recompressing.
 const MAX_STREAM: usize = 512 * 1024 * 1024;
 /// The largest page PDF allows (200 inches); bigger pictures are scaled down to it.
@@ -190,7 +190,7 @@ fn report(action: Action, outputs: Vec<PathBuf>, failed: Vec<Failure>) -> PdfRep
     PdfReport { outputs: outputs.iter().map(|p| p.to_string_lossy().to_string()).collect(), failed }
 }
 
-fn stem(path: &Path) -> String {
+pub(crate) fn stem(path: &Path) -> String {
     path.file_stem().map(|s| s.to_string_lossy().to_string()).filter(|s| !s.is_empty()).unwrap_or_else(|| "PDF".into())
 }
 
@@ -212,7 +212,7 @@ pub(crate) fn load(path: &Path) -> Result<Document, String> {
 
 /// Writes `doc` to `dir/name` (or "name (2)"…); removes it again on failure.
 /// `modern` packs objects into object streams (PDF 1.5), which is smaller.
-fn save(mut doc: Document, dir: &Path, name: &str, modern: bool) -> Result<PathBuf, String> {
+pub(crate) fn save(mut doc: Document, dir: &Path, name: &str, modern: bool) -> Result<PathBuf, String> {
     let (dest, file) = create_unique(dir, name).map_err(|e| cannot_write(name, &e))?;
     let mut writer = BufWriter::new(file);
     let written = if modern { doc.save_modern(&mut writer) } else { doc.save_to(&mut writer) }
@@ -231,10 +231,17 @@ fn save(mut doc: Document, dir: &Path, name: &str, modern: bool) -> Result<PathB
 // ── Copying pages into a new document ───────────────────────────────────────
 
 /// A new document filled page by page.
-struct Builder {
+pub(crate) struct Builder {
     doc: Document,
     pages_id: ObjectId,
     kids: Vec<Object>,
+}
+
+/// Which objects of one source document are already in the new one.
+#[derive(Default)]
+pub(crate) struct PageCopy {
+    map: HashMap<ObjectId, ObjectId>,
+    queue: VecDeque<(ObjectId, ObjectId)>,
 }
 
 fn is_type(dict: &Dictionary, name: &[u8]) -> bool {
@@ -243,7 +250,7 @@ fn is_type(dict: &Dictionary, name: &[u8]) -> bool {
 
 /// The page dictionary with what it inherits from the page tree (resources,
 /// boxes, rotation) written onto it, since it is leaving that tree.
-fn standalone_page(src: &Document, page_id: ObjectId) -> Dictionary {
+pub(crate) fn standalone_page(src: &Document, page_id: ObjectId) -> Dictionary {
     let mut dict = src.get_dictionary(page_id).cloned().unwrap_or_else(|_| Dictionary::new());
     let mut parent = dict.get(b"Parent").and_then(Object::as_reference).ok();
     for _ in 0..64 {
@@ -301,7 +308,7 @@ fn remap(
 }
 
 impl Builder {
-    fn new() -> Builder {
+    pub(crate) fn new() -> Builder {
         let mut doc = Document::with_version("1.7");
         let pages_id = doc.new_object_id();
         Builder { doc, pages_id, kids: Vec::new() }
@@ -310,32 +317,67 @@ impl Builder {
     /// Copies `pages` of `src`, in that order. Objects they share (a font used
     /// on every page) are copied once.
     fn add_pages(&mut self, src: &Document, pages: &[ObjectId]) {
-        let mut map: HashMap<ObjectId, ObjectId> = HashMap::new();
-        // Pages first, so links between the copied pages keep working.
+        let mut copy = PageCopy::default();
+        self.reserve(&mut copy, pages);
         for page in pages {
-            let new = self.doc.new_object_id();
-            map.insert(*page, new);
+            self.add_reserved_page(src, &mut copy, *page);
         }
-        let mut queue = VecDeque::new();
+        self.copy_queued(src, &mut copy);
+    }
+
+    /// Gives `pages` of one source their ids in the new document before any is
+    /// copied, so links between the copied pages keep working.
+    pub(crate) fn reserve(&mut self, copy: &mut PageCopy, pages: &[ObjectId]) {
         for page in pages {
-            let new = map[page];
-            let mut obj = Object::Dictionary(standalone_page(src, *page));
-            remap(&mut obj, src, &mut self.doc, &mut map, &mut queue);
-            if let Object::Dictionary(dict) = &mut obj {
-                dict.set("Parent", self.pages_id);
+            if !copy.map.contains_key(page) {
+                let new = self.doc.new_object_id();
+                copy.map.insert(*page, new);
             }
-            self.doc.objects.insert(new, obj);
-            self.kids.push(new.into());
         }
+    }
+
+    /// Appends one page of `src` reserved with `reserve`; what it reaches is
+    /// queued in `copy`, shared with the source's other pages, and copied by
+    /// `copy_queued`. Returns the page's id in the new document.
+    pub(crate) fn add_reserved_page(&mut self, src: &Document, copy: &mut PageCopy, page: ObjectId) -> ObjectId {
+        let new = copy.map[&page];
+        let mut obj = Object::Dictionary(standalone_page(src, page));
+        remap(&mut obj, src, &mut self.doc, &mut copy.map, &mut copy.queue);
+        if let Object::Dictionary(dict) = &mut obj {
+            dict.set("Parent", self.pages_id);
+        }
+        self.doc.objects.insert(new, obj);
+        self.kids.push(new.into());
+        new
+    }
+
+    /// Copies everything the pages added from `src` reach.
+    pub(crate) fn copy_queued(&mut self, src: &Document, copy: &mut PageCopy) {
         // Iterative, so a long chain of objects cannot overflow the stack.
-        while let Some((old, new)) = queue.pop_front() {
+        while let Some((old, new)) = copy.queue.pop_front() {
             let mut obj = src.get_object(old).cloned().unwrap_or(Object::Null);
-            remap(&mut obj, src, &mut self.doc, &mut map, &mut queue);
+            remap(&mut obj, src, &mut self.doc, &mut copy.map, &mut copy.queue);
             self.doc.objects.insert(new, obj);
         }
     }
 
-    fn finish(mut self) -> Document {
+    /// The page added last.
+    pub(crate) fn last_page(&self) -> Option<ObjectId> {
+        self.kids.last().and_then(|o| o.as_reference().ok())
+    }
+
+    /// Shows page `id` of the new document turned to `degrees` (0, 90, 180, 270).
+    pub(crate) fn set_rotation(&mut self, id: ObjectId, degrees: i64) {
+        if let Ok(dict) = self.doc.get_dictionary_mut(id) {
+            if degrees.rem_euclid(360) == 0 {
+                dict.remove(b"Rotate");
+            } else {
+                dict.set("Rotate", degrees.rem_euclid(360));
+            }
+        }
+    }
+
+    pub(crate) fn finish(mut self) -> Document {
         let count = self.kids.len() as i64;
         let pages = dictionary! { "Type" => "Pages", "Kids" => self.kids, "Count" => count };
         self.doc.objects.insert(self.pages_id, Object::Dictionary(pages));
@@ -346,7 +388,7 @@ impl Builder {
     }
 }
 
-fn page_ids(doc: &Document) -> Vec<ObjectId> {
+pub(crate) fn page_ids(doc: &Document) -> Vec<ObjectId> {
     doc.get_pages().into_values().collect()
 }
 
@@ -377,7 +419,7 @@ fn split(doc: &Document, path: &Path, out: &Path) -> Result<PathBuf, String> {
 }
 
 /// The rotation a page shows with, its own or inherited, as 0, 90, 180 or 270.
-fn page_rotation(doc: &Document, page_id: ObjectId) -> i64 {
+pub(crate) fn page_rotation(doc: &Document, page_id: ObjectId) -> i64 {
     let mut id = Some(page_id);
     for _ in 0..64 {
         let Some(current) = id else { break };
@@ -523,7 +565,7 @@ fn image_stream(w: u32, h: u32, color_space: &str, filter: Option<&str>, content
 
 impl Builder {
     /// One page holding the picture at `path`, one pixel to a point.
-    fn add_picture(&mut self, path: &Path) -> Result<(), String> {
+    pub(crate) fn add_picture(&mut self, path: &Path) -> Result<(), String> {
         let name = display_name(path);
         let unreadable = |e: &dyn std::fmt::Display| tf("Cannot read {path}: {error}", &[("path", &name), ("error", &e.to_string())]);
         let reader = ImageReader::open(path).map_err(|e| unreadable(&e))?.with_guessed_format().map_err(|e| unreadable(&e))?;

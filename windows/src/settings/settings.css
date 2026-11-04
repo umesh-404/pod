@@ -94,6 +94,12 @@ section > h2 {
   font-size: 12.5px;
 }
 
+/* Health: the checks' names are longer ("Microsoft Edge WebView2"); the dots stay in one column. */
+.row.health-row > label {
+  flex: 0 0 172px;
+  min-width: 0;
+}
+
 .spacer {
   flex: 1 1 auto;
 }
@@ -436,7 +442,7 @@ html[dir="rtl"] :is(.diff, .path, .keycap, input[type="password"], input[type="t
 
 /* ── Settings → Notch: the live preview (settings/notch-preview.ts) ───────────
    The top edge of a screen with the compact notch hanging from it, drawn with
-   the island's own sizes: 32 px tall, 14 px corners, Mochi in the middle. */
+   the island's own sizes: 32 px tall, 14 px corners, Stew in the middle. */
 
 .np-stage {
   --np-spring: cubic-bezier(0.32, 0.72, 0, 1);
@@ -489,7 +495,7 @@ html[dir="rtl"] :is(.diff, .path, .keycap, input[type="password"], input[type="t
   transition: none;
 }
 
-/* Mochi's canvas, placed as the island places it: 20 px across, centred at
+/* Stew's canvas, placed as the island places it: 20 px across, centred at
    16 px down, with 40 px above him for his particles (island.ts drawBot). */
 .np-mochi {
   position: absolute;

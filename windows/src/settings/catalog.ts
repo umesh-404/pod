@@ -37,13 +37,15 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       item("zip", N_("Zip / Unzip"), N_("Compress files into a .zip, or extract one.")),
       item("resize", N_("Resize image"), N_("Make images smaller without changing how they look.")),
       item("pdf", N_("PDF tools"), N_("Merge, split and compress PDFs, and turn photos into a PDF.")),
+      item("pdfstudio", N_("PDF editor"), N_("Put pictures and PDF pages in order, turn or remove them, and save one PDF.")),
       item("ocr", N_("Text from image"), N_("Read the text in a screenshot or photo, on this computer, and copy it.")),
       item("clean", N_("Remove EXIF"), N_("A copy of a photo without its location, camera and dates.")),
       item("gif", N_("Video to GIF"), N_("Turn a short video into a looping GIF.")),
       item("share", N_("Compress video"), N_("A smaller MP4, at most 1080p, ready to send.")),
       item("sha256", N_("SHA-256 checksum"), N_("Check that a download is exactly the file it should be.")),
       item("rename", N_("Batch rename"), N_("Rename several files at once, with a preview and Undo.")),
-      item("workspace", N_("Copy to workspace"), N_("Copy files into your workspace folder.")),
+      item("workspace", N_("Copy to shelf"), N_("Copy files onto your shelf.")),
+      item("textnote", N_("Save as note"), N_("Text dragged onto the island becomes a note on the shelf.")),
     ],
   },
   {
@@ -74,6 +76,14 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       item("focus", N_("Focus timer"), N_("Work and break sessions, counted down in the notch.")),
       item("clipboard", N_("Smart clipboard"), N_("Recognizes what you copy and offers what to do with it.")),
       item("devservers", N_("Dev servers"), N_("The local servers running on this computer, one click to open.")),
+    ],
+  },
+  {
+    anchor: "features.upkeep",
+    title: N_("Upkeep"),
+    hint: N_("What Pod does on its own to keep working."),
+    items: [
+      item("heal", N_("Self-repair"), N_("Checks Pod's own files now and then and fixes what broke.")),
     ],
   },
 ];

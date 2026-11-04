@@ -1,7 +1,7 @@
 // The update card — port of UpdateCardView (MacUpdateViews.swift): the
 // one-time question, "Pod X is out" with Update now · What's new · Later,
 // then the download's progress, or what went wrong. Same green wash and the
-// same left inset as the other cards, Mochi on the left.
+// same left inset as the other cards, Stew on the left.
 
 import { h, clear } from "./dom";
 import { washRGBA } from "../core/layout";
@@ -48,7 +48,7 @@ export function buildUpdate(): ViewHost {
 
       if (Updates.asking) {
         title.textContent = t("Get new versions from the island?");
-        line.textContent = t("Mochi checks Pod's releases on GitHub a few times a day and tells you when one is out. Nothing about you is sent.");
+        line.textContent = t("Stew checks Pod's releases on GitHub a few times a day and tells you when one is out. Nothing about you is sent.");
         buttons("ask", () => [
           btn(t("Yes, tell me"), "primary", () => Updates.answer(true)),
           btn(t("No thanks"), "secondary", () => Updates.answer(false)),

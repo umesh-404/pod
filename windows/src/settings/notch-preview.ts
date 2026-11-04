@@ -2,7 +2,7 @@
 // the island's own (island/notch-items.ts: SideView and the item builders, and
 // island/notch.css), fed with sample data, so what is drawn here is what the
 // notch draws: the same items, their turns and slides at the chosen seconds,
-// and the island springing to fit them. Mochi is the hub's live Mochi.
+// and the island springing to fit them. Stew is the hub's live Stew.
 //
 // Efficiency, as on the island: one timer, set for the next moment something
 // on screen changes, and only while the preview is on screen (in view, the

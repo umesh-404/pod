@@ -29,7 +29,7 @@ export interface ViewActions {
   blip(): void;
   /** Wardrobe click: keeps the outfit ("auto" and "none" included). */
   chooseOutfit(selection: OutfitSelection): void;
-  /** Wardrobe hover: shows an outfit on Mochi without keeping it; null ends it. */
+  /** Wardrobe hover: shows an outfit on Stew without keeping it; null ends it. */
   previewOutfit(outfit: Outfit | null): void;
   /** The buttons of the file action card (island/file-actions.ts). */
   fileCard: FileCardActions;
@@ -124,7 +124,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
         tabsKey = key;
         tabHome.style.display = shown.length === 0 ? "" : "none";
         for (const [id, b] of tabButtons) b.style.display = shown.includes(id) ? "" : "none";
-        // Mochi sits in the header's left corner while a tab is open.
+        // Stew sits in the header's left corner while a tab is open.
         tabsEl.classList.toggle("with-tabs", shown.length > 0);
       }
       const at = v === "overview" && State.tab ? shown.indexOf(State.tab) : -1;
@@ -152,7 +152,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
 
 // ── Home ──────────────────────────────────────────────────────────────────────
 
-/** The island at rest: Mochi on the left, what a drop on the island can do. */
+/** The island at rest: Stew on the left, what a drop on the island can do. */
 function buildHome(actions: ViewActions): ViewHost {
   // What the drop tiles offer, in their own words (island/file-actions.ts).
   const sub = h("div", { class: "sub" });
@@ -166,7 +166,7 @@ function buildHome(actions: ViewActions): ViewHost {
       sub,
     ),
     h("div", { class: "grow" }),
-    btn(tl("Workspace"), "secondary", () => actions.openWorkspace()),
+    btn(tl("Open folder"), "secondary", () => actions.openWorkspace()),
   );
   const homeCard = card(null, body);
   homeCard.classList.add("home-card");

@@ -2,11 +2,11 @@
 
 **A notch island at the top of your screen, for Windows and Linux.**
 
-Pod puts a small island at the top of your screen, with Mochi in the middle.
+Pod puts a small island at the top of your screen, with Stew, a glossy green ball, in the middle.
 It is a temporary workspace: drag files over it and drop them on an action
-(convert, zip, resize, PDF tools, copy to your workspace folder), keep files on
-a shelf and drag copies back out, set reminders and deadlines that count down
-in the notch, and see live items take turns beside Mochi. Everything
+(convert, zip, resize, PDF tools, copy to the shelf), keep files on the
+shelf and drag copies back out, set reminders and deadlines that count down
+in the notch, and see live items take turns beside Stew. Everything
 runs locally: no API keys, no accounts, and 0 % CPU while the island is hidden.
 
 Version 0.1.0 · Windows 10/11 · Linux (partial) · [Tauri 2](https://tauri.app) + Rust
@@ -20,12 +20,12 @@ Version 0.1.0 · Windows 10/11 · Linux (partial) · [Tauri 2](https://tauri.app
   - **PDF tools**: merge, split, rotate, compress, photos → PDF.
   - **Text from image** (Windows), **Remove EXIF**, **Video to GIF**,
     **Compress video**, **SHA-256 checksum**, **Batch rename**.
-  - **Copy to workspace**.
+  - **Copy to shelf**.
 
-  What an action makes is saved in the workspace folder. Originals are never
+  What an action makes is saved on the shelf. Originals are never
   overwritten (Batch rename renames in place, with Undo), and only files you
   actually dropped can be touched.
-- **Shelf.** The files in your workspace folder, with thumbnails. Drag one out
+- **Shelf.** The files in your shelf folder, with thumbnails. Drag one out
   to drop a copy wherever you are working.
 - **Reminders and deadlines.** Type "call Sam at 4pm" or "essay in 3 days". The
   due reminder or the nearest deadline shows on the left of the compact notch.
@@ -53,8 +53,8 @@ comes from your package manager, and less is tested than on Windows. See
 
 ## Build from source
 
-There are no releases yet. Pod still carries the Mochi character, the icon and
-the sounds from Coucou, which may not be redistributed; builds will be published
+There are no releases yet. Pod still carries the icon and the sounds from
+Coucou, which may not be redistributed; builds will be published
 once they are replaced. See [LICENSE-ASSETS.md](LICENSE-ASSETS.md).
 
 You need [Rust](https://rustup.rs) and [Node 20+](https://nodejs.org) (on
@@ -70,18 +70,18 @@ npm run pack           # release build and installers in windows/release/
 npm test               # front-end tests
 ```
 
-How Pod works (the drop pipeline, the workspace, the ffmpeg download,
+How Pod works (the drop pipeline, the shelf folder, the ffmpeg download,
 efficiency, platform differences, project layout) is in
 [windows/README.md](windows/README.md).
 
 ## Credits
 
 Pod is a fork of [Coucou](https://github.com/Louis-CFM/coucou) by Louis Raillé,
-released under the MIT License. The island, Mochi and much of the app's
-foundation come from Coucou.
+released under the MIT License. The island and much of the app's foundation
+come from Coucou. Stew, Pod's character, is Pod's own.
 
 ## License
 
-The source code is under the [MIT License](LICENSE). The Mochi character, the
-app and tray icons and the sounds are Coucou's assets and are **not** covered by
+The source code is under the [MIT License](LICENSE). The app and tray icons
+and the sounds are Coucou's assets and are **not** covered by
 it: see [LICENSE-ASSETS.md](LICENSE-ASSETS.md).

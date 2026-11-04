@@ -10,10 +10,7 @@ use ::windows::core::BOOL;
 use ::windows::Win32::Foundation::{HWND, LPARAM, POINT};
 use ::windows::Win32::System::Ole::RevokeDragDrop;
 use ::windows::Win32::System::SystemInformation::GetLocalTime;
-use ::windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetAsyncKeyState, GetKeyboardLayoutList, MapVirtualKeyExW, ToUnicodeEx, HKL, MAPVK_VK_TO_VSC,
-    VK_CONTROL, VK_LBUTTON, VK_MENU, VK_SHIFT,
-};
+use ::windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, GetKeyboardLayoutList, HKL, VK_LBUTTON};
 use ::windows::Win32::UI::WindowsAndMessaging::{
     EnumChildWindows, GetClassNameW, GetCursorPos, GetWindowLongPtrW, SetWindowLongPtrW,
     GWL_EXSTYLE, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
@@ -72,13 +69,45 @@ pub fn no_console(cmd: &mut Command) -> &mut Command {
     cmd.creation_flags(CREATE_NO_WINDOW)
 }
 
+// Links, files and folders open through the shell's own API, never by
+// spawning rundll32 or explorer.exe: launching system programs to run things is
+// what malware does, and antivirus heuristics treat Pod as such when it does too.
+
+/// A web link (callers check it is http/https) or a shelf file, with its default app.
 pub fn open_url(url: &str) {
-    let _ = no_console(Command::new("rundll32.exe").args(["url.dll,FileProtocolHandler", url]))
-        .spawn();
+    shell_execute(windows::core::w!("open"), url);
 }
 
+/// A folder in File Explorer. The "explore" verb opens folders only, so a path
+/// that turned out to be a program is never run.
 pub fn reveal_folder(path: &str) {
-    let _ = Command::new("explorer").arg(path).spawn();
+    shell_execute(windows::core::w!("explore"), path);
+}
+
+fn shell_execute(verb: windows::core::PCWSTR, target: &str) {
+    use windows::core::HSTRING;
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+    let result = unsafe { ShellExecuteW(None, verb, &HSTRING::from(target), None, None, SW_SHOWNORMAL) };
+    // ShellExecute reports success with a value above 32.
+    if (result.0 as isize) <= 32 {
+        crate::log::line(format!("shell: couldn't open {target} ({})", result.0 as isize));
+    }
+}
+
+/// A file selected in its folder in File Explorer ("Show in folder").
+pub fn reveal_file(path: &std::path::Path) -> Result<(), String> {
+    use windows::core::HSTRING;
+    use windows::Win32::UI::Shell::{ILCreateFromPathW, ILFree, SHOpenFolderAndSelectItems};
+    unsafe {
+        let item = ILCreateFromPathW(&HSTRING::from(path.as_os_str()));
+        if item.is_null() {
+            return Err(crate::i18n::t("This file is no longer there."));
+        }
+        let shown = SHOpenFolderAndSelectItems(item, None, 0);
+        ILFree(Some(item));
+        shown.map_err(|e| e.to_string())
+    }
 }
 
 /// Our own `where`: walks %PATH% against %PATHEXT%, no shell involved.
@@ -202,37 +231,81 @@ pub fn global_shortcuts_blocked() -> Option<&'static str> {
 /// layouts, if any. Windows reads Ctrl+Alt as AltGr, so registering such a
 /// combination as a global shortcut would stop the user typing that character
 /// (AltGr+E is € on most European layouts, AltGr+A is ą in Polish).
+///
+/// The installed layouts come from GetKeyboardLayoutList; what their AltGr
+/// layer types comes from the table below, not from asking Windows to
+/// translate keys (ToUnicodeEx). Global key state plus key translation is the
+/// fingerprint antivirus heuristics look for in keyloggers, and Pod must not
+/// look like one. Layouts outside the table are taken to type nothing on
+/// AltGr, which is true of the US, UK and most non-Latin layouts.
 pub fn ctrl_alt_types(vk: u16, shift: bool) -> Option<String> {
     let mut layouts = [HKL::default(); 32];
     let count = unsafe { GetKeyboardLayoutList(Some(&mut layouts[..])) };
     let count = usize::try_from(count).unwrap_or(0).min(layouts.len());
-
-    let mut state = [0u8; 256];
-    state[VK_CONTROL.0 as usize] = 0x80;
-    state[VK_MENU.0 as usize] = 0x80;
-    if shift {
-        state[VK_SHIFT.0 as usize] = 0x80;
-    }
-    for &layout in &layouts[..count] {
-        let scan = unsafe { MapVirtualKeyExW(u32::from(vk), MAPVK_VK_TO_VSC, Some(layout)) };
-        let mut buf = [0u16; 8];
-        // Flag 0x4: leave the keyboard state alone, so a dead key met here
-        // doesn't change what the user types next (Windows 10 1607 and later).
-        let n = unsafe { ToUnicodeEx(u32::from(vk), scan, &state, &mut buf, 0x4, Some(layout)) };
-        let typed = match n {
-            // A dead key (´ ^ ¨…) is still something the user types with it.
-            n if n < 0 => String::from_utf16_lossy(&buf[..1]),
-            0 => continue,
-            n => String::from_utf16_lossy(&buf[..(n as usize).min(buf.len())]),
-        };
-        if typed.chars().any(|c| !c.is_control()) {
-            return Some(typed);
-        }
-    }
-    None
+    layouts[..count].iter().find_map(|hkl| {
+        // The language id is the low word; its primary language the low 10 bits.
+        let primary = (hkl.0 as usize & 0x3FF) as u16;
+        altgr_char(primary, vk, shift).map(str::to_string)
+    })
 }
 
-// ── Desktop Mochi window ──────────────────────────────────────────────────────
+/// What AltGr(+Shift)+`vk` types on the main layout of a primary language
+/// (LANG_* ids), for the European layouts that put characters there.
+pub(crate) fn altgr_char(primary_lang: u16, vk: u16, shift: bool) -> Option<&'static str> {
+    // Virtual-key codes: letters and digits are their ASCII codes; OEM keys by name.
+    const OEM_1: u16 = 0xBA; // ;: (US position)
+    const OEM_PLUS: u16 = 0xBB;
+    const OEM_COMMA: u16 = 0xBC;
+    const OEM_PERIOD: u16 = 0xBE;
+    const OEM_2: u16 = 0xBF;
+    const OEM_3: u16 = 0xC0;
+    const OEM_4: u16 = 0xDB;
+    const OEM_5: u16 = 0xDC;
+    const OEM_7: u16 = 0xDE;
+    const OEM_102: u16 = 0xE2;
+    let k = |c: char| c as u16;
+    let table: &[(u16, &str)] = match (primary_lang, shift) {
+        // German (QWERTZ)
+        (0x07, false) => &[(k('Q'), "@"), (k('E'), "€"), (k('M'), "µ"), (k('2'), "²"), (k('3'), "³"), (k('7'), "{"),
+            (k('8'), "["), (k('9'), "]"), (k('0'), "}"), (OEM_4, "\\"), (OEM_PLUS, "~"), (OEM_102, "|")],
+        // French (AZERTY)
+        (0x0C, false) => &[(k('E'), "€"), (k('2'), "~"), (k('3'), "#"), (k('4'), "{"), (k('5'), "["), (k('6'), "|"),
+            (k('7'), "`"), (k('8'), "\\"), (k('9'), "^"), (k('0'), "@"), (OEM_4, "]"), (OEM_PLUS, "}")],
+        // Spanish
+        (0x0A, false) => &[(k('E'), "€"), (k('1'), "|"), (k('2'), "@"), (k('3'), "#"), (k('4'), "~"), (k('6'), "¬"),
+            (OEM_3, "\\"), (OEM_1, "["), (OEM_PLUS, "]"), (OEM_7, "{"), (OEM_2, "}")],
+        // Italian
+        (0x10, false) => &[(k('E'), "€"), (OEM_1, "["), (OEM_PLUS, "]"), (OEM_3, "@"), (OEM_7, "#")],
+        (0x10, true) => &[(OEM_1, "{"), (OEM_PLUS, "}")],
+        // Portuguese
+        (0x16, false) => &[(k('E'), "€"), (k('2'), "@"), (k('3'), "£"), (k('4'), "§"), (k('7'), "{"), (k('8'), "["),
+            (k('9'), "]"), (k('0'), "}")],
+        // Polish (Programmers)
+        (0x15, false) => &[(k('A'), "ą"), (k('C'), "ć"), (k('E'), "ę"), (k('L'), "ł"), (k('N'), "ń"), (k('O'), "ó"),
+            (k('S'), "ś"), (k('X'), "ź"), (k('Z'), "ż")],
+        (0x15, true) => &[(k('A'), "Ą"), (k('C'), "Ć"), (k('E'), "Ę"), (k('L'), "Ł"), (k('N'), "Ń"), (k('O'), "Ó"),
+            (k('S'), "Ś"), (k('X'), "Ź"), (k('Z'), "Ż")],
+        // Czech, Slovak
+        (0x05 | 0x1B, false) => &[(k('Q'), "\\"), (k('W'), "|"), (k('E'), "€"), (k('F'), "["), (k('G'), "]"),
+            (k('X'), "#"), (k('C'), "&"), (k('V'), "@"), (k('B'), "{"), (k('N'), "}"), (OEM_COMMA, "<"),
+            (OEM_PERIOD, ">"), (OEM_2, "*"), (OEM_102, "\\")],
+        // Hungarian
+        (0x0E, false) => &[(k('Q'), "\\"), (k('W'), "|"), (k('E'), "Ä"), (k('F'), "["), (k('G'), "]"), (k('V'), "@"),
+            (k('B'), "{"), (k('N'), "}"), (k('X'), "#"), (k('C'), "&"), (OEM_COMMA, ";"), (OEM_PERIOD, ">")],
+        // Swedish, Norwegian, Danish, Finnish
+        (0x1D | 0x14 | 0x06 | 0x0B, false) => &[(k('E'), "€"), (k('M'), "µ"), (k('2'), "@"), (k('3'), "£"),
+            (k('4'), "$"), (k('7'), "{"), (k('8'), "["), (k('9'), "]"), (k('0'), "}"), (OEM_PLUS, "\\"),
+            (OEM_102, "|")],
+        // Turkish (Q)
+        (0x1F, false) => &[(k('Q'), "@"), (k('E'), "€"), (k('7'), "{"), (k('8'), "["), (k('9'), "]"), (k('0'), "}"),
+            (OEM_5, "|")],
+        // Belgian and Swiss French/German share their language ids with French/German above.
+        _ => &[],
+    };
+    table.iter().find(|(key, _)| *key == vk).map(|(_, c)| *c)
+}
+
+// ── Desktop Stew window ──────────────────────────────────────────────────────
 
 /// Windows places a window wherever it is asked, and the cursor poll is there.
 pub fn desktop_mode() -> super::DesktopMode {
@@ -316,4 +389,20 @@ pub fn set_webview_memory_low(win: &WebviewWindow, low: bool) {
         };
         let _ = core.SetMemoryUsageTargetLevel(level);
     });
+}
+
+#[cfg(test)]
+mod altgr_tests {
+    use super::altgr_char;
+
+    #[test]
+    fn the_altgr_table_knows_the_usual_clashes() {
+        assert_eq!(altgr_char(0x07, 'E' as u16, false), Some("€"));
+        assert_eq!(altgr_char(0x07, 'Q' as u16, false), Some("@"));
+        assert_eq!(altgr_char(0x15, 'S' as u16, false), Some("ś"));
+        assert_eq!(altgr_char(0x15, 'S' as u16, true), Some("Ś"));
+        // US English and Space: nothing on AltGr.
+        assert_eq!(altgr_char(0x09, 'E' as u16, false), None);
+        assert_eq!(altgr_char(0x07, 0x20, false), None);
+    }
 }

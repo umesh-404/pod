@@ -270,7 +270,7 @@ pub fn should_check(last: Option<i64>, now: i64) -> bool {
     due(last, now, CHECK_INTERVAL)
 }
 
-/// Whether Mochi says "Pod X is out": newer than what runs, and not shown
+/// Whether Stew says "Pod X is out": newer than what runs, and not shown
 /// or put off for that version in the last day.
 pub fn should_announce(version: &str, current: &str, snoozed_version: Option<&str>, snoozed_at: Option<i64>, now: i64) -> bool {
     if !is_newer(version, current) {
@@ -512,6 +512,8 @@ pub fn start(app: AppHandle) {
         tokio::time::sleep(FIRST_TICK).await;
         let mut launch = true;
         loop {
+            // Self-repair rides on this tick: no timer of its own (heal.rs).
+            crate::heal::tick(&app);
             tick(&app, launch).await;
             launch = false;
             tokio::time::sleep(TICK).await;
@@ -766,7 +768,7 @@ fn install_when_away(app: &AppHandle) -> bool {
 
 /// How long since the last key press or mouse move, anywhere.
 #[cfg(windows)]
-fn idle_for() -> Duration {
+pub(crate) fn idle_for() -> Duration {
     use windows::Win32::System::SystemInformation::GetTickCount;
     use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
     let mut info = LASTINPUTINFO { cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32, dwTime: 0 };
@@ -778,15 +780,24 @@ fn idle_for() -> Duration {
 }
 
 #[cfg(not(windows))]
-fn idle_for() -> Duration {
+pub(crate) fn idle_for() -> Duration {
     Duration::ZERO
 }
 
 // ── Install (Windows) ─────────────────────────────────────────────────────────
 
-/// Old downloads left in the temp folder by an update that ran: Pod quits
-/// before the installer is done with its file, so they go at the next launch.
+/// Where updates are downloaded: Pod's own folder (%LOCALAPPDATA%\Pod\updates),
+/// not %TEMP% — a program that drops installers into the temp folder and runs
+/// them is what a dropper does, and antivirus heuristics judge Pod by that.
+pub(crate) fn downloads_dir() -> PathBuf {
+    crate::platform::local_dir().join("updates")
+}
+
+/// Old downloads left by an update that ran: Pod quits before the installer is
+/// done with its file, so they go at the next launch. Also the temp-folder
+/// ones earlier builds left.
 fn remove_old_downloads() {
+    let _ = std::fs::remove_dir_all(downloads_dir());
     let Ok(entries) = std::fs::read_dir(std::env::temp_dir()) else { return };
     for entry in entries.flatten() {
         if entry.file_name().to_string_lossy().starts_with("pod-update-") {
@@ -871,7 +882,7 @@ async fn fetch_verified(app: Option<&AppHandle>, release: &Release, kind: Instal
         return Err(t("The download isn't the file GitHub published for this version, so nothing was installed."));
     }
     let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.subsec_nanos()).unwrap_or(0);
-    let dir = std::env::temp_dir().join(format!("pod-update-{}-{nonce}", std::process::id()));
+    let dir = downloads_dir().join(format!("{}-{nonce}", std::process::id()));
     std::fs::create_dir_all(&dir).map_err(|_| t("The download failed. Try again, or get the new version on GitHub."))?;
     let path = dir.join(&asset.name);
 
@@ -1088,7 +1099,7 @@ mod tests {
                 "digest": "sha256:24175a765704082c8b2e751f8b5ccb76b1eb3440ff2fd1e9c4cbe780c2193baa" }] },
             { "tag_name": "windows-v0.5.0", "draft": false, "prerelease": false,
               "html_url": "https://github.com/umesh-404/pod/releases/tag/windows-v0.5.0",
-              "body": "Pod for Windows 0.5.0 — Mochi at the top of your screen.\n\n## What's new\n\n- **Flow dictation** on Windows — hold right Ctrl\n- Other things",
+              "body": "Pod for Windows 0.5.0 — Stew at the top of your screen.\n\n## What's new\n\n- **Flow dictation** on Windows — hold right Ctrl\n- Other things",
               "assets": [
                 { "name": "Pod-Windows-0.5.0-setup.exe", "size": 10950620,
                   "browser_download_url": "https://github.com/umesh-404/pod/releases/download/windows-v0.5.0/Pod-Windows-0.5.0-setup.exe",

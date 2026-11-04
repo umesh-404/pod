@@ -17,9 +17,9 @@
 // on E, Q, M, W, C and on every digit and most punctuation keys:
 //
 //   Ctrl+Alt+Space   open the chat           Ctrl+Alt+→ / ←  next / previous pill
-//   Ctrl+Alt+A       waiting permission      Ctrl+Alt+S      mute Mochi
+//   Ctrl+Alt+A       waiting permission      Ctrl+Alt+S      mute Stew
 //   Ctrl+Alt+T       open the terminal       Ctrl+Alt+G      wardrobe
-//   Ctrl+Alt+D       Mochi to the desktop, or home again (the Mac's ⌃⌥D)
+//   Ctrl+Alt+D       Stew to the desktop, or home again (the Mac's ⌃⌥D)
 //   Ctrl+Alt+N       open / close the island (off by default, as on the Mac)
 //
 // The workspace's own actions (not on the Mac): Ctrl+Alt+Space opens the
@@ -85,8 +85,8 @@ pub fn description(id: &str) -> &'static str {
     use crate::i18n::n_;
     match id {
         "toggleIsland" => n_("Open or close the island"),
-        "muteToggle" => n_("Mute or unmute Mochi"),
-        "desktopToggle" => n_("Send Mochi to the desktop"),
+        "muteToggle" => n_("Mute or unmute Stew"),
+        "desktopToggle" => n_("Send Stew to the desktop"),
         "wardrobeToggle" => n_("Open the wardrobe"),
         "openShelf" => n_("Open the shelf"),
         "newReminder" => n_("New reminder"),

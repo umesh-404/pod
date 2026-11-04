@@ -92,7 +92,7 @@ test("the question opens the card once Rust offers it, and says it was shown", (
   assert.equal(collapsed, 1);
 });
 
-test("an announcement opens the card with Mochi surprised; Later snoozes it", () => {
+test("an announcement opens the card with Stew surprised; Later snoozes it", () => {
   emit("update-status", OUT);
   assert.equal(Updates.status.latest.version, "0.6.0");
   emit("update-offer", "announce");

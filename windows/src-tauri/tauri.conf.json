@@ -52,7 +52,7 @@
     "copyright": "© umesh-404 and the Pod contributors",
     "category": "Productivity",
     "shortDescription": "A temporary workspace at the top of your screen",
-    "longDescription": "Pod puts Mochi at the top of your screen: drop a file on the island to convert, zip, resize or keep it in a temporary workspace, all on your computer.",
+    "longDescription": "Pod puts Stew at the top of your screen: drop a file on the island to convert, zip, resize or keep it in a temporary workspace, all on your computer.",
     "windows": {
       "nsis": {
         "installMode": "currentUser",

@@ -124,6 +124,8 @@ export const Bridge = {
     callOrThrow<FilesReport>("resize_run", { paths, preset }),
   pdfRun: (paths: string[], action: "merge" | "split" | "rotate" | "compress" | "images") =>
     callOrThrow<FilesReport>("pdf_run", { paths, action }),
+  /** Dropped pictures and PDFs into the PDF editor, which opens in the Pod window (pdfstudio.rs). */
+  pdfStudioOpen: (paths: string[]) => callOrThrow<{ failed: FileFailure[]; sources: unknown[] }>("pdf_studio_open", { paths }),
 
   // ── File tools (ocr.rs, checksum.rs, metaclean.rs, rename.rs) ──────────────
   /** The text in dropped pictures: on the clipboard and in "<name> (text).txt" files in the workspace. */
@@ -192,14 +194,14 @@ export const Bridge = {
   /** Lets go of every global shortcut while Settings records a new one. */
   shortcutsSuspend: (suspended: boolean) => call<void>("shortcuts_suspend", { suspended }),
 
-  // ── Mochi on the desktop (src-tauri/src/desktop.rs) ───────────────────────
+  // ── Stew on the desktop (src-tauri/src/desktop.rs) ───────────────────────
   desktopInfo: () => call<DesktopInfo>("desktop_mochi_info"),
   /** Dragged out of the island: (x, y) is the pointer in island-window coordinates. */
   desktopPickUp: (x: number, y: number) => call<boolean>("desktop_mochi_pick_up", { x, y }),
   /** Linux: the pointer moved during that drag (Windows carries him from Rust). */
   desktopCarry: (x: number, y: number) => call<void>("desktop_mochi_carry", { x, y }),
   desktopCarryEnd: (x: number, y: number) => call<void>("desktop_mochi_carry_end", { x, y }),
-  /** A drag started on the desktop Mochi; resolves to his top-left corner. */
+  /** A drag started on the desktop Stew; resolves to his top-left corner. */
   desktopDragBegin: () => call<[number, number] | null>("desktop_mochi_drag_begin"),
   /** X11: top-left corner, physical pixels. */
   desktopDragMove: (x: number, y: number) => call<void>("desktop_mochi_drag_move", { x, y }),
@@ -224,14 +226,38 @@ export const Bridge = {
   /** Settings → Install X: opens the island's update card. */
   updateShow: () => call<void>("update_show"),
   updateLater: () => call<void>("update_later"),
-  /** Blue Mochi in the tray while a new version waits (tray.rs). */
+  /** Blue Stew in the tray while a new version waits (tray.rs). */
   trayUpdateHint: (on: boolean) => call<void>("tray_update_hint", { on }),
   updateDismiss: () => call<void>("update_dismiss"),
   /** "Update now" (Windows): download, check the SHA-256, run the installer, quit. */
   updateInstall: () => call<void>("update_install"),
   /** The release's page on github.com. */
   updateOpenPage: () => call<void>("update_open_page"),
+
+  // ── Self-repair (src-tauri/src/heal.rs) ───────────────────────────────────
+  /** The last check: each part of Pod's state, and what was repaired. */
+  healStatus: () => call<HealthReport>("heal_status"),
+  /** "Check now": every check at once, repairs included. */
+  healCheck: () => call<HealthReport>("heal_check"),
 };
+
+/** One check of the self-repair: "ok", "repaired", "warning" or "skipped". */
+export interface HealthCheck {
+  id: string;
+  title: string;
+  status: "ok" | "repaired" | "warning" | "skipped";
+  detail: string;
+}
+
+export interface HealthReport {
+  enabled: boolean;
+  checking: boolean;
+  /** Milliseconds since the epoch; null before the first check. */
+  lastCheck: number | null;
+  checks: HealthCheck[];
+  /** Newest first; `at` in milliseconds since the epoch. */
+  repairs: { at: number; text: string }[];
+}
 
 export type ShortcutStatus =
   | "active" | "off" | "inUse" | "duplicate" | "invalid"
@@ -250,7 +276,7 @@ export interface ShortcutsReport {
   portal?: "pending" | "active" | null;
 }
 
-/** How the desktop Mochi's window works here (platform::DesktopMode). */
+/** How the desktop Stew's window works here (platform::DesktopMode). */
 export type DesktopMode = "poll" | "window" | "layer" | "off";
 
 export interface DesktopInfo {
@@ -259,7 +285,7 @@ export interface DesktopInfo {
   onDesktop: boolean;
 }
 
-/** An event for one window only (island ⇄ desktop Mochi). Never throws. */
+/** An event for one window only (island ⇄ desktop Stew). Never throws. */
 export async function emitToWindow(label: string, event: string, payload?: unknown) {
   if (!IS_TAURI) return;
   try {
@@ -289,6 +315,8 @@ export type BridgeEvent =
 export interface DragDropPayload {
   type: "enter" | "over" | "drop" | "leave";
   paths?: string[];
+  /** Text dragged in instead of files (a selection from a page or an app), on drop. */
+  text?: string;
   /** Pointer in window CSS pixels, on enter/over (and drop when known). */
   x?: number;
   y?: number;
@@ -505,6 +533,16 @@ export interface FfmpegDownloadProgress {
 const DRAG_QUIET_MS = 900;
 /** How long a drop waits for Rust's paths before reading the files' bytes. */
 const DROP_ANSWER_MS = 1500;
+/** How long one path-less file may take to be read and saved before the drop goes on without it. */
+const DROP_SAVE_MS = 8000;
+
+/** `p`, or a rejection after `ms`. */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`timed out after ${ms} ms`)), ms);
+    p.then((v) => { clearTimeout(timer); resolve(v); }, (e) => { clearTimeout(timer); reject(e); });
+  });
+}
 
 /** A dropped file the OS has no path for, saved from its bytes (Rust drop_save). */
 async function saveDroppedFile(file: File): Promise<string> {
@@ -515,6 +553,7 @@ async function saveDroppedFile(file: File): Promise<string> {
     name = `${name || "picture"}${ext ? `.${ext}` : ""}`;
   }
   const bytes = new Uint8Array(await file.arrayBuffer());
+  void invoke("log_line", { message: `drop: read ${bytes.length} bytes of "${name}"` }).catch(() => {});
   return invoke<string>("drop_save", bytes, { headers: { "x-pod-name": encodeURIComponent(name) } });
 }
 
@@ -543,7 +582,15 @@ export async function onDragDrop(handler: (e: DragDropPayload) => void) {
       handler({ type: p.type, paths: p.paths, ...pos });
     });
   }
-  const hasFiles = (e: DragEvent) => e.dataTransfer?.types.includes("Files") ?? false;
+  // Files, or text from another app or page. A drag that starts inside Pod
+  // (moving text in the note field) is Pod's own and isn't a drop for the island.
+  let ownDrag = false;
+  window.addEventListener("dragstart", () => (ownDrag = true), true);
+  window.addEventListener("dragend", () => (ownDrag = false), true);
+  const hasFiles = (e: DragEvent) => {
+    const types = e.dataTransfer?.types ?? [];
+    return types.includes("Files") || (!ownDrag && types.includes("text/plain"));
+  };
   // dragenter/dragleave fire for every element crossed; only the outermost pair counts.
   let depth = 0;
 
@@ -592,6 +639,7 @@ export async function onDragDrop(handler: (e: DragDropPayload) => void) {
   // saved instead (drop_save).
   let dropped: File[] = [];
   let answered: ReturnType<typeof setTimeout> | null = null;
+  const note = (message: string) => void invoke("log_line", { message }).catch(() => {});
   const finish = async (paths: string[]) => {
     if (answered != null) clearTimeout(answered);
     answered = null;
@@ -602,22 +650,33 @@ export async function onDragDrop(handler: (e: DragDropPayload) => void) {
       const path = paths[i] ?? "";
       if (path) out.push(path);
       else if (files[i]) {
-        const saved = await saveDroppedFile(files[i]).catch(() => null);
+        const f = files[i];
+        note(`drop: no path for "${f.name}" (${f.type || "no type"}, ${f.size} bytes), saving its bytes`);
+        // A browser's virtual file can stall while its bytes are read: a drop
+        // always ends, with or without that file, so the tiles never stay up.
+        const saved = await withTimeout(saveDroppedFile(f), DROP_SAVE_MS).catch((err) => {
+          note(`drop: couldn't save "${f.name}": ${err}`);
+          return null;
+        });
         if (saved) out.push(saved);
       }
     }
     handler({ type: "drop", paths: out });
   };
   const onDrop = (e: DragEvent) => {
+    if (ownDrag) return;
     e.preventDefault();
     depth = 0;
     stopWatch();
     const files = e.dataTransfer?.files;
     if (!files || files.length === 0) {
-      handler({ type: "drop", paths: [] });
+      // Text, not files: the island makes a note of it.
+      const text = e.dataTransfer?.getData("text/plain") ?? "";
+      handler({ type: "drop", paths: [], ...(text ? { text } : {}) });
       return;
     }
     dropped = [...files];
+    note(`drop: ${files.length} file(s) let go, asking for their paths`);
     webview.postMessageWithAdditionalObjects("pod-file-drop", files);
     // Rust answers at once; if it doesn't, the bytes are the way in.
     answered = setTimeout(() => void finish([]), DROP_ANSWER_MS);

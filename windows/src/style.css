@@ -212,7 +212,7 @@ body {
   flex-shrink: 0;
 }
 
-/* Date and time in the middle of the compact island, between Mochi and the grid. */
+/* Date and time in the middle of the compact island, between Stew and the grid. */
 #island-clock {
   position: absolute;
   left: 50px;
@@ -229,8 +229,8 @@ body {
   transition: opacity 0.25s ease-in-out;
 }
 
-/* A mini Mochi: the slot is the body, the canvas is larger and overflows it so
-   hands, badges and particles are not cut off. */
+/* A mini Stew: the slot is the body, the canvas is larger and overflows it so
+   hats, badges and particles are not cut off. */
 .mini {
   position: relative;
   display: inline-block;
@@ -253,7 +253,7 @@ body {
   padding: 8px 10px 10px;
   display: flex;
   flex-direction: column;
-  /* Gone at once when the island folds; on opening it waits a beat, so Mochi
+  /* Gone at once when the island folds; on opening it waits a beat, so Stew
      reaches his corner before the tabs beside him appear. */
   transition: opacity 0.08s ease-out;
 }
@@ -1702,7 +1702,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* ── File action card (views/files.ts) ──────────────────────────────────────
    Moved, convert (formats, ffmpeg, progress), done, error. Same insets as the
-   other cards, Mochi on the left. */
+   other cards, Stew on the left. */
 
 .fa-stack {
   padding: 4px 16px 4px 116px;
@@ -2577,7 +2577,7 @@ input[type="range"]::-webkit-slider-thumb {
   padding: 0;
 }
 
-/* ── Wardrobe (right-click on Mochi) — WardrobeView on macOS ─────────────── */
+/* ── Wardrobe (right-click on Stew) — WardrobeView on macOS ─────────────── */
 
 .wardrobe-stack {
   padding: 12px 16px 12px 104px;
@@ -3299,7 +3299,7 @@ html[data-dir="rtl"] #views :is(.wa-text, .wa-field, .wa-preview) {
 
 /* ── Arabic: right to left ─────────────────────────────────────────────────────
    i18n.ts sets <html data-dir="rtl">. The text of the cards reads and aligns
-   right to left; Mochi, the pills, the header and the cards themselves keep
+   right to left; Stew, the pills, the header and the cards themselves keep
    their places, and code, commands and the contribution grid stay left to
    right. A chat message follows its own text's direction (an English answer
    stays left to right). */
@@ -3792,7 +3792,7 @@ html[data-dir="rtl"] #views :is(.bubble, .reply .md-p, .reply .md-h, .reply .md-
 .drop-tile.rotate { --tile: 34, 211, 238; }
 .drop-tile.compress { --tile: 99, 102, 241; }
 
-/* The header's tabs. Mochi sits left of them while a tab is open; the
+/* The header's tabs. Stew sits left of them while a tab is open; the
    selection slides between the buttons (transform only). */
 .tabs {
   position: relative;
@@ -3874,7 +3874,7 @@ html[data-dir="rtl"] #views :is(.bubble, .reply .md-p, .reply .md-h, .reply .md-
 /* ── Tucked pill face (island/tuck.ts) ───────────────────────────────────────
    Over a maximized or fullscreen window Pod folds into a pill sized to what it
    shows (at least 56×24). A running
-   timer takes Mochi's place as a countdown with a progress ring; something
+   timer takes Stew's place as a countdown with a progress ring; something
    waiting (a fired reminder, a meeting about to start, a new download) makes the
    pill glow, with a shimmer passing across it. Only transform and opacity move,
    and the pulses stop after a few rounds: a waiting alert keeps a steady glow. */
@@ -3966,7 +3966,7 @@ html[data-dir="rtl"] #views :is(.bubble, .reply .md-p, .reply .md-h, .reply .md-
   gap: 7px;
 }
 
-/* Mochi's slot: his canvas is drawn over it. */
+/* Stew's slot: his canvas is drawn over it. */
 .tuck-bot {
   flex: 0 0 16px;
   height: 16px;
@@ -4061,7 +4061,7 @@ html[data-dir="rtl"] #views :is(.bubble, .reply .md-p, .reply .md-h, .reply .md-
   transition: stroke-dashoffset 0.25s linear;
 }
 
-/* Music playing: three bars in Mochi's place, as wide as his slot. */
+/* Music playing: three bars in Stew's place, as wide as his slot. */
 .tuck-eq {
   display: none;
   flex: 0 0 16px;

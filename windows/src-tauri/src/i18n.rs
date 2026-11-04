@@ -298,7 +298,7 @@ mod tests {
         set_for_test("de");
         assert_eq!(t("Allow"), "Zulassen");
         assert_eq!(t("Deny"), "Ablehnen");
-        assert_eq!(t("Copy to workspace"), "In den Arbeitsbereich kopieren");
+        assert_eq!(t("Copy to shelf"), "In die Ablage kopieren");
         assert_eq!(tf("Uploading {name}", &[("name", "Grüße.pdf")]), "Grüße.pdf wird hochgeladen");
         assert_eq!(t("A string nobody translated"), "A string nobody translated");
         for count in [0, 1, 2, 21] {
@@ -322,7 +322,7 @@ mod tests {
         set_for_test("tr");
         assert_eq!(t("Allow"), "İzin ver");
         assert_eq!(t("Deny"), "Reddet");
-        assert_eq!(t("Copy to workspace"), "Çalışma alanına kopyala");
+        assert_eq!(t("Copy to shelf"), "Rafa kopyala");
         assert_eq!(tf("Uploading {name}", &[("name", "öğrenci.pdf")]), "öğrenci.pdf yükleniyor");
         assert_eq!(t("A string nobody translated"), "A string nobody translated");
         for n in [0, 1, 2, 21] {

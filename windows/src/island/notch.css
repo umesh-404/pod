@@ -1,4 +1,4 @@
-/* The compact notch's sides, around Mochi (40 px between them): island/notch-items.ts.
+/* The compact notch's sides, around Stew (40 px between them): island/notch-items.ts.
    Shared by the island (style.css) and the live preview in Settings → Notch
    (settings.css), so both draw the very same thing: every rule that depends
    on the island being compact is written for `#island.compact` and for the
@@ -28,7 +28,7 @@
   transition: opacity 0.2s ease-out;
 }
 
-/* Each side fills its wing (island edge to Mochi) and centres what it shows. */
+/* Each side fills its wing (island edge to Stew) and centres what it shows. */
 .notch-side.left {
   left: 12px;
   right: calc(50% + 20px);

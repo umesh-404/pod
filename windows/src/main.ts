@@ -104,7 +104,7 @@ async function main() {
 
   // A query only matches the ratio it was made for: once it changes, watch the
   // new one, or the next monitor's scale goes unnoticed and the zoom stays wrong.
-  // One frame redraws Mochi at the new ratio, even while the loop is idle.
+  // One frame redraws Stew at the new ratio, even while the loop is idle.
   const watchRatio = () => {
     window
       .matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`)

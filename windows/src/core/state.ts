@@ -18,7 +18,7 @@ export interface Settings {
   /** Global shortcuts the user changed, by action id (see core/shortcuts.ts). */
   shortcuts: Bindings;
   /**
-   * Mochi's outfit: "auto" (dresses for the season), "none" or an outfit id.
+   * Stew's outfit: "auto" (dresses for the season), "none" or an outfit id.
    * Same raw values as the Mac's "mochiOutfit"; read it through parseOutfit.
    */
   mochiOutfit: string;
@@ -27,7 +27,7 @@ export interface Settings {
    * else English), or one of src/i18n's codes ("fr", "pt-BR", "zh-Hans"…).
    */
   language: string;
-  /** Mochi on the desktop. Rust owns it: whatever the page sends back is ignored. */
+  /** Stew on the desktop. Rust owns it: whatever the page sends back is ignored. */
   desktopMochi?: {
     onDesktop: boolean;
     spot: { x: number; y: number; space: string } | null;
@@ -139,18 +139,18 @@ class AppState {
   dropZone: DropZone | null = null;
   /** The drop tiles this drag shows, chosen from what is dragged (2 to 6). */
   dropTiles: readonly DropActionId[] = DEFAULT_DROP_TILES;
-  /** The workspace folder's name on the "Copy to workspace" tile; null until known. */
+  /** The workspace folder's name on the "Copy to shelf" tile; null until known. */
   workspaceName: string | null = null;
   /** The file action card (views/files.ts), driven by island/file-actions.ts. */
   fileAction: FileAction | null = null;
 
   /**
-   * Mochi is out of the island — on the desktop, flying, or being dragged
-   * there — so the island's own Mochi is hidden (AppState.mochiOnDesktop).
+   * Stew is out of the island — on the desktop, flying, or being dragged
+   * there — so the island's own Stew is hidden (AppState.mochiOnDesktop).
    */
   mochiOnDesktop = false;
 
-  /** Outfit shown on Mochi while the pointer rests on a wardrobe button. */
+  /** Outfit shown on Stew while the pointer rests on a wardrobe button. */
   wardrobePreview: Outfit | null = null;
 
   lastActivity = performance.now();

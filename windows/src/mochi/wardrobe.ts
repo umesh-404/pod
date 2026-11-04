@@ -1,20 +1,20 @@
-// Mochi's wardrobe — the pure logic, port of NotchBuddy/Sources/PodKit/MochiWardrobe.swift.
-// What Mochi wears is picked in the wardrobe view (right-click on Mochi, or the
-// tray menu) and stored in the preferences as `mochiOutfit`. The drawing lives
-// in ./outfits.ts.
+// Stew's wardrobe — the pure logic. What Stew wears is picked in the wardrobe
+// view (right-click on Stew, or the tray menu) and stored in the preferences as
+// `mochiOutfit` (the key is kept so old settings files still load). The
+// accessories are drawn in ./outfits.ts.
 
 import { N_, labels, t } from "../i18n/i18n";
 
-/** Every outfit, plus "auto" (dress for the season) and "none". Order of the wardrobe. */
+/** Every accessory, plus "auto" (dress for the season) and "none". Order of the wardrobe. */
 export const OUTFIT_SELECTIONS = [
-  "auto", "none", "partyHat", "beanie", "crown", "sunglasses", "roundGlasses",
-  "bow", "scarf", "witchHat", "pumpkin", "santaHat", "bunnyEars",
+  "auto", "none", "beanie", "roundGlasses", "sunglasses", "scarf", "headphones",
+  "crown", "flower", "partyHat",
 ] as const;
 
-/** What can be stored in the preferences. The raw values are the Mac's, keep them stable. */
+/** What can be stored in the preferences. Keep the raw values stable. */
 export type OutfitSelection = (typeof OUTFIT_SELECTIONS)[number];
 
-/** What Mochi actually wears: a selection with "auto" resolved. */
+/** What Stew actually wears: a selection with "auto" resolved. */
 export type Outfit = Exclude<OutfitSelection, "auto">;
 
 export const DEFAULT_OUTFIT: OutfitSelection = "auto";
@@ -25,17 +25,14 @@ export const DEFAULT_OUTFIT: OutfitSelection = "auto";
 export const OUTFIT_KEYS: Record<OutfitSelection, string> = {
   auto: N_("Auto (seasons)"),
   none: N_("None"),
-  partyHat: N_("Party hat"),
   beanie: N_("Beanie"),
-  crown: N_("Crown"),
-  sunglasses: N_("Sunglasses"),
   roundGlasses: N_("Round glasses"),
-  bow: N_("Bow"),
+  sunglasses: N_("Sunglasses"),
   scarf: N_("Scarf"),
-  witchHat: N_("Witch hat"),
-  pumpkin: N_("Pumpkin"),
-  santaHat: N_("Santa hat"),
-  bunnyEars: N_("Bunny ears"),
+  headphones: N_("Headphones"),
+  crown: N_("Crown"),
+  flower: N_("Flower"),
+  partyHat: N_("Party hat"),
 };
 
 /** In the current language: every read goes through `t()`. */
@@ -53,12 +50,14 @@ export const WARDROBE_STRINGS = {
 const SELECTION_SET: ReadonlySet<string> = new Set(OUTFIT_SELECTIONS);
 
 /**
- * A stored preference → a selection. Anything unknown (a value from a newer or
- * older build, such as the Mac's removed "topHat", or garbage) means "auto",
- * exactly like `Outfit.stored` on macOS.
+ * A stored preference → a selection. A missing or malformed value means
+ * "auto"; an id this build doesn't have (one of the outfits Pod inherited and
+ * dropped, such as "witchHat", or one from a newer build) means "none", so
+ * nobody finds Stew dressed in something they didn't pick.
  */
 export function parseOutfit(raw: unknown): OutfitSelection {
-  return typeof raw === "string" && SELECTION_SET.has(raw) ? (raw as OutfitSelection) : DEFAULT_OUTFIT;
+  if (typeof raw !== "string" || raw === "") return DEFAULT_OUTFIT;
+  return SELECTION_SET.has(raw) ? (raw as OutfitSelection) : "none";
 }
 
 /** Easter Sunday of `year` (Meeus/Jones/Butcher), as [month 1–12, day]. */
@@ -83,8 +82,9 @@ export function easterDate(year: number): [number, number] {
 const DAY_MS = 86_400_000;
 
 /**
- * The seasonal outfit for `date`, read in the user's local calendar.
- * Priority: party hat > Santa hat > witch hat > bunny ears > sunglasses > none.
+ * The seasonal accessory for `date`, read in the user's local calendar.
+ * Priority: party hat (new year) > beanie (December) > scarf (autumn) >
+ * flower (Easter) > sunglasses (summer) > none.
  */
 export function seasonalOutfit(date: Date): Outfit {
   const day = date.getDate();
@@ -94,27 +94,27 @@ export function seasonalOutfit(date: Date): Outfit {
   // Dec 31 – Jan 2
   if ((month === 12 && day === 31) || (month === 1 && day <= 2)) return "partyHat";
   // Dec 1–26
-  if (month === 12 && day <= 26) return "santaHat";
+  if (month === 12 && day <= 26) return "beanie";
   // Oct 1 – Nov 1
-  if (month === 10 || (month === 11 && day === 1)) return "witchHat";
+  if (month === 10 || (month === 11 && day === 1)) return "scarf";
   // Two days before Easter to the day after. Calendar days counted in UTC so a
   // daylight-saving change in between can't shift the count.
   const [em, ed] = easterDate(year);
   const delta = Math.round((Date.UTC(year, month - 1, day) - Date.UTC(year, em - 1, ed)) / DAY_MS);
-  if (delta >= -2 && delta <= 1) return "bunnyEars";
+  if (delta >= -2 && delta <= 1) return "flower";
   // Jun 21 – Aug 31
   if ((month === 6 && day >= 21) || month === 7 || month === 8) return "sunglasses";
   return "none";
 }
 
-/** "auto" → the season's outfit; anything else is worn as chosen. */
+/** "auto" → the season's accessory; anything else is worn as chosen. */
 export function resolveOutfit(selection: OutfitSelection, date: Date): Outfit {
   return selection === "auto" ? seasonalOutfit(date) : selection;
 }
 
 /**
- * The grey text at the right of the wardrobe header: the hovered outfit,
- * otherwise the current choice — WardrobeView.headerRight on macOS.
+ * The grey text at the right of the wardrobe header: the hovered accessory,
+ * otherwise the current choice.
  */
 export function wardrobeHeader(
   hovered: OutfitSelection | null,

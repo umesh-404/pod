@@ -1,6 +1,6 @@
-// What's new after an update and the blue Mochi while one waits
+// What's new after an update and the blue Stew while one waits
 // (src/whats-new/whats-new.ts): which entry, when the card shows, what it
-// counts, and when Mochi is blue.
+// counts, and when Stew is blue.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -117,7 +117,7 @@ const out = (version = "0.6.0") => ({
   latest: { version, headline: null, pageUrl: "https://github.com/umesh-404/pod/releases/tag/windows-v0.6.0" },
 });
 
-test("Mochi is blue while a version waits", () => {
+test("Stew is blue while a version waits", () => {
   const now = 1_800_000_000_000;
   assert.equal(updateWaiting(out(), null, now), true);
   assert.equal(updateWaiting({ ...out(), consent: null }, null, now), false, "never before the user said yes");
@@ -132,7 +132,7 @@ test("Mochi is blue while a version waits", () => {
   assert.equal(updateWaiting(out(), { version: "0.6.0", at: now + 3600_000 }, now), true, "a clock that went back");
 });
 
-test("the engine wears the arrow badge only over an idle or sleeping Mochi", () => {
+test("the engine wears the arrow badge only over an idle or sleeping Stew", () => {
   const engine = new BotEngine();
   engine.setUpdateHint([0.231, 0.51, 0.965]);
   assert.equal(engine.showsUpdateHint, true);
@@ -144,7 +144,7 @@ test("the engine wears the arrow badge only over an idle or sleeping Mochi", () 
   assert.equal(engine.showsUpdateHint, false);
 });
 
-test("the blue only when Mochi has nothing else to say", () => {
+test("the blue only when Stew has nothing else to say", () => {
   assert.equal(showsUpdateHint(true, "idle", false), true);
   assert.equal(showsUpdateHint(true, "sleeping", false), true);
   assert.equal(showsUpdateHint(true, "working", false), false);

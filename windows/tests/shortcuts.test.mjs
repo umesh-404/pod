@@ -294,7 +294,7 @@ test("the island toggle opens with the keyboard, and closes an open island", () 
   assert.deepEqual(did, ["collapse"]);
 });
 
-test("mute flips the sound, saves it, and Mochi reacts", () => {
+test("mute flips the sound, saves it, and Stew reacts", () => {
   runGlobalShortcut(host, "muteToggle", resume);
   assert.equal(State.settings.soundEnabled, false);
   assert.equal(sent("save_settings").at(-1).settings.soundEnabled, false);
@@ -303,7 +303,7 @@ test("mute flips the sound, saves it, and Mochi reacts", () => {
   assert.deepEqual(did, ["emote:annoyed", "emote:happy"]);
 });
 
-test("the desktop shortcut sends Mochi out, lifting Pause, and brings him home", () => {
+test("the desktop shortcut sends Stew out, lifting Pause, and brings him home", () => {
   runGlobalShortcut(host, "desktopToggle", resume);
   assert.deepEqual(did, ["resume", "desktop"]);
   // Out there already: home, and Pause stays as it is.
@@ -314,7 +314,7 @@ test("the desktop shortcut sends Mochi out, lifting Pause, and brings him home",
   assert.deepEqual(calls, []);
 });
 
-test("where Mochi can't leave the island (GNOME on Wayland), he says so", () => {
+test("where Stew can't leave the island (GNOME on Wayland), he says so", () => {
   desktopSupported = false;
   runGlobalShortcut(host, "desktopToggle", resume);
   assert.deepEqual(did, ["emote:annoyed"]);

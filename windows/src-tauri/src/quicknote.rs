@@ -89,7 +89,7 @@ pub(crate) fn is_note_name(name: &str) -> bool {
 
 /// The workspace path of the note `name`, which must be a regular file there.
 fn existing_note(ws: &Path, name: &str) -> Result<PathBuf, String> {
-    let missing = || t("This note can't be found in the workspace.");
+    let missing = || t("This note can't be found on the shelf.");
     if !is_note_name(name) {
         return Err(missing());
     }

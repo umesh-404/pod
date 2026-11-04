@@ -19,7 +19,7 @@ interface PageDef {
 }
 
 export const NOTCH_PAGES: PageDef[] = [
-  { id: "general", icon: "gear", title: () => t("General"), subtitle: () => t("Mochi, his sounds and how the island behaves.") },
+  { id: "general", icon: "gear", title: () => t("General"), subtitle: () => t("Stew, his sounds and how the island behaves.") },
   { id: "notch", icon: "notch", title: () => t("Notch"), subtitle: () => t("What the notch shows, your calendar links and the focus timer.") },
   { id: "features", icon: "grid", title: () => t("Features"), subtitle: () => t("Switch off what you don't use: it disappears from the island.") },
   { id: "shortcuts", icon: "keyboard", title: () => t("Shortcuts"), subtitle: () => t("The keys that open the island and its actions.") },

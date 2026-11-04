@@ -190,16 +190,23 @@ fn write_new(dir: &Path, name: &str, bytes: &[u8]) -> std::io::Result<PathBuf> {
 /// Drops anything copied here more than a week ago. `ingest` stamps every copy
 /// with the time it landed, so this really is the age of the copy and not the
 /// age of whatever the user happened to drag in.
-fn sweep(dir: &Path) {
-    let Ok(entries) = std::fs::read_dir(dir) else { return };
+fn sweep(dir: &Path) -> usize {
+    let Ok(entries) = std::fs::read_dir(dir) else { return 0 };
     let now = SystemTime::now();
+    let mut removed = 0;
     for entry in entries.flatten() {
         let Ok(meta) = entry.metadata() else { continue };
         let Ok(copied) = meta.modified() else { continue };
-        if now.duration_since(copied).map(|age| age > KEEP_FOR).unwrap_or(false) {
-            let _ = std::fs::remove_file(entry.path());
+        if now.duration_since(copied).map(|age| age > KEEP_FOR).unwrap_or(false) && std::fs::remove_file(entry.path()).is_ok() {
+            removed += 1;
         }
     }
+    removed
+}
+
+/// The same sweep without waiting for the next drop (heal.rs). Returns how many went.
+pub(crate) fn sweep_inbox() -> usize {
+    sweep(&inbox_dir())
 }
 
 // ── Files a browser drops (no path of their own) ─────────────────────────────
@@ -260,7 +267,7 @@ fn percent_decode(s: &str) -> String {
 
 /// A plain file name from whatever the page says: no folders, no characters
 /// Windows refuses, not empty, not too long.
-fn safe_drop_name(name: &str) -> String {
+pub(crate) fn safe_drop_name(name: &str) -> String {
     let base = name.rsplit(['/', '\\']).next().unwrap_or("");
     let cleaned: String = base
         .chars()

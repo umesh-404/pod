@@ -1,6 +1,6 @@
 // Wardrobe view — port of WardrobeView (IslandViewContent.swift). Opened with a
-// right-click on Mochi or from the tray menu. Resting the pointer on a button
-// tries the outfit on Mochi; a click keeps it.
+// right-click on Stew or from the tray menu. Resting the pointer on a button
+// tries the outfit on Stew; a click keeps it.
 
 import { h } from "./dom";
 import { State } from "../core/state";

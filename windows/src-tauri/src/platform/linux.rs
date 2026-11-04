@@ -8,7 +8,7 @@
 //   * click-through is the window's input region, set to the island shape, so
 //     the compositor itself sends every other click to whatever is underneath;
 //   * the cursor comes from the page's own mouse events, which only fire over
-//     the island — Mochi's eyes follow the pointer there, not across the screen.
+//     the island — Stew's eyes follow the pointer there, not across the screen.
 
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -528,7 +528,7 @@ pub fn ctrl_alt_types(_vk: u16, _shift: bool) -> Option<String> {
     None
 }
 
-// ── Desktop Mochi window ──────────────────────────────────────────────────────
+// ── Desktop Stew window ──────────────────────────────────────────────────────
 //
 // Where the window may go decides everything here:
 //   * X11 places any window where it is asked: an ordinary always-on-top
@@ -536,7 +536,7 @@ pub fn ctrl_alt_types(_vk: u16, _shift: bool) -> Option<String> {
 //   * a layer-shell compositor won't move a toplevel, but anchors a layer
 //     surface wherever its margins say, on the island's display;
 //   * GNOME on Wayland has neither, so the feature is off there.
-// In every case the input region is Mochi's body, so clicks anywhere else go
+// In every case the input region is Stew's body, so clicks anywhere else go
 // to the desktop underneath without any cursor polling.
 
 /// Which of the three applies. Must run on the GTK main thread.
@@ -555,7 +555,7 @@ pub fn desktop_mode() -> super::DesktopMode {
     }
 }
 
-/// The input shape last asked for the desktop Mochi, re-applied on every map.
+/// The input shape last asked for the desktop Stew, re-applied on every map.
 static MOCHI_SHAPE: Mutex<super::MouseShape> = Mutex::new(super::MouseShape::Empty);
 
 /// Sets the window up for `mode` before it is ever shown. False means it can't
@@ -566,7 +566,7 @@ pub fn prepare_desktop_window(win: &WebviewWindow, mode: super::DesktopMode) -> 
     match mode {
         super::DesktopMode::Layer => {
             if gw.is_realized() {
-                crate::log::line("desktop Mochi: window already shown, no layer surface");
+                crate::log::line("desktop Stew: window already shown, no layer surface");
                 return false;
             }
             gw.set_titlebar(None::<&gtk::Widget>);
@@ -610,7 +610,7 @@ pub fn prepare_desktop_window(win: &WebviewWindow, mode: super::DesktopMode) -> 
     }
 }
 
-/// Which part of the desktop Mochi takes the mouse. Main thread.
+/// Which part of the desktop Stew takes the mouse. Main thread.
 pub fn set_desktop_shape(win: &WebviewWindow, shape: super::MouseShape) {
     *MOCHI_SHAPE.lock().unwrap() = shape;
     let Ok(gw) = win.gtk_window() else { return };
@@ -664,7 +664,7 @@ pub fn set_layer_margins(win: &WebviewWindow, x: f64, y: f64) {
 
 /// Layer surface only: `on` stretches it over the whole display — how a drag
 /// gets exact pointer positions on Wayland, where a surface that moves under
-/// the pointer can't tell where it is — and `off` folds it back to Mochi's
+/// the pointer can't tell where it is — and `off` folds it back to Stew's
 /// size in the corner. Main thread.
 pub fn set_layer_overlay(win: &WebviewWindow, on: bool) {
     let Ok(gw) = win.gtk_window() else { return };
@@ -679,7 +679,7 @@ pub fn set_layer_overlay(win: &WebviewWindow, on: bool) {
     }
 }
 
-/// Layer surface only: puts the desktop Mochi on the island's display and
+/// Layer surface only: puts the desktop Stew on the island's display and
 /// returns that display's logical size. Main thread.
 pub fn layer_display(island: &WebviewWindow, mochi: &WebviewWindow) -> Option<(f64, f64)> {
     let island_gw = island.gtk_window().ok()?;

@@ -1,6 +1,5 @@
-// The desktop Mochi's own window (mochi.html): draws him, and turns clicks and
-// drags on him into pokes, flights home, the wardrobe and a new spot. Port of
-// DesktopBotView + the mouse half of DesktopMochiController (DesktopMochi.swift).
+// The desktop Stew's own window (mochi.html): draws him, and turns clicks and
+// drags on him into pokes, flights home, the wardrobe and a new spot.
 //
 // What he shows comes from the island (DESKTOP_EVENTS.state), where he is from
 // Rust. The page draws only while the window is on screen, at 30 fps awake
@@ -20,9 +19,9 @@ import {
 const ISLAND = "island";
 
 /**
- * Width Mochi is drawn at. The engine's body radius is 0.3 × width, so this
- * gives the 28.8 px body the hit test uses, and leaves room around him for
- * hats, hands and hearts inside the 120 px window.
+ * Width Stew is drawn at. The engine's slot radius is 0.3 × width (28.8 px, the
+ * hit test's radius; the ball itself is a little smaller), which leaves room
+ * around him for his accessories, hearts and shadow in the 120 px window.
  */
 const DRAW_W = PANEL_SIZE * 0.8;
 const SIDE = (PANEL_SIZE - DRAW_W) / 2;
@@ -67,6 +66,10 @@ class DesktopMochi {
     canvas.width = Math.round(PANEL_SIZE * dpr);
     canvas.height = Math.round(PANEL_SIZE * dpr);
     this.engine.particleOverhang = 0;
+    // He sits on the desktop: a contact shadow and ambient occlusion
+    // under him (this page draws all the time it is on screen anyway).
+    this.engine.groundShadow = true;
+    this.engine.ambient = true;
     this.engine.setState("idle", true);
     // Three pokes: dizzy, and the island shows the confused view (as on macOS).
     this.engine.onDizzy = () => void emitToWindow(ISLAND, DESKTOP_EVENTS.dizzy);
@@ -306,12 +309,14 @@ class DesktopMochi {
 
   private beginDrag() {
     this.dragging = true;
+    this.engine.setCarried(true);
     this.cancelPoke();
     this.dragOrigin = null;
     this.dragTopLeft = null;
     void Bridge.desktopDragBegin().then((pos) => {
       if (!pos) {
         this.dragging = false;
+        this.engine.setCarried(false);
         this.press = null;
         return;
       }
@@ -347,6 +352,7 @@ class DesktopMochi {
   private endDrag(e: PointerEvent) {
     this.dragTo(e);
     this.dragging = false;
+    this.engine.setCarried(false);
     const topLeft = this.dragTopLeft;
     this.dragOrigin = null;
     this.dragTopLeft = null;

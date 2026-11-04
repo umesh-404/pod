@@ -1,4 +1,4 @@
-// The island: DOM shell, sizing animation, Mochi placement, mouse handling.
+// The island: DOM shell, sizing animation, Stew placement, mouse handling.
 // Mirrors IslandRootView.swift + IslandWindowController.swift.
 
 import { Tracked, Spring, clamp } from "../core/anim";
@@ -34,7 +34,7 @@ const UPDATE_BLUE_RGB = hexToRGB(UPDATE_BLUE);
 const OPEN_RESPONSE = 0.34;
 const OPEN_DAMPING = 0.8;
 const CLOSE_MS = 230;
-/** Mochi's own spring, quicker than the island's edge. */
+/** Stew's own spring, quicker than the island's edge. */
 const BOT_RESPONSE = 0.24;
 
 /** Frame interval while tucked (≈15 fps). */
@@ -42,7 +42,7 @@ const TUCKED_FRAME_MS = 66;
 
 /** Why the open island must not fold on its own: each one holds it open until released. */
 type Hold = "drag" | "file" | `tab:${string}`;
-/** Extra canvas on each side of Mochi, for the witch hat's brim and the Santa hat's tip. */
+/** Extra canvas on each side of Stew, for his headphones, the scarf's end and particles. */
 const BOT_SIDE = 24;
 /** Same margin as the Rust hit test (src-tauri/src/island.rs). */
 const HIT_MARGIN = 14;
@@ -58,7 +58,7 @@ const modeOrder = (m: IslandMode) => (m === "hidden" ? 0 : m === "compact" ? 1 :
 
 export class Island {
   readonly fsm = Object.assign(new IslandStateMachine(), { stayCompact: true });
-  /** Mochi on the desktop: his life cycle and the drag out of the island. */
+  /** Stew on the desktop: his life cycle and the drag out of the island. */
   readonly desktop: DesktopLink;
 
   private root: HTMLElement;
@@ -80,7 +80,7 @@ export class Island {
   private width = new Tracked(NOTCH_W);
   private height = new Tracked(0);
   private radius = new Tracked(ROUNDED_CORNER);
-  // Mochi springs ahead of the island's edge, so he is already in his slot by
+  // Stew springs ahead of the island's edge, so he is already in his slot by
   // the tabs when they fade in instead of sliding across them.
   private botCx = new Spring(46, BOT_RESPONSE, 0.86);
   private botCy = new Spring(16, BOT_RESPONSE, 0.86);
@@ -95,7 +95,7 @@ export class Island {
   private lastFrame = 0;
   private dirty = true;
   private canvasPx = 0;
-  /** The pixel ratio Mochi's bitmap was sized for: it changes with the monitor. */
+  /** The pixel ratio Stew's bitmap was sized for: it changes with the monitor. */
   private canvasDpr = 0;
 
   // Rust starts the window at full size so the launch greeting has room.
@@ -132,7 +132,7 @@ export class Island {
   /** The launch greeting ended: what's new may open (whats-new/controller.ts). */
   onGreetingDone: (() => void) | null = null;
 
-  /** Where a press on Mochi started: moving past DRAG_THRESHOLD drags him out. */
+  /** Where a press on Stew started: moving past DRAG_THRESHOLD drags him out. */
   private botPress: { x: number; y: number } | null = null;
 
   /** The next reveal from hidden makes no peek (music starting, as on macOS). */
@@ -494,13 +494,13 @@ export class Island {
     if (!this.fsm.pinned && !this.wasInIsland && this.fsm.state === "home") this.fsm.mouseLeft();
   }
 
-  /** A new Pod waits and Mochi has nothing else to say (he is blue). */
+  /** A new Pod waits and Stew has nothing else to say (he is blue). */
   private updateHintOn(): boolean {
     return !State.paused && showsUpdateHint(Updates.waiting(), State.effectiveState, false);
   }
 
   /**
-   * What a click or a hover opens on: while Mochi is blue, the new version
+   * What a click or a hover opens on: while Stew is blue, the new version
    * ("Pod X is out", Update now); otherwise the usual view.
    */
   private openingView(): IslandViewName {
@@ -523,17 +523,17 @@ export class Island {
     this.silentReveal = false;
   }
 
-  /** Right-click on Mochi: wardrobe open ↔ back to the usual view. */
+  /** Right-click on Stew: wardrobe open ↔ back to the usual view. */
   toggleWardrobe() {
     if (State.paused || State.mode === "hidden") return;
-    // The greeting and the drop sequence draw a Mochi of their own.
+    // The greeting and the drop sequence draw a Stew of their own.
     if (State.mode === "expanded" && State.view === "greeting") return;
     if (State.mode === "expanded" && State.view === "wardrobe") this.setView(State.defaultView());
     else this.setView("wardrobe");
   }
 
   /**
-   * Right-click on the desktop Mochi (macOS openWardrobeFromDesktop): opens the
+   * Right-click on the desktop Stew (macOS openWardrobeFromDesktop): opens the
    * wardrobe from any state, or goes back if it is already open.
    */
   wardrobeFromDesktop() {
@@ -542,7 +542,7 @@ export class Island {
 
   /**
    * The wardrobe from any state — compact or hidden island included — or back
-   * to the usual view if it is already open. The desktop Mochi's right-click
+   * to the usual view if it is already open. The desktop Stew's right-click
    * and the wardrobe shortcut (`open-wardrobe`) both land here.
    */
   wardrobeAnywhere() {
@@ -580,14 +580,14 @@ export class Island {
     void Bridge.focusWindow(true);
   }
 
-  /** The desktop shortcut needs a desktop Mochi: none on GNOME's Wayland. */
+  /** The desktop shortcut needs a desktop Stew: none on GNOME's Wayland. */
   canLeaveIsland(): boolean {
     return this.desktop.supported;
   }
 
   /** The desktop shortcut (macOS DesktopMochiController.flyOutOrHome). */
   flyOutOrHome() {
-    // The greeting draws a Mochi of its own: he stays for it, as he does for
+    // The greeting draws a Stew of its own: he stays for it, as he does for
     // a drag (canDragOut).
     const busy = State.mode === "expanded" && State.view === "greeting";
     if (busy && !State.mochiOnDesktop) return;
@@ -598,7 +598,7 @@ export class Island {
 
   /**
    * Files dragged over the island: it grows a little into the two drop tiles,
-   * Mochi a box between them. The tile on the pointer's side of the island's
+   * Stew a box between them. The tile on the pointer's side of the island's
    * middle lights up; the drop goes to that one (island/file-actions.ts).
    */
   private onDragDrop(e: DragDropPayload) {
@@ -639,7 +639,7 @@ export class Island {
         // the tile is the one that was lit when the files were let go.
         const zone = State.dropZone ?? (e.x != null && e.y != null ? this.dropZoneFor(e.x, e.y) : null);
         this.endDrag();
-        if (this.fileActions.drop(zone, e.paths ?? [])) {
+        if (e.text != null ? this.fileActions.dropText(zone, e.text) : this.fileActions.drop(zone, e.paths ?? [])) {
           this.dragReturn = null;
           return;
         }
@@ -675,6 +675,8 @@ export class Island {
         if (items[i].kind !== "file") continue;
         kinds.push(items[i].type ? fileKindOfMime(items[i].type) : fromPage ? "image" : "other");
       }
+      // No file at all, only text: it can become a note.
+      if (kinds.length === 0 && types.includes("text/plain")) kinds.push("text");
       return kinds;
     };
     window.addEventListener("dragenter", (e) => {
@@ -734,7 +736,7 @@ export class Island {
     return { dropCount: State.dropTiles.length, tabsH, compactW: this.compactW, tuck: this.tuck };
   }
 
-  /** The shape the island last animated to: Mochi's place reads it every frame. */
+  /** The shape the island last animated to: Stew's place reads it every frame. */
   private botShape: IslandShape | undefined;
 
   private targetSize(): { w: number; h: number; r: number } {
@@ -831,11 +833,11 @@ export class Island {
       State.lastActivity = performance.now();
       // A click makes a hover-opened island an ordinary open one.
       this.fsm.userInteracted();
-      // A press on Mochi may become a drag out to the desktop.
+      // A press on Stew may become a drag out to the desktop.
       if (e.button === 0 && this.isBotHit(e.clientX, e.clientY)) {
         this.botPress = { x: e.clientX, y: e.clientY };
       }
-      // Right-click on Mochi opens the wardrobe, and closes it again.
+      // Right-click on Stew opens the wardrobe, and closes it again.
       if (e.button === 2 && this.isBotHit(e.clientX, e.clientY)) {
         this.cancelBotHover();
         this.toggleWardrobe();
@@ -851,13 +853,13 @@ export class Island {
       }
     });
 
-    // No browser menu over Mochi: his right-click is the wardrobe. Everywhere
+    // No browser menu over Stew: his right-click is the wardrobe. Everywhere
     // else (the chat field) the webview keeps its own menu.
     this.islandEl.addEventListener("contextmenu", (e) => {
       if (this.isBotHit(e.clientX, e.clientY)) e.preventDefault();
     });
 
-    // Dragging Mochi out of the island puts him on the desktop.
+    // Dragging Stew out of the island puts him on the desktop.
     window.addEventListener("mousemove", (e) => {
       if (this.desktop.carrying) {
         this.desktop.carry(e.clientX, e.clientY);
@@ -998,14 +1000,14 @@ export class Island {
     this.ensureRunning();
   }
 
-  /** The greeting draws a Mochi of its own: not that one. */
+  /** The greeting draws a Stew of its own: not that one. */
   private canDragOut(): boolean {
     if (State.mode === "hidden" || !this.desktop.canPickUp()) return false;
     return !(State.mode === "expanded" && State.view === "greeting");
   }
 
   private isBotHit(x: number, y: number): boolean {
-    // Out on the desktop, the island's Mochi is invisible: nothing to hit.
+    // Out on the desktop, the island's Stew is invisible: nothing to hit.
     if (State.mochiOnDesktop) return false;
     const rect = this.islandRect();
     const cx = rect.x + this.botCx.value;
@@ -1116,7 +1118,7 @@ export class Island {
     // spends most of its life in. Geometry still has to finish retracting.
     const settling =
       this.width.animating || this.height.animating || this.radius.animating;
-    // Tucked, Mochi stays alive in his pill at a quarter of the frame rate: at
+    // Tucked, Stew stays alive in his pill at a quarter of the frame rate: at
     // 13 px nobody sees more, and the loop costs a quarter as much.
     const tucked = State.mode === "hidden" && !settling;
     const busy = State.mode === "hidden"
@@ -1136,7 +1138,7 @@ export class Island {
 
   private updateBotTargets() {
     const p = botPosition(State.mode, State.view, this.height.value, this.botShape);
-    // Compact: Mochi stays in the middle while the island grows around him.
+    // Compact: Stew stays in the middle while the island grows around him.
     if (State.mode === "compact") p.cx = this.width.value / 2;
     this.botCx.target = p.cx;
     this.botCy.target = p.cy;
@@ -1170,7 +1172,7 @@ export class Island {
     const wCss = w + BOT_SIDE * 2;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     // Drawn at the current ratio, so a bitmap sized for another monitor's
-    // would show Mochi too big and cut, or too small.
+    // would show Stew too big and cut, or too small.
     if (this.canvasPx !== w || this.canvasDpr !== dpr) {
       this.canvasPx = w;
       this.canvasDpr = dpr;
@@ -1185,8 +1187,8 @@ export class Island {
     const ctx = this.botCanvas.getContext("2d");
     if (!ctx) return;
 
-    // A new Pod waits: over an idle or sleeping Mochi, the blue and the arrow
-    // badge (whats-new.ts). Anything Mochi has to say comes first.
+    // A new Pod waits: over an idle or sleeping Stew, the blue and the arrow
+    // badge (whats-new.ts). Anything Stew has to say comes first.
     this.engine.setUpdateHint(this.updateHintOn() ? UPDATE_BLUE_RGB : null);
     this.engine.bodyColor = this.engine.showsUpdateHint ? UPDATE_BLUE_RGB : null;
     this.engine.particleOverhang = BOT_OVERHANG;

@@ -1,4 +1,4 @@
-// Mochi on the desktop: his own small window, wherever the user dropped him.
+// Stew on the desktop: his own small window, wherever the user dropped him.
 // Window side of DesktopMochi.swift, plus the geometry half of
 // DesktopMochiLogic.swift (`logic` below, with its tests).
 //
@@ -81,7 +81,7 @@ pub mod logic {
     /// Radius of the clickable body, as a fraction of the window side.
     pub const BODY_RADIUS_FRACTION: f64 = 0.24;
 
-    /// Island panel, logical pixels: dropping Mochi on it brings him home.
+    /// Island panel, logical pixels: dropping Stew on it brings him home.
     pub const HOME_ZONE_W: f64 = crate::island::PANEL_W;
     pub const HOME_ZONE_H: f64 = crate::island::PANEL_H;
 
@@ -163,7 +163,7 @@ pub mod logic {
         }
     }
 
-    /// Top-left corner of the window when Mochi sits in the island: centred
+    /// Top-left corner of the window when Stew sits in the island: centred
     /// under the top edge, where the flights start and end.
     pub fn island_spot(island_center_x: f64, island_top: f64, size: f64, scale: f64) -> (f64, f64) {
         (island_center_x - size * scale / 2.0, island_top)
@@ -288,7 +288,7 @@ pub fn setup(app: &AppHandle) {
             None => mode = DesktopMode::Off,
         }
     }
-    crate::log::line(format!("desktop Mochi: {}", mode.as_str()));
+    crate::log::line(format!("desktop Stew: {}", mode.as_str()));
     let desktop = Arc::new(Desktop::new(mode));
     app.manage(desktop.clone());
     // Nothing takes the mouse until he is out.
@@ -311,7 +311,7 @@ fn page_url(app: &AppHandle) -> WebviewUrl {
 fn create_window(app: &AppHandle, _mode: DesktopMode) -> Option<WebviewWindow> {
     let mut builder = WebviewWindowBuilder::new(app, LABEL, page_url(app))
         .additional_browser_args(crate::BROWSER_ARGS)
-        .title("Mochi")
+        .title("Stew")
         .inner_size(SIZE, SIZE)
         // GTK won't size a non-resizable window below its natural size (see
         // island::apply_geometry). Windows would grow resize borders instead.
@@ -336,7 +336,7 @@ fn create_window(app: &AppHandle, _mode: DesktopMode) -> Option<WebviewWindow> {
     match built {
         Ok(win) => Some(win),
         Err(err) => {
-            crate::log::line(format!("desktop Mochi window failed: {err}"));
+            crate::log::line(format!("desktop Stew window failed: {err}"));
             None
         }
     }
@@ -687,7 +687,7 @@ pub fn desktop_mochi_info(app: AppHandle, desktop: State<Arc<Desktop>>) -> Deskt
     DesktopInfo { mode: desktop.mode.as_str(), on_desktop: on_desktop && desktop.mode != DesktopMode::Off }
 }
 
-/// Dragging Mochi out of the island: the window appears under the pointer
+/// Dragging Stew out of the island: the window appears under the pointer
 /// (`x`, `y`: island-window client coordinates) and follows it — the cursor
 /// poll carries it on Windows, `desktop_mochi_carry` elsewhere.
 #[tauri::command]
@@ -709,7 +709,7 @@ pub async fn desktop_mochi_pick_up(app: AppHandle, x: f64, y: f64) -> bool {
     true
 }
 
-/// Linux: the pointer moved while Mochi is being dragged out of the island.
+/// Linux: the pointer moved while Stew is being dragged out of the island.
 #[tauri::command]
 pub async fn desktop_mochi_carry(app: AppHandle, x: f64, y: f64) {
     let d = app.state::<Arc<Desktop>>().inner().clone();
@@ -722,7 +722,7 @@ pub async fn desktop_mochi_carry(app: AppHandle, x: f64, y: f64) {
     }
 }
 
-/// Linux: the button went up while Mochi was being dragged out of the island.
+/// Linux: the button went up while Stew was being dragged out of the island.
 #[tauri::command]
 pub async fn desktop_mochi_carry_end(app: AppHandle, x: f64, y: f64) {
     let d = app.state::<Arc<Desktop>>().inner().clone();
@@ -736,7 +736,7 @@ pub async fn desktop_mochi_carry_end(app: AppHandle, x: f64, y: f64) {
     finish_drop(&app, &d, pos, Source::Island).await;
 }
 
-/// The page saw a drag start on Mochi. Returns his top-left corner in the
+/// The page saw a drag start on Stew. Returns his top-left corner in the
 /// mode's space, which the page needs to draw him in the overlay (layer mode).
 #[tauri::command]
 pub async fn desktop_mochi_drag_begin(app: AppHandle) -> Option<(f64, f64)> {
@@ -817,7 +817,7 @@ pub async fn desktop_mochi_fly_out(app: AppHandle, anywhere: Option<bool>) -> bo
     }
     refresh_layer_display(&app, &d);
     let Some(target) = target_spot(&app, &d, anywhere.unwrap_or(false)) else {
-        crate::log::line("desktop Mochi: his spot is on a display that is gone — he stays home");
+        crate::log::line("desktop Stew: his spot is on a display that is gone — he stays home");
         remember(&app, |p| p.on_desktop = false);
         return false;
     };

@@ -484,6 +484,21 @@ fn downloaded_path() -> PathBuf {
     bin_dir().join(FFMPEG_EXE)
 }
 
+/// The ffmpeg Pod downloaded, for the self-repair (heal.rs): the only copy it may remove.
+pub(crate) fn downloaded_ffmpeg() -> PathBuf {
+    downloaded_path()
+}
+
+/// An ffmpeg download is under way: its files are not leftovers.
+pub(crate) fn ffmpeg_downloading() -> bool {
+    DOWNLOADING.load(Ordering::SeqCst)
+}
+
+/// `path -version` answers like ffmpeg (heal.rs).
+pub(crate) fn answers_as_ffmpeg(path: &Path) -> bool {
+    is_ffmpeg(path, VERSION_TIMEOUT)
+}
+
 /// The ffmpeg to use and where it came from.
 fn locate(chosen: &str) -> Option<(PathBuf, &'static str)> {
     let chosen = chosen.trim();
@@ -1035,12 +1050,7 @@ pub fn reveal_output(app: AppHandle, path: String) -> Result<(), String> {
         return Err(t("This file is no longer there."));
     }
     #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        let mut cmd = Command::new("explorer");
-        cmd.raw_arg(format!("/select,\"{}\"", path.replace('"', "")));
-        cmd.spawn().map_err(|e| e.to_string())?;
-    }
+    crate::platform::reveal_file(&file)?;
     #[cfg(not(windows))]
     {
         let parent = file.parent().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
@@ -1177,26 +1187,29 @@ async fn download_ffmpeg_with(mut progress: impl FnMut(u64, u64)) -> Result<u64,
     Ok(got)
 }
 
-/// Windows' own bsdtar (Git's tar on PATH can't read zips).
-fn system_tar() -> PathBuf {
-    let root = std::env::var_os("SystemRoot").map(PathBuf::from).unwrap_or_else(|| PathBuf::from(r"C:\Windows"));
-    root.join("System32").join("tar.exe")
-}
-
-fn run_tar(args: &[&std::ffi::OsStr]) -> bool {
-    let mut cmd = Command::new(system_tar());
-    cmd.args(args).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped());
-    match crate::platform::no_console(&mut cmd).output() {
-        Ok(out) if out.status.success() => true,
-        Ok(out) => {
-            crate::log::line(format!("ffmpeg download: tar: {}", String::from_utf8_lossy(&out.stderr).trim()));
-            false
-        }
-        Err(e) => {
-            crate::log::line(format!("ffmpeg download: could not run tar: {e}"));
-            false
-        }
+/// Takes `*/bin/ffmpeg.exe` out of the downloaded zip into `tmp/bin/`, with
+/// the zip crate Pod already ships — not by running Windows' tar.exe: a program
+/// that launches system tools to unpack what it downloaded looks like a dropper
+/// to antivirus heuristics. Returns the extracted file.
+fn extract_ffmpeg(zip: &Path, tmp: &Path) -> Option<PathBuf> {
+    let file = std::fs::File::open(zip).ok()?;
+    let mut archive = zip::ZipArchive::new(std::io::BufReader::new(file)).ok()?;
+    let index = (0..archive.len()).find(|&i| {
+        archive.by_index(i).ok().is_some_and(|entry| {
+            let name = entry.name().replace('\\', "/").to_ascii_lowercase();
+            entry.is_file() && name.ends_with("/bin/ffmpeg.exe")
+        })
+    })?;
+    let mut entry = archive.by_index(index).ok()?;
+    let dir = tmp.join("bin");
+    std::fs::create_dir_all(&dir).ok()?;
+    let out_path = dir.join("ffmpeg.exe");
+    let mut out = std::fs::File::create(&out_path).ok()?;
+    if let Err(err) = std::io::copy(&mut entry, &mut out) {
+        crate::log::line(format!("ffmpeg download: unzip: {err}"));
+        return None;
     }
+    Some(out_path)
 }
 
 /// The first `bin/ffmpeg.exe` under `dir`.
@@ -1225,19 +1238,7 @@ fn install_from_zip(zip: &Path, tmp: &Path, dest: &Path) -> Result<(), String> {
         let _ = std::fs::remove_dir_all(tmp);
     }
     std::fs::create_dir_all(tmp).map_err(|_| failed())?;
-    let (zip_os, tmp_os) = (zip.as_os_str(), tmp.as_os_str());
-    let pattern = std::ffi::OsStr::new("*/bin/ffmpeg.exe");
-    let mut found = None;
-    if run_tar(&["-xf".as_ref(), zip_os, "-C".as_ref(), tmp_os, pattern]) {
-        found = find_extracted(tmp, 4);
-    }
-    if found.is_none() {
-        let _ = std::fs::remove_dir_all(tmp);
-        std::fs::create_dir_all(tmp).map_err(|_| failed())?;
-        if run_tar(&["-xf".as_ref(), zip_os, "-C".as_ref(), tmp_os]) {
-            found = find_extracted(tmp, 4);
-        }
-    }
+    let found = extract_ffmpeg(zip, tmp).filter(|p| find_extracted(tmp, 1).as_deref() == Some(p.as_path()));
     let Some(extracted) = found else {
         crate::log::line("ffmpeg download: no bin/ffmpeg.exe in the zip");
         return Err(failed());

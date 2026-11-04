@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pod — island (dev)</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // Dev only: a preview pane that is hidden gets no animation frames, so
+      // the island would freeze mid-way. A timer stands in for rAF here.
+      if (new URLSearchParams(location.search).has("timer")) {
+        window.requestAnimationFrame = (cb) => setTimeout(() => cb(performance.now()), 16);
+      }
+    </script>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

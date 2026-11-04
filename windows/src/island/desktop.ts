@@ -1,4 +1,4 @@
-// Mochi on the desktop, island side: runs his life cycle (the controller in
+// Stew on the desktop, island side: runs his life cycle (the controller in
 // mochi/desktop-logic.ts) against the real app, tells the desktop window what
 // to show, and handles the drag out of the island. The window itself lives in
 // src-tauri/src/desktop.rs and draws him in src/desktop/main.ts.
@@ -12,16 +12,16 @@ import {
 } from "../mochi/desktop-logic";
 import { SeasonCache, parseOutfit } from "../mochi/wardrobe";
 
-/** Label of the desktop Mochi's window (desktop.rs LABEL). */
+/** Label of the desktop Stew's window (desktop.rs LABEL). */
 const WINDOW = "mochi";
 
 /** What the life cycle needs from the island. */
 export interface DesktopHost {
   /** Shows the island (compact) if it is hidden. */
   reveal(): void;
-  /** Right-click on the desktop Mochi: the wardrobe, or back. */
+  /** Right-click on the desktop Stew: the wardrobe, or back. */
   wardrobeFromDesktop(): void;
-  /** Three pokes on the desktop Mochi. */
+  /** Three pokes on the desktop Stew. */
   dizzyFromDesktop(): void;
 }
 
@@ -29,7 +29,7 @@ export class DesktopLink {
   mode: DesktopMode = "off";
   readonly controller: DesktopMochiController;
 
-  /** The pointer is dragging Mochi out of the island. */
+  /** The pointer is dragging Stew out of the island. */
   carrying = false;
 
   private seasons = new SeasonCache();
@@ -102,7 +102,7 @@ export class DesktopLink {
 
   // ── Drag out of the island ──────────────────────────────────────────────────
 
-  /** Whether Mochi can be picked up from the island right now. */
+  /** Whether Stew can be picked up from the island right now. */
   canPickUp(): boolean {
     return this.supported && !State.paused && !State.mochiOnDesktop && this.controller.phase === "home";
   }

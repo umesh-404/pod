@@ -117,7 +117,7 @@ export function buildDropTargets(): ViewHost {
       for (const { id, tile } of tiles) tile.classList.toggle("hot", State.dropZone === id);
       const ws = subs.get("workspace");
       if (ws) {
-        const name = State.workspaceName || t("Workspace");
+        const name = State.workspaceName || t("Shelf folder");
         if (ws.textContent !== name) {
           ws.textContent = name;
           ws.title = name;
@@ -310,7 +310,7 @@ export function buildFileAction(actions: FileCardActions): ViewHost {
           break;
         case "moved":
           buttons(`moved~${s.moved.length > 0}`, () => [
-            ...(s.moved.length > 0 ? [button(t("Open workspace"), "primary", () => actions.openWorkspace())] : []),
+            ...(s.moved.length > 0 ? [button(t("Open folder"), "primary", () => actions.openWorkspace())] : []),
             button(t("Done"), "secondary", () => actions.close()),
           ]);
           break;

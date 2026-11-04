@@ -12,10 +12,10 @@ import { NO_UPDATE, mayOffer, type UpdateOffer, type UpdateStatus } from "../cor
 import { updateWaiting, type Later } from "../whats-new/whats-new";
 
 /**
- * "Later" for the blue Mochi (whats-new.ts): which version, and when. Rust
+ * "Later" for the blue Stew (whats-new.ts): which version, and when. Rust
  * keeps its own snooze for the card coming back by itself; this one only says
- * whether Mochi stays blue and a click opens on the update. A per-install
- * convenience, so the webview's storage is enough: lost, Mochi is blue again.
+ * whether Stew stays blue and a click opens on the update. A per-install
+ * convenience, so the webview's storage is enough: lost, Stew is blue again.
  */
 const LATER_KEY = "pod.update.later";
 
@@ -73,7 +73,7 @@ class UpdateController {
   private trayBlue = false;
   private trayLook = false;
 
-  /** The tray Mochi follows: blue while a new version waits, like the island's. */
+  /** The tray Stew follows: blue while a new version waits, like the island's. */
   private syncTray() {
     const on = this.waiting();
     if (on === this.trayBlue) return;
@@ -141,7 +141,7 @@ class UpdateController {
 
   private laterMemo: Later | null | undefined;
 
-  /** A newer version waits for the user (Mochi turns blue, a click opens on it). */
+  /** A newer version waits for the user (Stew turns blue, a click opens on it). */
   waiting(nowMs = Date.now()): boolean {
     if (this.laterMemo === undefined) this.laterMemo = readLater();
     return !this.asking && updateWaiting(this.status, this.laterMemo, nowMs);

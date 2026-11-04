@@ -46,11 +46,11 @@ test("every feature the island can switch off is listed once", () => {
   assert.deepEqual(
     [...FEATURE_IDS].sort(),
     [
-      "capture", "clean", "clipboard", "convert", "devservers", "focus", "gif", "notes", "ocr", "pdf", "privacy",
-      "reminders", "rename", "resize", "sha256", "share", "shelf", "tools", "workspace", "zip",
+      "capture", "clean", "clipboard", "convert", "devservers", "focus", "gif", "heal", "notes", "ocr", "pdf", "pdfstudio", "privacy",
+      "reminders", "rename", "resize", "sha256", "share", "shelf", "textnote", "tools", "workspace", "zip",
     ],
   );
-  assert.deepEqual(FEATURE_GROUPS.map((g) => g.anchor), ["features.drop", "features.tabs", "features.notch", "features.tools"]);
+  assert.deepEqual(FEATURE_GROUPS.map((g) => g.anchor), ["features.drop", "features.tabs", "features.notch", "features.tools", "features.upkeep"]);
   for (const g of FEATURE_GROUPS) for (const i of g.items) assert.ok(i.title && i.detail, i.id);
 });
 
@@ -106,8 +106,8 @@ test("calendar links: web and webcal only, cleaned up", () => {
 test("Features page: a switch per feature, writing disabledFeatures", () => {
   const s = store({ disabledFeatures: ["pdf"] });
   const sections = featuresSections(s.access);
-  assert.equal(sections.length, 4);
-  assert.deepEqual(sections.map((el) => el.dataset.anchor), ["features.drop", "features.tabs", "features.notch", "features.tools"]);
+  assert.equal(sections.length, 5);
+  assert.deepEqual(sections.map((el) => el.dataset.anchor), ["features.drop", "features.tabs", "features.notch", "features.tools", "features.upkeep"]);
   const rows = sections.flatMap((el) => el.find(".feature-row"));
   assert.equal(rows.length, FEATURE_IDS.length);
   const pdf = rows[FEATURE_IDS.indexOf("pdf")];

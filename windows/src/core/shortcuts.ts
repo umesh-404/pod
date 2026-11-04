@@ -20,8 +20,8 @@ import { N_ } from "../i18n/i18n";
 
 export const SHORTCUT_TEXT = {
   toggleIsland: N_("Open or close the island"),
-  muteToggle: N_("Mute or unmute Mochi"),
-  desktopToggle: N_("Send Mochi to the desktop"),
+  muteToggle: N_("Mute or unmute Stew"),
+  desktopToggle: N_("Send Stew to the desktop"),
   wardrobeToggle: N_("Open the wardrobe"),
   openShelf: N_("Open the shelf"),
   newReminder: N_("New reminder"),

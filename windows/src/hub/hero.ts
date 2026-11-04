@@ -1,8 +1,8 @@
 // The coloured band on top of each page of the Pod window: a deep black
 // with the page's colour breathing in a corner, particles that drift all the
-// time and move away from the pointer, and the page's little Mochis walking on
-// its floor — they hop, look around, wave, and react when poked. Also the
-// glowing cards and the Mochis of empty pages. Port of FlowHubMochis.swift.
+// time and move away from the pointer, and the page's little Stews hopping
+// along its floor — they look around, rock hello, and react when
+// poked. Also the glowing cards and the Stew of empty pages.
 //
 // One animation loop draws every live canvas; it stops when none is left or
 // the window is hidden, so a hidden window costs nothing, and skips the ones
@@ -213,10 +213,11 @@ export function backdrop(canvas: HTMLCanvasElement, color: string, pointerFrom: 
   });
 }
 
-// ── The Mochis ────────────────────────────────────────────────────────────────
+// ── The Stews ─────────────────────────────────────────────────────────────────
 
 export interface MochiSpec {
-  color: string;
+  /** Body colour; null = Stew green. */
+  color: string | null;
   /** Body width in CSS pixels. */
   size: number;
   /** Where he starts along the floor, 0…1. */
@@ -241,13 +242,14 @@ class Walker {
   waving = 0;
 
   constructor(public spec: MochiSpec) {
-    this.engine.bodyColor = hexToRGB(spec.color);
+    this.engine.bodyColor = spec.color ? hexToRGB(spec.color) : null;
+    this.engine.ambient = true;
     this.engine.setState(spec.state ?? "idle", true);
     if (spec.outfit && spec.outfit !== "none") this.engine.setOutfit(spec.outfit, false);
   }
 }
 
-/** The page's Mochis on the band's floor, in the right part of `canvas`. */
+/** The page's Stews on the band's floor, in the right part of `canvas`. */
 export function troupe(canvas: HTMLCanvasElement, cast: MochiSpec[], width: number) {
   const walkers = cast.map((spec) => new Walker(spec));
   let pointer: { x: number; y: number } | null = null;
@@ -328,7 +330,7 @@ export function troupe(canvas: HTMLCanvasElement, cast: MochiSpec[], width: numb
           w.engine.lookY = 0.1 + 0.1 * Math.sin(t + w.spec.start * 7);
         }
         w.engine.update(dt);
-        // `size` is the drawing's square, as on the Mac; the body is about 0.68 of it.
+        // `size` is the drawing's square; Stew is about 0.54 of it.
         const box = s;
         const floor = ch - 8;
         ctx.save();
@@ -345,16 +347,17 @@ export function troupe(canvas: HTMLCanvasElement, cast: MochiSpec[], width: numb
   });
 }
 
-/** One Mochi alone (the sidebar's logo, an empty page). */
-export function liveMochi(canvas: HTMLCanvasElement, color = "#F5F6F8", state: BotStateName = "idle") {
+/** One Stew alone (the sidebar's logo, an empty page). `color` null = Stew green. */
+export function liveMochi(canvas: HTMLCanvasElement, color: string | null = null, state: BotStateName = "idle") {
   const engine = new BotEngine();
-  engine.bodyColor = hexToRGB(color);
+  engine.bodyColor = color ? hexToRGB(color) : null;
+  engine.ambient = true;
   engine.setState(state, true);
   canvas.addEventListener("click", () => engine.slap());
   let mouse: { x: number; y: number } | null = null;
   // The eyes follow the pointer anywhere in the window. The listener is the
   // window's, so it is removed with the canvas (the Notch page's preview builds
-  // a new Mochi on every visit), never left behind.
+  // a new Stew on every visit), never left behind.
   let seen = false;
   const onMove = (e: PointerEvent) => {
     if (!canvas.isConnected) {
@@ -391,18 +394,18 @@ export interface Theme {
   cast: MochiSpec[];
 }
 
-const m = (color: string, size: number, start: number, extra: Partial<MochiSpec> = {}): MochiSpec => ({
+const m = (color: string | null, size: number, start: number, extra: Partial<MochiSpec> = {}): MochiSpec => ({
   color, size, start, ...extra,
 });
 
 export const THEMES: Record<string, Theme> = {
-  general: { color: "#8E939C", cast: [m("#F5F6F8", 60, 0.4, { outfit: "scarf" }), m("#FB923C", 46, 0.85)] },
-  notch: { color: "#F59E0B", cast: [m("#F59E0B", 56, 0.25, { outfit: "bow" }), m("#F5F6F8", 44, 0.75)] },
-  features: { color: "#22C55E", cast: [m("#22C55E", 54, 0.3), m("#F5F6F8", 46, 0.8, { outfit: "bunnyEars" })] },
-  shortcuts: { color: "#6366F1", cast: [m("#6366F1", 56, 0.2, { outfit: "sunglasses" }), m("#F5F6F8", 46, 0.8)] },
+  general: { color: "#8E939C", cast: [m(null, 60, 0.4, { outfit: "scarf" }), m("#FB923C", 46, 0.85)] },
+  notch: { color: "#F59E0B", cast: [m("#F59E0B", 56, 0.25, { outfit: "crown" }), m(null, 44, 0.75)] },
+  features: { color: "#22C55E", cast: [m(null, 54, 0.3, { outfit: "headphones" }), m(null, 46, 0.8, { outfit: "flower" })] },
+  shortcuts: { color: "#6366F1", cast: [m("#6366F1", 56, 0.2, { outfit: "sunglasses" }), m(null, 46, 0.8)] },
 };
 
-/** The band itself: title, line, actions, and the Mochis. */
+/** The band itself: title, line, actions, and the Stews. */
 export function hero(page: string, title: string, subtitle: string | null, actions: HTMLElement[] = [], compact = false): HTMLElement {
   const theme = THEMES[page] ?? THEMES.general;
   const el = document.createElement("div");
@@ -448,8 +451,8 @@ export function glowCard(color: string, ...content: (HTMLElement | string)[]): H
   return el;
 }
 
-/** An empty page: a Mochi asleep, and a line. */
-export function emptyState(text: string, state: BotStateName = "sleeping", color = "#F5F6F8"): HTMLElement {
+/** An empty page: a Stew asleep, and a line. */
+export function emptyState(text: string, state: BotStateName = "sleeping", color: string | null = null): HTMLElement {
   const el = document.createElement("div");
   el.className = "hub-empty";
   const canvas = document.createElement("canvas");

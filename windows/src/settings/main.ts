@@ -10,11 +10,14 @@ import {
 } from "../core/shortcuts";
 import { DEFAULT_SETTINGS, type Settings } from "../core/state";
 import type { UpdateStatus } from "../core/update";
+import type { HealthReport } from "../core/bridge";
 import { SOUND_NAMES } from "../core/sound";
 import { h, clear } from "../views/dom";
 import { startHub, type PageId } from "../hub/shell";
+import { installStudio } from "../studio/studio";
 import { anchor, toggle } from "../hub/ui";
 import { updateRows, updatesListener } from "./updates";
+import { healthListener, healthSection } from "./health";
 import { workspaceListener, workspaceSection, type FfmpegDownloadEvent } from "./workspace";
 import { featuresSections } from "./features";
 import { notchSections } from "./notch";
@@ -147,7 +150,7 @@ function generalSection(): HTMLElement {
       volume,
     ),
     h("div", { class: "row" }, soundsFolder, reloadSounds, customCount),
-    h("div", { class: "hint", text: t("Drop a file named like one of Mochi's sounds (finish.wav, approval.mp3, greet.m4a…) in the sounds folder to replace it, then Reload.") }),
+    h("div", { class: "hint", text: t("Drop a file named like one of Stew's sounds (finish.wav, approval.mp3, greet.m4a…) in the sounds folder to replace it, then Reload.") }),
     h("div", { class: "row", "data-anchor": "general.hover" },
       h("label", { text: t("Open on hover") }),
       hover,
@@ -451,6 +454,7 @@ async function main() {
 
   void onEvent<ShortcutsReport>("shortcuts-status", (fresh) => shortcutsListener?.report(fresh));
   void onEvent<UpdateStatus>("update-status", (fresh) => updatesListener?.(fresh));
+  void onEvent<HealthReport>("heal-status", (fresh) => healthListener?.(fresh));
   void onEvent<FfmpegDownloadEvent>("ffmpeg-download", (e) => workspaceListener?.download(e));
   void onEvent<boolean>("hub-visible", (shown) => { if (shown) workspaceListener?.refresh(); });
   void onEvent<Settings>("settings-changed", (s) => {
@@ -472,7 +476,7 @@ async function render() {
   generalListener = null;
   clear(root);
   const sections: Record<PageId, () => HTMLElement[]> = {
-    general: () => [anchor("general.workspace", workspaceSection()), generalSection()],
+    general: () => [anchor("general.workspace", workspaceSection()), generalSection(), anchor("general.health", healthSection())],
     notch: () => notchSections(access),
     features: () => featuresSections(access),
     shortcuts: () => [shortcutsSection(shortcutReport)],
@@ -487,3 +491,4 @@ async function render() {
 }
 
 void main();
+installStudio();

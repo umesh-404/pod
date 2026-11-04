@@ -69,6 +69,8 @@ windows = { version = "0.61", features = [
   "Win32_System_Threading",
   "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_Shell",
+  # "Show in folder" selects the file through the shell, not by spawning explorer.exe (platform/windows.rs).
+  "Win32_UI_Shell_Common",
   # The shelf's thumbnails: the shell's HBITMAP read back with GetDIBits (shelf.rs).
   "Win32_Graphics_Gdi",
   "Win32_UI_Accessibility",
@@ -90,6 +92,8 @@ windows = { version = "0.61", features = [
   "Foundation_Collections",
   # Batch rename that never replaces a file: MoveFileExW without REPLACE_EXISTING (rename.rs).
   "Win32_Storage_FileSystem",
+  # The WebView2 messages before any webview exists, in Windows' display language (webview_check.rs).
+  "Win32_Globalization",
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
