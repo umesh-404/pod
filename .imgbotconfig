@@ -1,0 +1,5 @@
+{
+  "ignoredFiles": [
+    "windows/src-tauri/icons/*"
+  ]
+}
