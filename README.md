@@ -122,10 +122,18 @@ comes from your package manager, and less is tested than on Windows. See
 
 ## Install
 
-There are no published releases yet: Pod still carries an asset from Coucou
-that may not be redistributed (see [LICENSE-ASSETS.md](LICENSE-ASSETS.md)).
-Until that is replaced, build the installer yourself; it is the same one a
-release would ship.
+Download the newest `Pod-Windows-X.Y.Z-setup.exe` from
+[Releases](https://github.com/umesh-404/pod/releases/latest), run it, then
+find Pod in the tray. It installs for your account, without administrator
+rights. `Pod-Windows-X.Y.Z.msi` installs it for every user of the computer.
+
+The installers are not code-signed yet, so Windows SmartScreen shows a
+warning (**More info → Run anyway**), and some antivirus programs (Avira, for
+one) may flag the new, unsigned `pod.exe` with a heuristic detection. If yours
+does, restore it from quarantine and report it to the vendor as a false
+positive.
+
+### Build it yourself
 
 You need [Rust](https://rustup.rs) and [Node 20+](https://nodejs.org) (on
 Windows, the MSVC build tools; on Linux, WebKitGTK and gtk-layer-shell, listed
@@ -146,9 +154,8 @@ npm run pack
 | Windows | `Pod-Windows-0.1.0.msi` | MSI package, for managed installs |
 | Linux | `Pod-Linux-0.1.0-x86_64.AppImage`, `.deb`, `.rpm` | Built on Linux |
 
-Run the setup file, then find Pod in the tray. Windows may show SmartScreen
-for an unsigned installer: **More info → Run anyway**. Pod needs the Microsoft
-Edge WebView2 Runtime, which Windows 10 and 11 already have.
+Pod needs the Microsoft Edge WebView2 Runtime, which Windows 10 and 11
+already have.
 
 ### Updates
 

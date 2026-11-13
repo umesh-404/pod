@@ -1277,21 +1277,6 @@
       "ko": "제일 바빴던 날",
       "ja": "最も忙しかった日"
     },
-    "Buy Mochi a coffee": {
-      "zh-Hans": "请 Mochi 喝咖啡",
-      "hi": "Mochi को कॉफ़ी पिलाएँ",
-      "es": "Invitar a Mochi a un café",
-      "ar": "ادعُ Mochi إلى قهوة",
-      "fr": "Offrir un café à Mochi",
-      "bn": "Mochi-কে কফি খাওয়ান",
-      "pt-BR": "Pagar um café para o Mochi",
-      "ru": "Угостить Mochi кофе",
-      "id": "Traktir Mochi kopi",
-      "de": "Mochi einen Kaffee spendieren",
-      "tr": "Mochi’ye kahve ısmarla",
-      "ko": "모찌에게 커피 사 주기",
-      "ja": "Mochi にコーヒーをおごる"
-    },
     "COMMANDS": {
       "zh-Hans": "命令",
       "hi": "कमांड",
@@ -1411,21 +1396,6 @@
       "tr": "Claude için ekran görüntüsü al",
       "ko": "Claude용 화면 캡처",
       "ja": "Claude のために画面をキャプチャ"
-    },
-    "Captured. Mochi has it.": {
-      "zh-Hans": "截好了，Mochi 吞下了它。",
-      "hi": "कैप्चर हो गया। मोची के पास है।",
-      "es": "Capturado. Mochi lo tiene.",
-      "ar": "تم الالتقاط. موتشي ابتلعه.",
-      "fr": "Capturé. Mochi l'a avalé.",
-      "bn": "ক্যাপচার হয়েছে। মোচির কাছে আছে।",
-      "pt-BR": "Capturado. O Mochi pegou.",
-      "ru": "Готово. Мочи проглотил снимок.",
-      "id": "Tertangkap. Mochi menyimpannya.",
-      "de": "Aufgenommen. Mochi hat es.",
-      "tr": "Ekran görüntüsü alındı. Mochi'de.",
-      "ko": "찰칵! 모찌가 꼭 쥐고 있어요.",
-      "ja": "キャプチャしました。Mochi が持っています。"
     },
     "Change plan": {
       "zh-Hans": "修改计划",
@@ -1666,21 +1636,6 @@
       "tr": "Claude Code oturumu açık değil veya anahtarı artık geçerli değil.",
       "ko": "Claude Code에 로그인이 안 돼 있거나 키가 만료됐어요.",
       "ja": "Claude Code にサインインしていないか、キーが無効になっています。"
-    },
-    "Claude Code, Codex and the other agents Mochi follows.": {
-      "zh-Hans": "Mochi 关注的 Claude Code、Codex 和其他智能体。",
-      "hi": "Claude Code, Codex और बाकी एजेंट जिन पर मोची नज़र रखता है।",
-      "es": "Claude Code, Codex y los demás agentes que sigue Mochi.",
-      "ar": "Claude Code وCodex وبقية الوكلاء الذين يتابعهم موتشي.",
-      "fr": "Claude Code, Codex et les autres agents que Mochi suit.",
-      "bn": "Claude Code, Codex আর অন্য এজেন্ট যাদের মোচি অনুসরণ করে।",
-      "pt-BR": "Claude Code, Codex e os outros agentes que o Mochi acompanha.",
-      "ru": "Claude Code, Codex и другие агенты, за которыми следит Мочи.",
-      "id": "Claude Code, Codex, dan agen lain yang diikuti Mochi.",
-      "de": "Claude Code, Codex und die anderen Agenten, denen Mochi folgt.",
-      "tr": "Claude Code, Codex ve Mochi'nin takip ettiği diğer ajanlar.",
-      "ko": "Claude Code, Codex 등 모찌가 지켜보는 에이전트들이에요.",
-      "ja": "Claude Code、Codex など Mochi が見守るエージェント。"
     },
     "Claude Desktop chats (experimental)": {
       "zh-Hans": "Claude Desktop 聊天（实验性）",
@@ -2296,21 +2251,6 @@
       "tr": "Pod yapıştıramadı: sözlerin kopyalandı. ⌘V tuşlarına bas ve Pod'nun senin için yapıştırabilmesi için Erişilebilirlik izni ver.",
       "ko": "붙여넣기에 실패해서 대신 복사해 뒀어요. ⌘V를 누르고, 다음엔 알아서 붙여넣도록 손쉬운 사용을 허용해 주세요.",
       "ja": "Pod はペーストできませんでした。言葉はコピーされています。⌘V を押し、アクセシビリティを許可すると自動でペーストされます。"
-    },
-    "Pod is free and open source. If it saves you time, you can buy Mochi a coffee.": {
-      "zh-Hans": "Pod 免费且开源。如果它帮你节省了时间，可以请 Mochi 喝杯咖啡。",
-      "hi": "Pod मुफ़्त और ओपन सोर्स है। अगर यह आपका समय बचाता है, तो Mochi को एक कॉफ़ी पिला सकते हैं।",
-      "es": "Pod es gratis y de código abierto. Si te ahorra tiempo, puedes invitar a Mochi a un café.",
-      "ar": "Pod مجاني ومفتوح المصدر. إن وفّر عليك الوقت، يمكنك دعوة Mochi إلى قهوة.",
-      "fr": "Pod est gratuit et open source. S’il te fait gagner du temps, tu peux offrir un café à Mochi.",
-      "bn": "Pod বিনামূল্যে ও ওপেন সোর্স। এটি আপনার সময় বাঁচালে Mochi-কে এক কাপ কফি খাওয়াতে পারেন।",
-      "pt-BR": "O Pod é gratuito e de código aberto. Se ele economiza seu tempo, você pode pagar um café para o Mochi.",
-      "ru": "Pod бесплатный и с открытым кодом. Если он экономит вам время, можно угостить Mochi кофе.",
-      "id": "Pod gratis dan open source. Kalau ini menghemat waktumu, kamu bisa traktir Mochi kopi.",
-      "de": "Pod ist kostenlos und Open Source. Wenn es dir Zeit spart, kannst du Mochi einen Kaffee spendieren.",
-      "tr": "Pod ücretsiz ve açık kaynak. Sana zaman kazandırıyorsa Mochi’ye bir kahve ısmarlayabilirsin.",
-      "ko": "Pod는 무료 오픈소스예요. 시간을 아껴 줬다면 모찌에게 커피 한 잔 사 주세요.",
-      "ja": "Pod は無料のオープンソースです。時間の節約になったら、Mochi にコーヒーをおごってください。"
     },
     "Pod is not allowed to control Mail. Allow it in Privacy & Security → Automation.": {
       "zh-Hans": "Pod 无权控制“邮件”。请在“隐私与安全性”→“自动化”中允许。",
@@ -2971,21 +2911,6 @@
       "tr": "Taslak",
       "ko": "초안",
       "ja": "下書き"
-    },
-    "Drop a file named like one of Mochi's sounds (finish.wav, approval.mp3, greet.m4a…) in the sounds folder to replace it, then Reload.": {
-      "zh-Hans": "在声音文件夹中放入与 Mochi 某个声音同名的文件（finish.wav、approval.mp3、greet.m4a…）即可替换它，然后重新载入。",
-      "hi": "Mochi की किसी साउंड के नाम वाली फ़ाइल (finish.wav, approval.mp3, greet.m4a…) साउंड फ़ोल्डर में रखें, वह उसकी जगह ले लेगी; फिर Reload करें।",
-      "es": "Deja en la carpeta de sonidos un archivo con el nombre de uno de los sonidos de Mochi (finish.wav, approval.mp3, greet.m4a…) para reemplazarlo y luego recarga.",
-      "ar": "ضع في مجلد الأصوات ملفًا يحمل اسم أحد أصوات Mochi (finish.wav وapproval.mp3 وgreet.m4a…) ليحل محله، ثم أعد التحميل.",
-      "fr": "Déposez dans le dossier des sons un fichier nommé comme l'un des sons de Mochi (finish.wav, approval.mp3, greet.m4a…) pour le remplacer, puis rechargez.",
-      "bn": "Mochi-র কোনো সাউন্ডের নামে একটি ফাইল (finish.wav, approval.mp3, greet.m4a…) সাউন্ড ফোল্ডারে রাখুন, সেটি বদলে যাবে; তারপর Reload করুন।",
-      "pt-BR": "Coloque na pasta de sons um arquivo com o nome de um dos sons do Mochi (finish.wav, approval.mp3, greet.m4a…) para substituí-lo e depois recarregue.",
-      "ru": "Положите в папку звуков файл с именем одного из звуков Mochi (finish.wav, approval.mp3, greet.m4a…), чтобы заменить его, затем перезагрузите.",
-      "id": "Taruh file bernama seperti salah satu suara Mochi (finish.wav, approval.mp3, greet.m4a…) di folder suara untuk menggantinya, lalu muat ulang.",
-      "de": "Lege eine Datei mit dem Namen eines Mochi-Klangs (finish.wav, approval.mp3, greet.m4a…) im Klangordner ab, um ihn zu ersetzen. Lade die Klänge anschließend neu.",
-      "tr": "Mochi'nin seslerinden birini değiştirmek için aynı adı taşıyan bir dosyayı (finish.wav, approval.mp3, greet.m4a…) sesler klasörüne bırak, ardından sesleri yeniden yükle.",
-      "ko": "모찌의 사운드와 같은 이름의 파일(finish.wav, approval.mp3, greet.m4a…)을 sounds 폴더에 넣으면 교체돼요. 그다음 다시 불러오기!",
-      "ja": "Mochi のサウンドと同じ名前のファイル（finish.wav、approval.mp3、greet.m4a…）をサウンドフォルダに入れると置き換えられます。その後「再読み込み」を押してください。"
     },
     "Drop a file or window, or ask me anything.": {
       "zh-Hans": "拖入文件或窗口，或问我任何问题。",
@@ -3677,21 +3602,6 @@
       "ko": "핸즈프리",
       "ja": "ハンズフリー"
     },
-    "He sweats when the processor is at full load, flushes when the Mac is hot, puffs up when memory is short and gets sleepy when the battery is low. Point at Mochi to see why. Read only while Mochi is on screen; nothing leaves your Mac.": {
-      "zh-Hans": "处理器满载时他会流汗，Mac 发热时他会脸红，内存不足时他会鼓起来，电量低时他会犯困。把指针放到 Mochi 上就能看到原因。仅在 Mochi 显示时读取，所有数据都留在你的 Mac 上。",
-      "hi": "प्रोसेसर पूरी तरह व्यस्त हो तो उसे पसीना आता है, Mac गर्म हो तो वह लाल हो जाता है, मेमोरी कम हो तो फूल जाता है और बैटरी कम हो तो उसे नींद आती है। वजह देखने के लिए मोची पर पॉइंटर रखें। सिर्फ़ तब पढ़ा जाता है जब मोची स्क्रीन पर हो; कुछ भी आपके Mac से बाहर नहीं जाता।",
-      "es": "Suda cuando el procesador va al máximo, se pone rojo cuando el Mac se calienta, se hincha cuando falta memoria y le entra sueño cuando la batería está baja. Señala a Mochi para ver por qué. Solo se lee mientras Mochi está en pantalla; nada sale de tu Mac.",
-      "ar": "يتعرّق عندما يعمل المعالج بأقصى طاقته، ويحمرّ عندما يسخن جهاز Mac، وينتفخ عندما تنقص الذاكرة، ويغفو عندما تضعف البطارية. ضع المؤشر على موتشي لترى السبب. لا تتم القراءة إلا عندما يكون موتشي على الشاشة، ولا يغادر شيء جهازك.",
-      "fr": "Il transpire quand le processeur est à fond, rougit quand le Mac chauffe, gonfle quand la mémoire manque et s'endort quand la batterie est faible. Pointe Mochi pour voir pourquoi. Lu seulement quand Mochi est à l'écran ; rien ne quitte ton Mac.",
-      "bn": "প্রসেসর পুরো চাপে থাকলে সে ঘামে, Mac গরম হলে লাল হয়ে যায়, মেমরি কম পড়লে ফুলে ওঠে আর ব্যাটারি কম হলে ঘুম পায়। কারণ দেখতে মোচির ওপর পয়েন্টার রাখুন। মোচি স্ক্রিনে থাকলেই শুধু পড়া হয়; কিছুই আপনার Mac ছেড়ে যায় না।",
-      "pt-BR": "Ele sua quando o processador está no máximo, fica vermelho quando o Mac esquenta, incha quando falta memória e fica com sono quando a bateria está fraca. Aponte para o Mochi para ver por quê. Só é lido enquanto o Mochi está na tela; nada sai do seu Mac.",
-      "ru": "Он потеет, когда процессор загружен полностью, краснеет, когда Mac нагревается, раздувается, когда не хватает памяти, и засыпает, когда батарея садится. Наведите на Мочи, чтобы узнать причину. Читается, только пока Мочи на экране; ничего не покидает ваш Mac.",
-      "id": "Dia berkeringat saat prosesor bekerja penuh, memerah saat Mac panas, menggembung saat memori kurang, dan mengantuk saat baterai lemah. Arahkan penunjuk ke Mochi untuk melihat alasannya. Hanya dibaca saat Mochi ada di layar; tidak ada yang keluar dari Mac-mu.",
-      "de": "Er schwitzt, wenn der Prozessor voll ausgelastet ist, wird rot, wenn der Mac heiß ist, bläht sich bei knappem Arbeitsspeicher auf und wird bei niedrigem Batteriestand müde. Zeige auf Mochi, um den Grund zu sehen. Die Werte werden nur gelesen, solange Mochi auf dem Bildschirm ist; nichts verlässt deinen Mac.",
-      "tr": "İşlemci tam yükteyken terler, Mac ısındığında kızarır, bellek azaldığında şişer ve pil azaldığında uykusu gelir. Nedenini görmek için imleci Mochi'nin üzerine getir. Bilgiler yalnızca Mochi ekrandayken okunur; hiçbir şey Mac'inden dışarı çıkmaz.",
-      "ko": "프로세서가 풀가동이면 땀을 뻘뻘, Mac이 뜨거우면 얼굴이 빨개지고, 메모리가 모자라면 빵빵하게 부풀고, 배터리가 부족하면 꾸벅꾸벅 졸아요. 모찌를 가리키면 이유를 알려 줘요. 모찌가 화면에 있을 때만 읽고, Mac 밖으로는 아무것도 안 나가요.",
-      "ja": "プロセッサがフル稼働すると汗をかき、Mac が熱いと赤くなり、メモリが足りないとふくらみ、バッテリーが少ないと眠そうになります。Mochi を指すと理由がわかります。Mochi が画面にいる間だけ読み取り、何も Mac の外に出ません。"
-    },
     "Heard, e.g. cloud code": {
       "zh-Hans": "听到的，例如 cloud code",
       "hi": "सुना गया, जैसे cloud code",
@@ -4096,21 +4006,6 @@
       "tr": "Önemli",
       "ko": "중요",
       "ja": "重要"
-    },
-    "In a corner, Pod floats over your desktop and opens from there. You can also drag Mochi near a corner of the screen, or back to the top centre.": {
-      "zh-Hans": "放在角落时，Pod 会浮在桌面上并从那里展开。你也可以把 Mochi 拖到屏幕角落附近，或拖回顶部中间。",
-      "hi": "कोने में Pod आपके डेस्कटॉप पर तैरता है और वहीं से खुलता है। आप Mochi को स्क्रीन के किसी कोने के पास खींच सकते हैं, या वापस ऊपर बीच में ला सकते हैं।",
-      "es": "En una esquina, Pod flota sobre tu escritorio y se abre desde ahí. También puedes arrastrar a Mochi cerca de una esquina de la pantalla, o devolverlo arriba en el centro.",
-      "ar": "في الزاوية، يطفو Pod فوق سطح المكتب ويُفتح من هناك. يمكنك أيضًا سحب Mochi قرب زاوية من الشاشة، أو إعادته إلى أعلى الوسط.",
-      "fr": "Dans un coin, Pod flotte sur ton bureau et s’ouvre depuis ce coin. Tu peux aussi glisser Mochi près d’un coin de l’écran, ou le ramener en haut au centre.",
-      "bn": "কোণে থাকলে Pod আপনার ডেস্কটপের উপর ভাসে এবং সেখান থেকেই খোলে। Mochi-কে স্ক্রিনের কোনো কোণের কাছে টেনে আনতে পারেন, অথবা আবার উপরের মাঝখানে নিতে পারেন।",
-      "pt-BR": "Num canto, o Pod flutua sobre a sua área de trabalho e abre a partir dali. Você também pode arrastar o Mochi para perto de um canto da tela, ou de volta ao centro, no alto.",
-      "ru": "В углу Pod парит над рабочим столом и открывается оттуда. Можно также перетащить Mochi к углу экрана или обратно наверх по центру.",
-      "id": "Di sudut, Pod melayang di atas desktop dan terbuka dari sana. Kamu juga bisa menyeret Mochi ke dekat sudut layar, atau kembali ke atas tengah.",
-      "de": "In einer Ecke schwebt Pod über deinem Schreibtisch und öffnet sich von dort. Du kannst Mochi auch in die Nähe einer Bildschirmecke ziehen oder zurück nach oben in die Mitte.",
-      "tr": "Bir köşedeyken Pod masaüstünün üzerinde süzülür ve oradan açılır. Mochi’yi ekranın bir köşesine yakın sürükleyebilir ya da üst ortaya geri getirebilirsin.",
-      "ko": "모서리에 두면 Pod가 데스크톱 위에 떠 있고 그 자리에서 열려요. Mochi를 화면 모서리 근처로 끌어다 놓거나 상단 가운데로 다시 옮길 수도 있어요.",
-      "ja": "隅に置くと、Pod はデスクトップの上に浮かび、そこから開きます。Mochi を画面の隅の近くへドラッグしたり、上部中央へ戻したりすることもできます。"
     },
     "Inbox": {
       "zh-Hans": "收件箱",
@@ -5177,96 +5072,6 @@
       "ko": "받는 사람이 빠졌어요!",
       "ja": "宛先がありません。"
     },
-    "Mochi and your Mac": {
-      "zh-Hans": "Mochi 和你的 Mac",
-      "hi": "मोची और आपका Mac",
-      "es": "Mochi y tu Mac",
-      "ar": "موتشي وجهاز Mac",
-      "fr": "Mochi et ton Mac",
-      "bn": "মোচি আর আপনার Mac",
-      "pt-BR": "Mochi e seu Mac",
-      "ru": "Мочи и ваш Mac",
-      "id": "Mochi dan Mac-mu",
-      "de": "Mochi und dein Mac",
-      "tr": "Mochi ve Mac'in",
-      "ko": "모찌와 Mac",
-      "ja": "Mochi とあなたの Mac"
-    },
-    "Mochi checks Pod’s releases on GitHub a few times a day and tells you when one is out. Nothing about you is sent.": {
-      "zh-Hans": "Mochi 每天会在 GitHub 上查看几次 Pod 的版本，有新版本时告诉你。不会发送任何关于你的信息。",
-      "hi": "Mochi दिन में कुछ बार GitHub पर Pod के रिलीज़ देखता है और नया आने पर बताता है। आपके बारे में कुछ नहीं भेजा जाता।",
-      "es": "Mochi revisa las versiones de Pod en GitHub unas veces al día y te avisa cuando sale una. No se envía nada sobre ti.",
-      "ar": "يتحقق Mochi من إصدارات Pod على GitHub بضع مرات يوميًا ويخبرك عند صدور إصدار جديد. لا يُرسَل أي شيء عنك.",
-      "fr": "Mochi regarde les versions de Pod sur GitHub quelques fois par jour et te prévient quand il y en a une. Rien sur toi n’est envoyé.",
-      "bn": "Mochi দিনে কয়েকবার GitHub-এ Pod-র রিলিজ দেখে এবং নতুন এলে জানায়। আপনার সম্পর্কে কিছুই পাঠানো হয় না।",
-      "pt-BR": "O Mochi verifica as versões do Pod no GitHub algumas vezes por dia e avisa quando sai uma. Nada sobre você é enviado.",
-      "ru": "Mochi несколько раз в день проверяет релизы Pod на GitHub и сообщает о новых. О вас ничего не отправляется.",
-      "id": "Mochi memeriksa rilis Pod di GitHub beberapa kali sehari dan memberi tahu saat ada yang baru. Tidak ada data tentangmu yang dikirim.",
-      "de": "Mochi schaut ein paar Mal am Tag nach Pods Releases auf GitHub und sagt dir, wenn eine neue da ist. Über dich wird nichts gesendet.",
-      "tr": "Mochi, Pod'nun GitHub'daki sürümlerine günde birkaç kez bakar ve yenisi çıkınca sana söyler. Seninle ilgili hiçbir şey gönderilmez.",
-      "ko": "모찌가 하루에 몇 번 GitHub에서 Pod 새 버전을 확인하고, 나오면 바로 알려 줘요. 사용자 정보는 하나도 안 보내요.",
-      "ja": "Mochi は GitHub で Pod のリリースを 1 日に数回確認し、新しいバージョンが出たらお知らせします。あなたに関する情報は送信されません。"
-    },
-    "Mochi jumps when a chat reply is ready": {
-      "zh-Hans": "聊天回复完成时 Mochi 会跳起来",
-      "hi": "चैट का जवाब तैयार होने पर Mochi उछलता है",
-      "es": "Mochi salta cuando una respuesta del chat está lista",
-      "ar": "يقفز Mochi عندما يجهز رد الدردشة",
-      "fr": "Mochi saute quand une réponse de chat est prête",
-      "bn": "চ্যাটের উত্তর প্রস্তুত হলে Mochi লাফায়",
-      "pt-BR": "O Mochi pula quando uma resposta do chat fica pronta",
-      "ru": "Mochi подпрыгивает, когда ответ в чате готов",
-      "id": "Mochi melompat saat balasan chat siap",
-      "de": "Mochi springt, wenn eine Chat-Antwort bereit ist",
-      "tr": "Bir sohbet yanıtı hazır olduğunda Mochi zıplar",
-      "ko": "채팅 응답이 준비되면 모찌가 폴짝 뛰어올라요",
-      "ja": "チャットの返信が届くと Mochi が跳ねます"
-    },
-    "Mochi reacts to your Mac": {
-      "zh-Hans": "Mochi 会对你的 Mac 做出反应",
-      "hi": "मोची आपके Mac पर प्रतिक्रिया देता है",
-      "es": "Mochi reacciona a tu Mac",
-      "ar": "يتفاعل موتشي مع جهاز Mac",
-      "fr": "Mochi réagit à ton Mac",
-      "bn": "মোচি আপনার Mac-এ সাড়া দেয়",
-      "pt-BR": "Mochi reage ao seu Mac",
-      "ru": "Мочи реагирует на ваш Mac",
-      "id": "Mochi bereaksi pada Mac-mu",
-      "de": "Mochi reagiert auf deinen Mac",
-      "tr": "Mochi Mac'inin durumuna tepki verir",
-      "ko": "모찌가 Mac 상태에 반응해요",
-      "ja": "Mochi が Mac に反応します"
-    },
-    "Mochi to desktop on/off": {
-      "zh-Hans": "Mochi 桌面开/关",
-      "hi": "Mochi डेस्कटॉप पर चालू / बंद",
-      "es": "Mochi en el escritorio sí / no",
-      "ar": "Mochi على / إيقاف سطح المكتب",
-      "fr": "Mochi sur le bureau oui / non",
-      "bn": "Mochi ডেস্কটপে চালু / বন্ধ",
-      "pt-BR": "Mochi na área de trabalho sim / não",
-      "ru": "Mochi на рабочем столе вкл / выкл",
-      "id": "Mochi di desktop ya / tidak",
-      "de": "Mochi auf dem Desktop ein/aus",
-      "tr": "Mochi'yi masaüstüne taşı / geri getir",
-      "ko": "데스크톱 모찌 켜기/끄기",
-      "ja": "Mochi をデスクトップに出す／戻す"
-    },
-    "Mochi, his sounds and how the notch behaves.": {
-      "zh-Hans": "Mochi、它的声音和刘海的行为。",
-      "hi": "मोची, उसकी आवाज़ें और नॉच का व्यवहार।",
-      "es": "Mochi, sus sonidos y cómo se comporta el notch.",
-      "ar": "موتشي وأصواته وسلوك النوتش.",
-      "fr": "Mochi, ses sons et le comportement du notch.",
-      "bn": "মোচি, তার শব্দ আর নচের আচরণ।",
-      "pt-BR": "O Mochi, seus sons e o comportamento do notch.",
-      "ru": "Мочи, его звуки и поведение чёлки.",
-      "id": "Mochi, suaranya, dan perilaku notch.",
-      "de": "Mochi, seine Klänge und das Verhalten der Notch.",
-      "tr": "Mochi, sesleri ve çentiğin davranışı.",
-      "ko": "모찌들의 사운드, 노치가 움직이는 방식이에요.",
-      "ja": "Mochi、そのサウンド、ノッチの動作。"
-    },
     "Model": {
       "zh-Hans": "模型",
       "hi": "मॉडल",
@@ -5326,21 +5131,6 @@
       "tr": "Moonshot anahtarı kaydedildi.",
       "ko": "Moonshot 키 저장 완료!",
       "ja": "Moonshot のキーを保存しました。"
-    },
-    "Move Mochi to my iPhone's Dynamic Island when my Mac is locked": {
-      "zh-Hans": "Mac 锁定时将 Mochi 移至我 iPhone 的灵动岛",
-      "hi": "Mac लॉक होने पर Mochi को मेरे iPhone की Dynamic Island पर ले जाएं",
-      "es": "Mover a Mochi a la Dynamic Island de mi iPhone cuando mi Mac esté bloqueado",
-      "ar": "نقل Mochi إلى Dynamic Island في iPhone عند إغلاق Mac",
-      "fr": "Déplacer Mochi vers la Dynamic Island de mon iPhone quand mon Mac est verrouillé",
-      "bn": "Mac লক থাকলে Mochi-কে আমার iPhone-এর Dynamic Island-এ নিয়ে যান",
-      "pt-BR": "Mover o Mochi para a Dynamic Island do meu iPhone quando meu Mac estiver bloqueado",
-      "ru": "Переносить Mochi на Dynamic Island моего iPhone, когда Mac заблокирован",
-      "id": "Pindahkan Mochi ke Dynamic Island iPhone saya saat Mac terkunci",
-      "de": "Mochi bei gesperrtem Mac in die Dynamic Island meines iPhone verschieben",
-      "tr": "Mac'im kilitlendiğinde Mochi'yi iPhone'umun Dynamic Island'ına taşı",
-      "ko": "Mac이 잠기면 모찌를 iPhone의 Dynamic Island로 이사시키기",
-      "ja": "Mac がロックされたら Mochi を iPhone の Dynamic Island に移す"
     },
     "Move to Junk": {
       "zh-Hans": "移到垃圾邮件",
@@ -8867,21 +8657,6 @@
       "ko": "Dock에 Pod 표시",
       "ja": "Dock に Pod を表示"
     },
-    "Show Mochi on": {
-      "zh-Hans": "Mochi 显示在",
-      "hi": "मोची को यहाँ दिखाएँ",
-      "es": "Mostrar a Mochi en",
-      "ar": "عرض موتشي على",
-      "fr": "Afficher Mochi sur",
-      "bn": "মোচিকে দেখান",
-      "pt-BR": "Mostrar o Mochi em",
-      "ru": "Показывать Мочи на",
-      "id": "Tampilkan Mochi di",
-      "de": "Mochi anzeigen auf",
-      "tr": "Mochi'yi göster:",
-      "ko": "모찌를 표시할 화면",
-      "ja": "Mochi を表示する場所"
-    },
     "Show approval requests in the notch": {
       "zh-Hans": "在刘海中显示审批请求",
       "hi": "नॉच में अनुमोदन अनुरोध दिखाएं",
@@ -12226,21 +12001,6 @@
       "tr": "{tool} bulunamadı.",
       "ko": "{tool}을(를) 찾을 수 없습니다.",
       "ja": "{tool} が見つかりません。"
-    },
-    "« OK Pod », Mochi's voice and the dictation key.": {
-      "zh-Hans": "“OK Pod”、Mochi 的声音和听写按键。",
-      "hi": "“OK Pod”, मोची की आवाज़ और डिक्टेशन कुंजी।",
-      "es": "«OK Pod», la voz de Mochi y la tecla de dictado.",
-      "ar": "«OK Pod» وصوت موتشي ومفتاح الإملاء.",
-      "fr": "« OK Pod », la voix de Mochi et la touche de dictée.",
-      "bn": "“OK Pod”, মোচির কণ্ঠ আর ডিক্টেশন কী।",
-      "pt-BR": "“OK Pod”, a voz do Mochi e a tecla de ditado.",
-      "ru": "«OK Pod», голос Мочи и клавиша диктовки.",
-      "id": "“OK Pod”, suara Mochi, dan tombol dikte.",
-      "de": "« OK Pod », Mochis Stimme und die Diktiertaste.",
-      "tr": "« OK Pod », Mochi'nin sesi ve dikte tuşu.",
-      "ko": "« OK Pod », 모찌의 목소리, 받아쓰기 키예요.",
-      "ja": "「OK Pod」、Mochi の声、口述キー。"
     },
     "« OK Pod » — voice wake word": {
       "zh-Hans": "« OK Pod » — 语音唤醒词",
