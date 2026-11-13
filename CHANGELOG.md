@@ -2,7 +2,13 @@
 
 Pod's changes, newest first. Pod is a fork of Coucou (Windows and Linux app), version 0.5.8.
 
-## 0.1.0 — unreleased
+## 0.1.1 — 2026-11-13
+
+- Linux builds work again: the WebView2 checks and the crash reload are Windows-only, and two tests no longer assume Windows paths.
+- Coucou's leftovers are gone: 16 unused interface strings that still named Mochi, and the notes saying Pod carried Coucou's character. Stew, the icons and the sounds are Pod's own (LICENSE-ASSETS.md).
+- The README links to Releases for installing and explains the SmartScreen and antivirus warnings an unsigned build can get.
+
+## 0.1.0 — 2026-11-04
 
 - Forked from Coucou and renamed to Pod (identifier `io.github.umesh404.pod`).
 - Removed the Claude Code and agent features, chat, API keys, the phone link, WhatsApp, Mail, GitHub, Spotify, Flow and voice. The Mac, iPhone and Android apps and the relay are gone; Pod is the Windows and Linux app.

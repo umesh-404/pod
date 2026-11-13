@@ -2,6 +2,46 @@
   "about": "What's new, shown once in the island after Pod updates itself (src/whats-new/). Every Windows and Linux release adds its entry here, in the 14 languages: 1 to 4 items, a short title and one line each, an icon from scripts/test-whats-new.py. python3 scripts/test-whats-new.py checks it.",
   "releases": [
     {
+      "version": "0.1.1",
+      "items": [
+        {
+          "icon": "bug",
+          "title": {
+            "en": "Fixes and tidying",
+            "zh-Hans": "修复与整理",
+            "hi": "सुधार और सफ़ाई",
+            "es": "Correcciones y orden",
+            "ar": "إصلاحات وترتيب",
+            "fr": "Corrections et rangement",
+            "bn": "সংশোধন ও গোছানো",
+            "pt-BR": "Correções e arrumação",
+            "ru": "Исправления и порядок",
+            "id": "Perbaikan dan perapian",
+            "de": "Korrekturen und Aufräumen",
+            "tr": "Düzeltmeler ve düzenleme",
+            "ko": "수정 및 정리",
+            "ja": "修正と整理"
+          },
+          "detail": {
+            "en": "Pod builds on Linux again, and leftover text from Coucou is gone.",
+            "zh-Hans": "Pod 又能在 Linux 上构建了，Coucou 遗留的文字也已移除。",
+            "hi": "Pod फिर से Linux पर बनता है, और Coucou का बचा हुआ टेक्स्ट हटा दिया गया।",
+            "es": "Pod vuelve a compilarse en Linux y se eliminó el texto heredado de Coucou.",
+            "ar": "يُبنى Pod على Linux مجددًا، وأُزيلت النصوص المتبقية من Coucou.",
+            "fr": "Pod se compile de nouveau sous Linux, et le texte hérité de Coucou a disparu.",
+            "bn": "Pod আবার Linux-এ তৈরি হয়, আর Coucou-র রয়ে যাওয়া লেখা সরানো হয়েছে।",
+            "pt-BR": "O Pod volta a compilar no Linux, e o texto herdado do Coucou foi removido.",
+            "ru": "Pod снова собирается под Linux, а оставшийся от Coucou текст удалён.",
+            "id": "Pod kembali bisa dibangun di Linux, dan teks sisa dari Coucou sudah dihapus.",
+            "de": "Pod lässt sich wieder unter Linux bauen, übrige Texte von Coucou sind weg.",
+            "tr": "Pod yeniden Linux'ta derleniyor ve Coucou'dan kalan metinler kaldırıldı.",
+            "ko": "Pod를 다시 Linux에서 빌드할 수 있고, Coucou에서 남은 문구를 없앴습니다.",
+            "ja": "Pod が再び Linux でビルドでき、Coucou から残っていた文言を削除しました。"
+          }
+        }
+      ]
+    },
+    {
       "version": "0.1.0",
       "items": [
         {
