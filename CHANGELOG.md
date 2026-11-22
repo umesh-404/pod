@@ -2,7 +2,7 @@
 
 Pod's changes, newest first. Pod is a fork of Coucou (Windows and Linux app), version 0.5.8.
 
-## 0.1.1 — 2026-11-13
+## 0.1.2 — 2026-11-22
 
 - Linux builds work again: the WebView2 checks and the crash reload are Windows-only, and two tests no longer assume Windows paths.
 - Coucou's leftovers are gone: 16 unused interface strings that still named Mochi, and the notes saying Pod carried Coucou's character. Stew, the icons and the sounds are Pod's own (LICENSE-ASSETS.md).
