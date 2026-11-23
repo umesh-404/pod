@@ -10,7 +10,7 @@ deadlines that count down in the notch, and see live items take turns beside
 Stew. Everything runs locally: no API keys, no accounts, and 0 % CPU while the
 island is hidden.
 
-Version 0.1.0 · Windows 10/11 · Linux (partial) · [Tauri 2](https://tauri.app) + Rust
+**[Download for Windows](https://github.com/umesh-404/pod/releases/latest)** · Windows 10/11 · Linux (partial) · [Tauri 2](https://tauri.app) + Rust
 
 <p align="center">
   <img src="docs/images/drop-image.png" alt="A picture dragged over the island: tiles for Convert, Text from image, Resize, Remove EXIF, PDF editor, Batch rename, Zip and Copy to shelf, with Stew in the middle" width="640">
@@ -150,9 +150,9 @@ npm run pack
 
 | Platform | File | What it is |
 |---|---|---|
-| Windows | `Pod-Windows-0.1.0-setup.exe` | Installer for your user account (no admin rights needed) |
-| Windows | `Pod-Windows-0.1.0.msi` | MSI package, for managed installs |
-| Linux | `Pod-Linux-0.1.0-x86_64.AppImage`, `.deb`, `.rpm` | Built on Linux |
+| Windows | `Pod-Windows-X.Y.Z-setup.exe` | Installer for your user account (no admin rights needed) |
+| Windows | `Pod-Windows-X.Y.Z.msi` | MSI package, for managed installs |
+| Linux | `Pod-Linux-X.Y.Z-x86_64.AppImage`, `.deb`, `.rpm` | Built on Linux |
 
 Pod needs the Microsoft Edge WebView2 Runtime, which Windows 10 and 11
 already have.
